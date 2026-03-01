@@ -1,0 +1,35 @@
+[
+  {
+    "url": "https://api.github.com/repos/sowon23sowon23-coder/ice_cream_catch/statuses/17cc262b493c7c7dfa7c8617d1e0fd609d38cd3a",
+    "avatar_url": "https://avatars.githubusercontent.com/in/8329?v=4",
+    "id": 43931882778,
+    "node_id": "SC_kwDORM-cC88AAAAKOotVGg",
+    "state": "pending",
+    "description": "Vercel is deploying your app",
+    "target_url": "https://vercel.com/sowon23sowon23-gmailcoms-projects/ice-cream-catcher-3wrp/ATXpWwKkSiJocYJ9fHsB3643oAUK",
+    "context": "Vercel",
+    "created_at": "2026-02-24T14:49:45Z",
+    "updated_at": "2026-02-24T14:49:45Z",
+    "creator": {
+      "login": "vercel[bot]",
+      "id": 35613825,
+      "node_id": "MDM6Qm90MzU2MTM4MjU=",
+      "avatar_url": "https://avatars.githubusercontent.com/in/8329?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/vercel%5Bbot%5D",
+      "html_url": "https://github.com/apps/vercel",
+      "followers_url": "https://api.github.com/users/vercel%5Bbot%5D/followers",
+      "following_url": "https://api.github.com/users/vercel%5Bbot%5D/following{/other_user}",
+      "gists_url": "https://api.github.com/users/vercel%5Bbot%5D/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/vercel%5Bbot%5D/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/vercel%5Bbot%5D/subscriptions",
+      "organizations_url": "https://api.github.com/users/vercel%5Bbot%5D/orgs",
+      "repos_url": "https://api.github.com/users/vercel%5Bbot%5D/repos",
+      "events_url": "https://api.github.com/users/vercel%5Bbot%5D/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/vercel%5Bbot%5D/received_events",
+      "type": "Bot",
+      "user_view_type": "public",
+      "site_admin": false
+    }
+  }
+]

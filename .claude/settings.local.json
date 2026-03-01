@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(cd \"C:/YL/YL program/ice-cream-catcher\" && npx vercel env ls 2>&1)",
+      "Bash(cd \"C:/YL/YL program/ice-cream-catcher\" && npx tsc --noEmit 2>&1)",
+      "Bash(cd \"C:/YL/YL program/ice-cream-catcher\" && gh api repos/sowon23sowon23-coder/ice_cream_catch/deployments --jq '.[0] | {id, environment, created_at, updated_at}' 2>&1)",
+      "Bash(curl:*)"
+    ]
+  }
+}
