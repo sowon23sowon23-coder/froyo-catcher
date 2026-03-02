@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useEffect } from "react";
-import StoreCombobox from "./StoreCombobox";
 
 type CharId = "green" | "berry" | "sprinkle";
 
@@ -27,9 +26,6 @@ export default function LeaderboardModal({
   onClose,
   rows,
   loading = false,
-  stores,
-  selectedStore,
-  onStoreChange,
   myNickname,
   myScore,
   myRank,
@@ -40,9 +36,6 @@ export default function LeaderboardModal({
   onClose: () => void;
   rows: LeaderRow[];
   loading?: boolean;
-  stores: string[];
-  selectedStore: string;
-  onStoreChange: (store: string) => void;
   myNickname?: string;
   myScore?: number;
   myRank?: number;
@@ -118,27 +111,6 @@ export default function LeaderboardModal({
             </button>
           </div>
 
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => onStoreChange("__ALL__")}
-              className={`shrink-0 rounded-lg px-3 py-2 text-sm font-black transition ${
-                selectedStore === "__ALL__"
-                  ? "bg-[var(--yl-primary)] text-white"
-                  : "border border-[var(--yl-card-border)] bg-white text-[var(--yl-ink-muted)]"
-              }`}
-            >
-              All Stores
-            </button>
-            <StoreCombobox
-              stores={stores}
-              value={selectedStore === "__ALL__" ? "" : selectedStore}
-              onChange={(store) => onStoreChange(store)}
-              placeholder="Search store…"
-              wrapperClassName="min-w-0 flex-1"
-              inputClassName="w-full rounded-lg border border-[var(--yl-card-border)] bg-white px-3 py-2 text-sm font-semibold text-[var(--yl-ink-muted)] outline-none focus:border-[var(--yl-primary)]"
-            />
-          </div>
         </div>
 
         <div className="px-5 pb-5 pt-4">

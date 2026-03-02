@@ -519,43 +519,30 @@ export default function Page() {
   const openLeaderboard = async () => {
     trackEvent({ action: "leaderboard_open", category: "engagement" });
     const nick = (localStorage.getItem("nickname") || "").trim();
+    const leaderboardStore = "__ALL__";
     setLastNick(nick || undefined);
 
-    await syncAllTimeFromLocalIfNeeded(mode, selectedStore, nick);
-    await fetchTop20(mode, selectedStore);
+    await syncAllTimeFromLocalIfNeeded(mode, leaderboardStore, nick);
+    await fetchTop20(mode, leaderboardStore);
 
     if (nick.length >= 2 && nick.length <= 12) {
       try {
         const mine =
           mode === "today"
-            ? await fetchMyTodayScore(nick, selectedStore)
-            : await fetchMyBestScore(nick, selectedStore);
+            ? await fetchMyTodayScore(nick, leaderboardStore)
+            : await fetchMyBestScore(nick, leaderboardStore);
         if (mine) {
-          const localFallback =
-            mode === "today" ? readLocalTodayBest(nick, selectedStore) : readSyncedLocalAllTimeBest(nick, selectedStore);
-          const bestScore = Math.max(mine.score, localFallback ?? 0);
+          const bestScore = mine.score;
           setLastScore(bestScore);
-          await calcMyRank(mode, bestScore, selectedStore);
+          await calcMyRank(mode, bestScore, leaderboardStore);
         } else {
-          const localFallback =
-            mode === "today" ? readLocalTodayBest(nick, selectedStore) : readSyncedLocalAllTimeBest(nick, selectedStore);
-          setLastScore(localFallback);
-          if (localFallback !== undefined) {
-            await calcMyRank(mode, localFallback, selectedStore);
-          } else {
-            setMyRank(undefined);
-          }
+          setLastScore(undefined);
+          setMyRank(undefined);
         }
       } catch (e) {
         console.error(e);
-        const localFallback =
-          mode === "today" ? readLocalTodayBest(nick, selectedStore) : readSyncedLocalAllTimeBest(nick, selectedStore);
-        setLastScore(localFallback);
-        if (localFallback !== undefined) {
-          await calcMyRank(mode, localFallback, selectedStore);
-        } else {
-          setMyRank(undefined);
-        }
+        setLastScore(undefined);
+        setMyRank(undefined);
       }
     } else {
       setLastScore(undefined);
@@ -705,85 +692,29 @@ export default function Page() {
   const onChangeMode = async (m: LeaderMode) => {
     setMode(m);
     const nick = (localStorage.getItem("nickname") || "").trim();
-    await syncAllTimeFromLocalIfNeeded(m, selectedStore, nick);
-    await fetchTop20(m, selectedStore);
+    const leaderboardStore = "__ALL__";
+    await syncAllTimeFromLocalIfNeeded(m, leaderboardStore, nick);
+    await fetchTop20(m, leaderboardStore);
     if (nick.length >= 2 && nick.length <= 12) {
       try {
         const mine =
-          m === "today" ? await fetchMyTodayScore(nick, selectedStore) : await fetchMyBestScore(nick, selectedStore);
+          m === "today" ? await fetchMyTodayScore(nick, leaderboardStore) : await fetchMyBestScore(nick, leaderboardStore);
         if (mine) {
-          const localFallback =
-            m === "today" ? readLocalTodayBest(nick, selectedStore) : readSyncedLocalAllTimeBest(nick, selectedStore);
-          const bestScore = Math.max(mine.score, localFallback ?? 0);
+          const bestScore = mine.score;
           setLastScore(bestScore);
-          await calcMyRank(m, bestScore, selectedStore);
+          await calcMyRank(m, bestScore, leaderboardStore);
         } else {
-          const localFallback =
-            m === "today" ? readLocalTodayBest(nick, selectedStore) : readSyncedLocalAllTimeBest(nick, selectedStore);
-          setLastScore(localFallback);
-          if (localFallback !== undefined) {
-            await calcMyRank(m, localFallback, selectedStore);
-          } else {
-            setMyRank(undefined);
-          }
+          setLastScore(undefined);
+          setMyRank(undefined);
         }
       } catch (e) {
         console.error(e);
-        const localFallback =
-          m === "today" ? readLocalTodayBest(nick, selectedStore) : readSyncedLocalAllTimeBest(nick, selectedStore);
-        setLastScore(localFallback);
-        if (localFallback !== undefined) {
-          await calcMyRank(m, localFallback, selectedStore);
-        } else {
-          setMyRank(undefined);
-        }
+        setLastScore(undefined);
+        setMyRank(undefined);
       }
     } else {
       setLastScore(undefined);
       setMyRank(undefined);
-    }
-  };
-
-  const onChangeStore = async (store: string) => {
-    setSelectedStore(store);
-
-    if (!lbOpen) return;
-
-    const nick = (localStorage.getItem("nickname") || "").trim();
-    await syncAllTimeFromLocalIfNeeded(mode, store, nick);
-    await fetchTop20(mode, store);
-
-    if (nick.length >= 2 && nick.length <= 12) {
-      try {
-        const mine =
-          mode === "today" ? await fetchMyTodayScore(nick, store) : await fetchMyBestScore(nick, store);
-        if (mine) {
-          const localFallback =
-            mode === "today" ? readLocalTodayBest(nick, store) : readSyncedLocalAllTimeBest(nick, store);
-          const bestScore = Math.max(mine.score, localFallback ?? 0);
-          setLastScore(bestScore);
-          await calcMyRank(mode, bestScore, store);
-        } else {
-          const localFallback =
-            mode === "today" ? readLocalTodayBest(nick, store) : readSyncedLocalAllTimeBest(nick, store);
-          setLastScore(localFallback);
-          if (localFallback !== undefined) {
-            await calcMyRank(mode, localFallback, store);
-          } else {
-            setMyRank(undefined);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-        const localFallback =
-          mode === "today" ? readLocalTodayBest(nick, store) : readSyncedLocalAllTimeBest(nick, store);
-        setLastScore(localFallback);
-        if (localFallback !== undefined) {
-          await calcMyRank(mode, localFallback, store);
-        } else {
-          setMyRank(undefined);
-        }
-      }
     }
   };
 
@@ -999,14 +930,12 @@ export default function Page() {
                   setLbOpen(true);
                   setLbLoading(true);
                   setMode(leaderboardMode);
-                  setSelectedStore(normalizedStore);
-                  localStorage.setItem("selectedStore", normalizedStore);
                   setLastNick(nick || "YOU");
                   setLastScore(todayBestLocal);
 
                   if (!isFreePlay) {
                     setMyRank(undefined);
-                    await fetchTop20(leaderboardMode, normalizedStore);
+                    await fetchTop20(leaderboardMode, "__ALL__");
                     return;
                   }
 
@@ -1029,12 +958,12 @@ export default function Page() {
                       }
                     }
 
-                    const mine = await fetchMyTodayScore(nick, normalizedStore);
+                    const mine = await fetchMyTodayScore(nick, "__ALL__");
 
                     if (mine) {
-                      const bestScore = Math.max(todayBestLocal, mine.score);
+                      const bestScore = mine.score;
                       setLastScore(bestScore);
-                      await calcMyRank(leaderboardMode, bestScore, normalizedStore);
+                      await calcMyRank(leaderboardMode, bestScore, "__ALL__");
                     } else {
                       setLastScore(todayBestLocal);
                       setMyRank(undefined);
@@ -1044,7 +973,7 @@ export default function Page() {
                     setMyRank(undefined);
                   }
 
-                  await fetchTop20(leaderboardMode, normalizedStore);
+                  await fetchTop20(leaderboardMode, "__ALL__");
                 }}
               />
             )}
@@ -1145,9 +1074,6 @@ export default function Page() {
         onClose={() => setLbOpen(false)}
         rows={lbRows}
         loading={lbLoading}
-        stores={STORE_OPTIONS}
-        selectedStore={selectedStore}
-        onStoreChange={onChangeStore}
         myNickname={lastNick}
         myScore={lastScore}
         myRank={myRank}
