@@ -20,6 +20,8 @@ type DbRow = {
   updated_at: string;
   character?: CharId;
   store?: string;
+  contact_type?: EntryContactType;
+  contact_value?: string;
 };
 
 type MyScoreRow = {
@@ -328,88 +330,31 @@ export default function Page() {
     setLbLoading(true);
 
     try {
-      let query = supabase
-        .from("leaderboard_best_v2")
-        .select("nickname_key,nickname_display,score,updated_at,character,store")
-        .order("score", { ascending: false })
-        .order("updated_at", { ascending: true })
-        .limit(20);
-
-      if (store !== "__ALL__") {
-        query = query.eq("store", store);
-      }
-
+      const params = new URLSearchParams({
+        mode: m,
+        store,
+      });
       if (m === "today") {
-        query = query.gte("updated_at", startOfTodayLocalISO());
+        params.set("todayFrom", startOfTodayLocalISO());
       }
-
-      const initial = await query;
-      let data = (initial.data as DbRow[] | null) ?? null;
-      let error = initial.error;
-
-      // Fallback attempts if first query fails
-      if (error && !data) {
-        const fallbacks = [
-          async () => {
-            let q = supabase
-              .from("leaderboard_best_v2")
-              .select("nickname_key,nickname_display,score,updated_at,store")
-              .order("score", { ascending: false })
-              .order("updated_at", { ascending: true })
-              .limit(20);
-            if (store !== "__ALL__") {
-              q = q.eq("store", store);
-            }
-            if (m === "today") q = q.gte("updated_at", startOfTodayLocalISO());
-            return q;
-          },
-          async () => {
-            let q = supabase
-              .from("leaderboard_best_v2")
-              .select("nickname_key,nickname_display,score,updated_at,character")
-              .order("score", { ascending: false })
-              .order("updated_at", { ascending: true })
-              .limit(20);
-            if (store !== "__ALL__") {
-              q = q.eq("store", store);
-            }
-            if (m === "today") q = q.gte("updated_at", startOfTodayLocalISO());
-            return q;
-          },
-          async () => {
-            let q = supabase
-              .from("leaderboard_best_v2")
-              .select("nickname_key,nickname_display,score,updated_at")
-              .order("score", { ascending: false })
-              .order("updated_at", { ascending: true })
-              .limit(20);
-            if (store !== "__ALL__") {
-              q = q.eq("store", store);
-            }
-            if (m === "today") q = q.gte("updated_at", startOfTodayLocalISO());
-            return q;
-          },
-        ];
-
-        for (const fallback of fallbacks) {
-          const result = await fallback();
-          if (!result.error && result.data) {
-            data = (result.data as DbRow[] | null) ?? null;
-            error = null;
-            break;
-          }
-        }
-      }
+      const res = await fetch(`/api/leaderboard?${params.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        rows?: DbRow[];
+      };
 
       setLbLoading(false);
 
-      if (error) {
-        console.error("Leaderboard error:", error);
+      if (!res.ok) {
+        console.error("Leaderboard error:", json.error || "Failed to load leaderboard.");
         setLbRows([]);
         return;
       }
 
-      const list = (data as DbRow[]) ?? [];
+      const list = json.rows ?? [];
 
       let rank = 0;
       let lastScoreLocal: number | null = null;
@@ -426,6 +371,8 @@ export default function Page() {
           score: r.score,
           date: new Date(r.updated_at).toLocaleDateString(),
           character: r.character,
+          contactType: r.contact_type,
+          contactValue: r.contact_value,
         };
       });
 
