@@ -154,175 +154,189 @@ export default function LoginScreen({
   };
 
   return (
-    <main className="flex min-h-[70vh] items-center p-5">
-      <div className="mx-auto w-full max-w-sm">
-        <section className="w-full rounded-3xl border border-[var(--yl-card-border)] bg-white/92 p-6 shadow-[0_16px_40px_rgba(150,9,83,0.16)] backdrop-blur-sm">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">Yogurtland</p>
-          <h1 className="mt-1 text-3xl font-black leading-[1.08] text-[var(--yl-ink-strong)]">Ice Cream Catcher</h1>
-          <p className="mt-2 text-base font-semibold text-[var(--yl-ink-muted)]">Start by logging in with your nickname.</p>
-
-          <label htmlFor="login-nickname" className="mt-5 block text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-primary)]">
-            Nickname
-          </label>
-          <input
-            id="login-nickname"
-            value={nickname}
-            onChange={(e) => {
-              setNickname(e.target.value);
-              if (nicknameError) setNicknameError(null);
-            }}
-            maxLength={12}
-            placeholder="2-12 characters"
-            className="mt-1 w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-          />
-          {(nickname.trim().length > 0 || initialNickname.trim().length > 0) && (
-            <button
-              type="button"
-              onClick={clearNickname}
-              className="mt-2 text-sm font-black text-[var(--yl-primary-soft)] underline underline-offset-4"
-            >
-              Delete saved nickname
-            </button>
-          )}
-          {nicknameError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{nicknameError}</p> : null}
-          <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)]">
-            Nickname is linked 1:1 with contact. The same nickname cannot be used with a different email or phone.
-          </p>
-
-          <p className="mt-4 text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-primary)]">
-            Contact (Coupon)
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setContactType("phone");
-                setContactValue("");
-                setEmailDomainSelect(EMAIL_DOMAINS[0]);
-                setCustomEmailDomain("");
-                if (contactError) setContactError(null);
-              }}
-              className={`rounded-xl border px-3 py-2 text-sm font-black ${
-                contactType === "phone"
-                  ? "border-[var(--yl-primary)] bg-[var(--yl-primary)] text-white"
-                  : "border-[var(--yl-card-border)] bg-white text-[var(--yl-ink-muted)]"
-              }`}
-            >
-              Phone
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setContactType("email");
-                setContactValue("");
-                setEmailDomainSelect(EMAIL_DOMAINS[0]);
-                setCustomEmailDomain("");
-                if (contactError) setContactError(null);
-              }}
-              className={`rounded-xl border px-3 py-2 text-sm font-black ${
-                contactType === "email"
-                  ? "border-[var(--yl-primary)] bg-[var(--yl-primary)] text-white"
-                  : "border-[var(--yl-card-border)] bg-white text-[var(--yl-ink-muted)]"
-              }`}
-            >
-              Email
-            </button>
+    <main className="flex min-h-[70vh] items-center p-4 sm:p-5">
+      <div className="mx-auto w-full max-w-md">
+        <section className="w-full overflow-hidden rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white/95 shadow-[0_20px_48px_rgba(150,9,83,0.2)] backdrop-blur-sm">
+          <div className="border-b border-[var(--yl-card-border)] bg-[linear-gradient(135deg,#fff7fb,#ffe8f4)] px-5 py-5 sm:px-6">
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--yl-primary)]">Yogurtland</p>
+            <h1 className="mt-1 text-[2rem] font-black leading-[1.05] text-[var(--yl-ink-strong)]">Ice Cream Catcher</h1>
+            <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
+              Enter your nickname and coupon contact to continue.
+            </p>
           </div>
-          {contactType === "phone" ? (
-            <input
-              value={contactValue}
-              onChange={(e) => {
-                setContactValue(e.target.value);
-                if (contactError) setContactError(null);
-              }}
-              onBlur={handleContactBlur}
-              type="tel"
-              inputMode="tel"
-              maxLength={24}
-              placeholder="e.g. 213-555-1234"
-              className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-            />
-          ) : (
-            <div className="mt-2 grid gap-2">
-              <div className="grid grid-cols-[1fr_auto_150px] items-center gap-2">
+
+          <div className="space-y-4 p-5 sm:p-6">
+            <div className="rounded-2xl border border-[var(--yl-card-border)] bg-[#fff9fc] p-4">
+              <label htmlFor="login-nickname" className="block text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+                Nickname
+              </label>
+              <input
+                id="login-nickname"
+                value={nickname}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  if (nicknameError) setNicknameError(null);
+                }}
+                maxLength={12}
+                placeholder="2-12 characters"
+                className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-white px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+              />
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+                  One nickname is bound to one contact.
+                </p>
+                {(nickname.trim().length > 0 || initialNickname.trim().length > 0) && (
+                  <button
+                    type="button"
+                    onClick={clearNickname}
+                    className="text-[11px] font-black text-[var(--yl-primary-soft)] underline underline-offset-4"
+                  >
+                    Delete saved
+                  </button>
+                )}
+              </div>
+              {nicknameError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{nicknameError}</p> : null}
+            </div>
+
+            <div className="rounded-2xl border border-[var(--yl-card-border)] bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">Contact (Coupon)</p>
+              <div className="mt-2 inline-flex rounded-xl bg-[#fdeaf4] p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContactType("phone");
+                    setContactValue("");
+                    setEmailDomainSelect(EMAIL_DOMAINS[0]);
+                    setCustomEmailDomain("");
+                    if (contactError) setContactError(null);
+                  }}
+                  className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-[0.08em] ${
+                    contactType === "phone"
+                      ? "bg-[var(--yl-primary)] text-white shadow-[0_6px_14px_rgba(150,9,83,0.24)]"
+                      : "text-[var(--yl-ink-muted)]"
+                  }`}
+                >
+                  Phone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContactType("email");
+                    setContactValue("");
+                    setEmailDomainSelect(EMAIL_DOMAINS[0]);
+                    setCustomEmailDomain("");
+                    if (contactError) setContactError(null);
+                  }}
+                  className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-[0.08em] ${
+                    contactType === "email"
+                      ? "bg-[var(--yl-primary)] text-white shadow-[0_6px_14px_rgba(150,9,83,0.24)]"
+                      : "text-[var(--yl-ink-muted)]"
+                  }`}
+                >
+                  Email
+                </button>
+              </div>
+
+              {contactType === "phone" ? (
                 <input
                   value={contactValue}
                   onChange={(e) => {
-                    setContactValue(e.target.value.replace("@", ""));
+                    setContactValue(e.target.value);
                     if (contactError) setContactError(null);
                   }}
                   onBlur={handleContactBlur}
-                  type="text"
-                  inputMode="email"
-                  maxLength={64}
-                  placeholder="username"
-                  className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                  type="tel"
+                  inputMode="tel"
+                  maxLength={24}
+                  placeholder="e.g. 213-555-1234"
+                  className="mt-3 w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
                 />
-                <span className="text-base font-black text-[var(--yl-ink-muted)]">@</span>
-                <select
-                  value={emailDomainSelect}
-                  onChange={(e) => {
-                    setEmailDomainSelect(e.target.value);
-                    if (contactError) setContactError(null);
-                  }}
-                  onBlur={handleContactBlur}
-                  className="rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-                >
-                  {EMAIL_DOMAINS.map((domain) => (
-                    <option key={domain} value={domain}>
-                      {domain}
-                    </option>
-                  ))}
-                  <option value={CUSTOM_EMAIL_DOMAIN}>Custom domain</option>
-                </select>
-              </div>
-              {emailDomainSelect === CUSTOM_EMAIL_DOMAIN && (
-                <input
-                  value={customEmailDomain}
-                  onChange={(e) => {
-                    setCustomEmailDomain(e.target.value.toLowerCase().replace(/^@+/, ""));
-                    if (contactError) setContactError(null);
-                  }}
-                  onBlur={handleContactBlur}
-                  type="text"
-                  inputMode="email"
-                  maxLength={120}
-                  placeholder="example.com"
-                  className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-                />
+              ) : (
+                <div className="mt-3 grid gap-2">
+                  <div className="grid grid-cols-[1fr_auto_140px] items-center gap-2 sm:grid-cols-[1fr_auto_150px]">
+                    <input
+                      value={contactValue}
+                      onChange={(e) => {
+                        setContactValue(e.target.value.replace("@", ""));
+                        if (contactError) setContactError(null);
+                      }}
+                      onBlur={handleContactBlur}
+                      type="text"
+                      inputMode="email"
+                      maxLength={64}
+                      placeholder="username"
+                      className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                    />
+                    <span className="text-base font-black text-[var(--yl-ink-muted)]">@</span>
+                    <select
+                      value={emailDomainSelect}
+                      onChange={(e) => {
+                        setEmailDomainSelect(e.target.value);
+                        if (contactError) setContactError(null);
+                      }}
+                      onBlur={handleContactBlur}
+                      className="rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-2.5 py-2.5 text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                    >
+                      {EMAIL_DOMAINS.map((domain) => (
+                        <option key={domain} value={domain}>
+                          {domain}
+                        </option>
+                      ))}
+                      <option value={CUSTOM_EMAIL_DOMAIN}>Custom</option>
+                    </select>
+                  </div>
+                  {emailDomainSelect === CUSTOM_EMAIL_DOMAIN && (
+                    <input
+                      value={customEmailDomain}
+                      onChange={(e) => {
+                        setCustomEmailDomain(e.target.value.toLowerCase().replace(/^@+/, ""));
+                        if (contactError) setContactError(null);
+                      }}
+                      onBlur={handleContactBlur}
+                      type="text"
+                      inputMode="email"
+                      maxLength={120}
+                      placeholder="example.com"
+                      className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                    />
+                  )}
+                </div>
               )}
-            </div>
-          )}
-          {contactError ? <p className="mt-1 text-sm font-bold text-[var(--yl-primary-soft)]">{contactError}</p> : null}
-          <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
-            Used only for digital coupon notification.
-          </p>
-          <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
-            To change contact, this device must already have a valid login session.
-          </p>
 
-          {onChangeContact ? (
+              {contactError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{contactError}</p> : null}
+              <p className="mt-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+                Used only for digital coupon notification.
+              </p>
+            </div>
+
+            <div className="space-y-2 rounded-2xl border border-[var(--yl-card-border)] bg-[#fffbfd] p-3">
+              <p className="text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+                Contact change works only when this device already has a valid login session.
+              </p>
+              {onChangeContact ? (
+                <button
+                  type="button"
+                  onClick={changeContact}
+                  disabled={loading || changeLoading}
+                  className="inline-flex w-auto rounded-md border border-[var(--yl-card-border)] bg-white px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.02em] text-[var(--yl-primary)] disabled:opacity-60"
+                >
+                  {changeLoading ? "Updating..." : "Change Contact"}
+                </button>
+              ) : null}
+              {changeNotice ? (
+                <p className="text-sm font-bold text-[var(--yl-primary-soft)]">{changeNotice}</p>
+              ) : null}
+            </div>
+
             <button
               type="button"
-              onClick={changeContact}
-              disabled={loading || changeLoading}
-              className="mt-3 w-full rounded-xl border border-[var(--yl-card-border)] bg-white px-4 py-3 text-sm font-black uppercase tracking-[0.06em] text-[var(--yl-primary)] disabled:opacity-60"
+              onClick={submit}
+              disabled={loading}
+              className="w-full rounded-2xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] px-4 py-3 text-base font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_24px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)] disabled:opacity-60"
             >
-              {changeLoading ? "Updating..." : "Change Contact (Session Required)"}
+              {loading ? "Checking..." : "Login"}
             </button>
-          ) : null}
-          {changeNotice ? (
-            <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{changeNotice}</p>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={submit}
-            disabled={loading}
-            className="mt-4 w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] px-4 py-3 text-base font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_24px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)] disabled:opacity-60"
-          >
-            {loading ? "Checking..." : "Login"}
-          </button>
+          </div>
         </section>
       </div>
     </main>
