@@ -379,10 +379,9 @@ export default function AdminPage() {
 
         {/* Full admin table ??always shown */}
         <div className="overflow-hidden rounded-2xl border border-[#f3c7dd] bg-white shadow-[0_12px_24px_rgba(150,9,83,0.12)]">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_120px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75]">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_120px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75]">
             <div>Nickname</div>
             <div>Score</div>
-            <div>Store</div>
             <div>Character</div>
             <div>Updated</div>
             <div className="text-right">Action</div>
@@ -396,8 +395,8 @@ export default function AdminPage() {
             <div className="max-h-[65vh] overflow-auto">
               {filteredRows.map((row, idx) => (
                 <div
-                  key={`${row.nickname_key}-${row.store ?? "-"}-${row.updated_at}`}
-                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_120px] border-t border-[#f9d7e8] px-4 py-3 text-sm"
+                  key={`${row.nickname_key}-${row.updated_at}`}
+                  className="grid grid-cols-[2fr_1fr_1fr_1fr_120px] border-t border-[#f9d7e8] px-4 py-3 text-sm"
                 >
                   <div className="min-w-0">
                     <p className="truncate font-black text-[#4e1434]">
@@ -407,7 +406,6 @@ export default function AdminPage() {
                     <p className="truncate text-xs font-semibold text-[#8d6280]">{row.nickname_key}</p>
                   </div>
                   <div className="font-black text-[#7d1148]">{row.score}</div>
-                  <div className="truncate font-semibold text-[#5f2b4b]">{row.store ?? "-"}</div>
                   <div className="font-semibold text-[#5f2b4b]">{characterLabel(row.character)}</div>
                   <div className="font-semibold text-[#6a3b58]">
                     {row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "-"}
