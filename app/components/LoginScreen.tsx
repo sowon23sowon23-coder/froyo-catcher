@@ -211,7 +211,12 @@ export default function LoginScreen({
       <div className="mx-auto w-full max-w-md">
         <section className="w-full overflow-hidden rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white/95 shadow-[0_20px_48px_rgba(150,9,83,0.2)] backdrop-blur-sm">
           <div className="border-b border-[var(--yl-card-border)] bg-[linear-gradient(135deg,#fff7fb,#ffe8f4)] px-5 py-5 sm:px-6">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--yl-primary)]">Yogurtland</p>
+            <img
+              src="/yogurtland-logo.svg"
+              alt="Yogurtland"
+              className="h-8 w-auto"
+              draggable={false}
+            />
             <h1 className="mt-1 text-[2rem] font-black leading-[1.05] text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
               Enter your nickname and coupon contact to continue.

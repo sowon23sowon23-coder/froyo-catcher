@@ -81,11 +81,13 @@ export default function HomeScreen({
       <div className="relative z-10 mx-auto flex h-full max-w-sm flex-col">
         <header className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white shadow-[0_10px_24px_rgba(150,9,83,0.24)]">
-              <span className="text-xl">🍦</span>
-            </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-[var(--yl-primary)]">Yogurtland</p>
+              <img
+                src="/yogurtland-logo.svg"
+                alt="Yogurtland"
+                className="h-7 w-auto"
+                draggable={false}
+              />
               <h1 className="text-xl font-black text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
             </div>
           </div>
