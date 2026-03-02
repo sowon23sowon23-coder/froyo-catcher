@@ -966,47 +966,6 @@ export default function Page() {
             )}
           </div>
 
-          {phase === "home" && (
-            <aside className="hidden h-[min(844px,calc(100dvh-2rem))] w-full max-w-[520px] rounded-[2rem] border border-[var(--yl-card-border)] bg-white/85 p-6 shadow-[0_20px_56px_rgba(150,9,83,0.18)] backdrop-blur-sm lg:flex lg:flex-col">
-              <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">
-                Play Guide
-              </p>
-              <h2 className="mt-1 text-3xl font-black text-[var(--yl-ink-strong)]">
-                Catch Fast, Miss Less
-              </h2>
-
-              <div className="mt-5 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4">
-                <p className="text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-primary)]">
-                  Current Best
-                </p>
-                <p className="mt-1 text-4xl font-black text-[var(--yl-ink-strong)]">{best}</p>
-                <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                  Use Mission mode for control, then Time Attack for max score.
-                </p>
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                <div className="rounded-2xl border border-[var(--yl-card-border)] bg-white p-4">
-                  <p className="text-base font-black text-[var(--yl-ink-strong)]">Pointer Control</p>
-                  <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                    Keep the cup near center, move only when item direction is clear.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-[var(--yl-card-border)] bg-white p-4">
-                  <p className="text-base font-black text-[var(--yl-ink-strong)]">Mission Mode</p>
-                  <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                    Ignore non-target toppings completely. Misses cost more than waiting.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-[var(--yl-card-border)] bg-white p-4">
-                  <p className="text-base font-black text-[var(--yl-ink-strong)]">Time Attack</p>
-                  <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                    Build streak early. The first 10 seconds sets your final pace.
-                  </p>
-                </div>
-              </div>
-            </aside>
-          )}
         </div>
       </main>
 
