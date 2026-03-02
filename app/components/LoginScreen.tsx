@@ -21,38 +21,12 @@ export type LoginPayload = {
   contactValue: string;
 };
 
-type RequestContactChangePayload = {
-  nickname: string;
-  oldContactType: EntryContactType;
-  oldContactValue: string;
-  newContactType: EntryContactType;
-  newContactValue: string;
-};
-
-type RequestContactChangeResult = {
-  requestId: string;
-  debugOldCode?: string;
-  debugNewCode?: string;
-};
-
-type ConfirmContactChangePayload = {
-  requestId: string;
-  oldCode: string;
-  newCode: string;
-};
-
-type ConfirmContactChangeResult = {
-  newContactType: EntryContactType;
-  newContactValue: string;
-};
-
 export default function LoginScreen({
   initialNickname = "",
   initialContactType = "phone",
   initialContactValue = "",
   onLogin,
-  onRequestContactChange,
-  onConfirmContactChange,
+  onChangeContact,
   onDeleteNickname,
   loading = false,
 }: {
@@ -60,8 +34,7 @@ export default function LoginScreen({
   initialContactType?: EntryContactType;
   initialContactValue?: string;
   onLogin: (payload: LoginPayload) => void;
-  onRequestContactChange: (payload: RequestContactChangePayload) => Promise<RequestContactChangeResult>;
-  onConfirmContactChange: (payload: ConfirmContactChangePayload) => Promise<ConfirmContactChangeResult>;
+  onChangeContact?: (payload: LoginPayload) => Promise<void>;
   onDeleteNickname?: () => void;
   loading?: boolean;
 }) {
@@ -72,18 +45,8 @@ export default function LoginScreen({
   const [customEmailDomain, setCustomEmailDomain] = useState("");
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [contactError, setContactError] = useState<string | null>(null);
-  const [changeOpen, setChangeOpen] = useState(false);
-  const [changeOldType, setChangeOldType] = useState<EntryContactType>("phone");
-  const [changeOldValue, setChangeOldValue] = useState("");
-  const [changeNewType, setChangeNewType] = useState<EntryContactType>("phone");
-  const [changeNewValue, setChangeNewValue] = useState("");
-  const [changeRequestId, setChangeRequestId] = useState<string | null>(null);
-  const [changeOldCode, setChangeOldCode] = useState("");
-  const [changeNewCode, setChangeNewCode] = useState("");
-  const [changeNotice, setChangeNotice] = useState<string | null>(null);
   const [changeLoading, setChangeLoading] = useState(false);
-  const [debugOldCode, setDebugOldCode] = useState<string | null>(null);
-  const [debugNewCode, setDebugNewCode] = useState<string | null>(null);
+  const [changeNotice, setChangeNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setNickname(initialNickname);
@@ -126,18 +89,18 @@ export default function LoginScreen({
     return `${local}@${domain}`;
   };
 
-  const submit = () => {
+  const buildPayload = (): LoginPayload | null => {
     const trimmed = nickname.trim();
     if (trimmed.length < 2 || trimmed.length > 12) {
       setNicknameError("Nickname must be 2-12 characters.");
-      return;
+      return null;
     }
 
     const rawContact = getRawContact();
     const contactValidationError = getContactValidationError(contactType, rawContact);
     if (contactValidationError) {
       setContactError(contactValidationError);
-      return;
+      return null;
     }
 
     const normalizedContact =
@@ -148,105 +111,46 @@ export default function LoginScreen({
           ? "Enter a valid US phone number."
           : "Enter a valid email address.",
       );
-      return;
+      return null;
     }
 
     setNicknameError(null);
     setContactError(null);
-    onLogin({
+    setChangeNotice(null);
+    return {
       nickname: trimmed,
       contactType,
       contactValue: normalizedContact,
-    });
+    };
+  };
+
+  const submit = () => {
+    const payload = buildPayload();
+    if (!payload) return;
+    onLogin(payload);
+  };
+
+  const changeContact = async () => {
+    if (!onChangeContact) return;
+    const payload = buildPayload();
+    if (!payload) return;
+
+    setChangeLoading(true);
+    setChangeNotice(null);
+    try {
+      await onChangeContact(payload);
+      setChangeNotice("Contact updated. You can continue with this new contact.");
+    } catch (err) {
+      setChangeNotice((err as Error).message || "Failed to change contact.");
+    } finally {
+      setChangeLoading(false);
+    }
   };
 
   const clearNickname = () => {
     setNickname("");
     setNicknameError(null);
     onDeleteNickname?.();
-  };
-
-  const requestContactChange = async () => {
-    const nicknameTrimmed = nickname.trim();
-    if (nicknameTrimmed.length < 2 || nicknameTrimmed.length > 12) {
-      setChangeNotice("Enter your nickname first.");
-      return;
-    }
-    const oldNormalized = changeOldType === "phone" ? normalizeUsPhone(changeOldValue) : normalizeEmail(changeOldValue);
-    const newNormalized = changeNewType === "phone" ? normalizeUsPhone(changeNewValue) : normalizeEmail(changeNewValue);
-    if (!oldNormalized || !newNormalized) {
-      setChangeNotice("Enter valid current/new contact values.");
-      return;
-    }
-
-    setChangeLoading(true);
-    setChangeNotice(null);
-    try {
-      const result = await onRequestContactChange({
-        nickname: nicknameTrimmed,
-        oldContactType: changeOldType,
-        oldContactValue: oldNormalized,
-        newContactType: changeNewType,
-        newContactValue: newNormalized,
-      });
-      setChangeRequestId(result.requestId);
-      setDebugOldCode(result.debugOldCode ?? null);
-      setDebugNewCode(result.debugNewCode ?? null);
-      setChangeNotice("Verification codes sent. Enter both codes to confirm.");
-    } catch (err) {
-      setChangeNotice((err as Error).message || "Failed to request contact change.");
-    } finally {
-      setChangeLoading(false);
-    }
-  };
-
-  const confirmContactChange = async () => {
-    if (!changeRequestId) {
-      setChangeNotice("Request a contact change first.");
-      return;
-    }
-    if (!/^\d{6}$/.test(changeOldCode) || !/^\d{6}$/.test(changeNewCode)) {
-      setChangeNotice("Enter both 6-digit verification codes.");
-      return;
-    }
-
-    setChangeLoading(true);
-    setChangeNotice(null);
-    try {
-      const result = await onConfirmContactChange({
-        requestId: changeRequestId,
-        oldCode: changeOldCode,
-        newCode: changeNewCode,
-      });
-
-      setContactType(result.newContactType);
-      if (result.newContactType === "email") {
-        const [localPartRaw = "", domainRaw = ""] = result.newContactValue.split("@");
-        const localPart = localPartRaw.trim();
-        const domain = domainRaw.trim().toLowerCase();
-        setContactValue(localPart);
-        if (domain && EMAIL_DOMAINS.includes(domain as (typeof EMAIL_DOMAINS)[number])) {
-          setEmailDomainSelect(domain);
-          setCustomEmailDomain("");
-        } else {
-          setEmailDomainSelect(CUSTOM_EMAIL_DOMAIN);
-          setCustomEmailDomain(domain);
-        }
-      } else {
-        setContactValue(result.newContactValue);
-      }
-
-      setChangeRequestId(null);
-      setChangeOldCode("");
-      setChangeNewCode("");
-      setDebugOldCode(null);
-      setDebugNewCode(null);
-      setChangeNotice("Contact updated successfully. You can now log in.");
-    } catch (err) {
-      setChangeNotice((err as Error).message || "Failed to confirm contact change.");
-    } finally {
-      setChangeLoading(false);
-    }
   };
 
   return (
@@ -393,106 +297,23 @@ export default function LoginScreen({
           <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
             Used only for digital coupon notification.
           </p>
+          <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
+            To change contact, this device must already have a valid login session.
+          </p>
 
-          <div className="mt-4 rounded-xl border border-[var(--yl-card-border)] bg-white/70 p-3">
+          {onChangeContact ? (
             <button
               type="button"
-              onClick={() => {
-                setChangeOpen((v) => !v);
-                setChangeNotice(null);
-              }}
-              className="text-sm font-black text-[var(--yl-primary)] underline underline-offset-4"
+              onClick={changeContact}
+              disabled={loading || changeLoading}
+              className="mt-3 w-full rounded-xl border border-[var(--yl-card-border)] bg-white px-4 py-3 text-sm font-black uppercase tracking-[0.06em] text-[var(--yl-primary)] disabled:opacity-60"
             >
-              {changeOpen ? "Hide Contact Change" : "Need to change email/phone?"}
+              {changeLoading ? "Updating..." : "Change Contact (Session Required)"}
             </button>
-
-            {changeOpen && (
-              <div className="mt-3 space-y-2">
-                <p className="text-xs font-semibold text-[var(--yl-ink-muted)]">
-                  Verify current contact and new contact with 6-digit codes.
-                </p>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={changeOldType}
-                    onChange={(e) => setChangeOldType(e.target.value as EntryContactType)}
-                    className="rounded-lg border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2 text-sm font-semibold text-[var(--yl-ink-strong)]"
-                  >
-                    <option value="phone">Current Phone</option>
-                    <option value="email">Current Email</option>
-                  </select>
-                  <input
-                    value={changeOldValue}
-                    onChange={(e) => setChangeOldValue(e.target.value)}
-                    placeholder={changeOldType === "phone" ? "Current phone" : "Current email"}
-                    className="rounded-lg border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2 text-sm font-semibold text-[var(--yl-ink-strong)]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={changeNewType}
-                    onChange={(e) => setChangeNewType(e.target.value as EntryContactType)}
-                    className="rounded-lg border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2 text-sm font-semibold text-[var(--yl-ink-strong)]"
-                  >
-                    <option value="phone">New Phone</option>
-                    <option value="email">New Email</option>
-                  </select>
-                  <input
-                    value={changeNewValue}
-                    onChange={(e) => setChangeNewValue(e.target.value)}
-                    placeholder={changeNewType === "phone" ? "New phone" : "New email"}
-                    className="rounded-lg border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2 text-sm font-semibold text-[var(--yl-ink-strong)]"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={requestContactChange}
-                  disabled={changeLoading}
-                  className="w-full rounded-lg border border-[var(--yl-card-border)] bg-white px-3 py-2 text-sm font-black text-[var(--yl-primary)] disabled:opacity-60"
-                >
-                  {changeLoading ? "Requesting..." : "Send Verification Codes"}
-                </button>
-
-                {changeRequestId && (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        value={changeOldCode}
-                        onChange={(e) => setChangeOldCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="Current contact code"
-                        className="rounded-lg border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2 text-sm font-semibold text-[var(--yl-ink-strong)]"
-                      />
-                      <input
-                        value={changeNewCode}
-                        onChange={(e) => setChangeNewCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="New contact code"
-                        className="rounded-lg border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2 text-sm font-semibold text-[var(--yl-ink-strong)]"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={confirmContactChange}
-                      disabled={changeLoading}
-                      className="w-full rounded-lg bg-[var(--yl-primary)] px-3 py-2 text-sm font-black text-white disabled:opacity-60"
-                    >
-                      {changeLoading ? "Confirming..." : "Confirm Contact Change"}
-                    </button>
-                    {(debugOldCode || debugNewCode) && (
-                      <p className="text-xs font-semibold text-[var(--yl-ink-muted)]">
-                        Debug codes (non-production): old {debugOldCode ?? "-"}, new {debugNewCode ?? "-"}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {changeNotice ? (
-                  <p className="text-xs font-bold text-[var(--yl-primary-soft)]">{changeNotice}</p>
-                ) : null}
-              </div>
-            )}
-          </div>
+          ) : null}
+          {changeNotice ? (
+            <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{changeNotice}</p>
+          ) : null}
 
           <button
             type="button"

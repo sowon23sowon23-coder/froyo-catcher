@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeEmail, normalizeUsPhone, type EntryContactType } from "../../../lib/entry";
+import { createEntrySessionToken, ENTRY_SESSION_COOKIE } from "../../../lib/entrySession";
 
 type RegisterEntryBody = {
   contactType?: EntryContactType;
@@ -126,6 +127,27 @@ export async function POST(req: NextRequest) {
   }
 
   const consentAt = new Date().toISOString();
+  const buildOkResponse = (entryId: number) => {
+    const res = NextResponse.json({ ok: true });
+    const token = createEntrySessionToken({
+      entryId,
+      nicknameKey,
+      contactType,
+      contactValue: normalizedContact,
+    });
+    if (token) {
+      res.cookies.set({
+        name: ENTRY_SESSION_COOKIE,
+        value: token,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+    }
+    return res;
+  };
 
   if (existing.data?.id) {
     const updatePayloads = [
@@ -145,7 +167,7 @@ export async function POST(req: NextRequest) {
     for (const patch of updatePayloads) {
       const result = await supabase.from("entries").update(patch).eq("id", existing.data.id);
       if (!result.error) {
-        return NextResponse.json({ ok: true });
+        return buildOkResponse(Number(existing.data.id));
       }
       if (isUniqueViolation(result.error as { code?: string; message?: string })) {
         return NextResponse.json({ error: "Nickname is already in use." }, { status: 409 });
@@ -175,9 +197,9 @@ export async function POST(req: NextRequest) {
 
   let lastError: { message?: string } | null = null;
   for (const payload of insertPayloads) {
-    const result = await supabase.from("entries").insert([payload]);
-    if (!result.error) {
-      return NextResponse.json({ ok: true });
+    const result = await supabase.from("entries").insert([payload]).select("id").single();
+    if (!result.error && result.data?.id) {
+      return buildOkResponse(Number(result.data.id));
     }
     if (isUniqueViolation(result.error as { code?: string; message?: string })) {
       return NextResponse.json({ error: "Nickname is already in use." }, { status: 409 });
