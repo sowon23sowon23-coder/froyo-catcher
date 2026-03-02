@@ -15,6 +15,31 @@ const EMAIL_DOMAINS = [
 
 const CUSTOM_EMAIL_DOMAIN = "__custom__";
 
+function formatUsPhoneInput(raw: string) {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    digits = digits.slice(1);
+  }
+  digits = digits.slice(0, 10);
+
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function splitUsPhoneParts(raw: string) {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    digits = digits.slice(1);
+  }
+  digits = digits.slice(0, 10);
+  return {
+    area: digits.slice(0, 3),
+    prefix: digits.slice(3, 6),
+    line: digits.slice(6, 10),
+  };
+}
+
 export type LoginPayload = {
   nickname: string;
   contactType: EntryContactType;
@@ -45,6 +70,9 @@ export default function LoginScreen({
   const [contactValue, setContactValue] = useState(initialContactValue);
   const [emailDomainSelect, setEmailDomainSelect] = useState<string>(EMAIL_DOMAINS[0]);
   const [customEmailDomain, setCustomEmailDomain] = useState("");
+  const [phoneArea, setPhoneArea] = useState("");
+  const [phonePrefix, setPhonePrefix] = useState("");
+  const [phoneLine, setPhoneLine] = useState("");
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [contactError, setContactError] = useState<string | null>(null);
   const [changeLoading, setChangeLoading] = useState(false);
@@ -59,8 +87,16 @@ export default function LoginScreen({
   }, [initialContactType]);
 
   useEffect(() => {
+    if (initialContactType === "phone") {
+      const parts = splitUsPhoneParts(initialContactValue);
+      setPhoneArea(parts.area);
+      setPhonePrefix(parts.prefix);
+      setPhoneLine(parts.line);
+      setContactValue(formatUsPhoneInput(initialContactValue));
+      return;
+    }
+
     setContactValue(initialContactValue);
-    if (initialContactType !== "email") return;
 
     const [localPartRaw = "", domainRaw = ""] = initialContactValue.split("@");
     const localPart = localPartRaw.trim();
@@ -84,7 +120,9 @@ export default function LoginScreen({
   };
 
   const getRawContact = () => {
-    if (contactType === "phone") return contactValue.trim();
+    if (contactType === "phone") {
+      return `${phoneArea}-${phonePrefix}-${phoneLine}`.trim();
+    }
     const local = contactValue.trim();
     const domain =
       emailDomainSelect === CUSTOM_EMAIL_DOMAIN ? customEmailDomain.trim() : emailDomainSelect.trim();
@@ -155,6 +193,19 @@ export default function LoginScreen({
     onDeleteNickname?.();
   };
 
+  const onPhonePartChange = (part: "area" | "prefix" | "line", value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (part === "area") {
+      setPhoneArea(digits.slice(0, 3));
+      return;
+    }
+    if (part === "prefix") {
+      setPhonePrefix(digits.slice(0, 3));
+      return;
+    }
+    setPhoneLine(digits.slice(0, 4));
+  };
+
   return (
     <main className="flex min-h-[70vh] items-center p-4 sm:p-5">
       <div className="mx-auto w-full max-w-md">
@@ -206,11 +257,14 @@ export default function LoginScreen({
                 <button
                   type="button"
                   onClick={() => {
-                    setContactType("phone");
-                    setContactValue("");
-                    setEmailDomainSelect(EMAIL_DOMAINS[0]);
-                    setCustomEmailDomain("");
-                    if (contactError) setContactError(null);
+                setContactType("phone");
+                setContactValue("");
+                setPhoneArea("");
+                setPhonePrefix("");
+                setPhoneLine("");
+                setEmailDomainSelect(EMAIL_DOMAINS[0]);
+                setCustomEmailDomain("");
+                if (contactError) setContactError(null);
                   }}
                   className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-[0.08em] ${
                     contactType === "phone"
@@ -240,19 +294,49 @@ export default function LoginScreen({
               </div>
 
               {contactType === "phone" ? (
-                <input
-                  value={contactValue}
-                  onChange={(e) => {
-                    setContactValue(e.target.value);
-                    if (contactError) setContactError(null);
-                  }}
-                  onBlur={handleContactBlur}
-                  type="tel"
-                  inputMode="tel"
-                  maxLength={24}
-                  placeholder="e.g. 213-555-1234"
-                  className="mt-3 w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-                />
+                <div className="mt-3 grid grid-cols-[1fr_auto_1fr_auto_1.2fr] items-center gap-2">
+                  <input
+                    value={phoneArea}
+                    onChange={(e) => {
+                      onPhonePartChange("area", e.target.value);
+                      if (contactError) setContactError(null);
+                    }}
+                    onBlur={handleContactBlur}
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={3}
+                    placeholder="213"
+                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2.5 text-center text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                  />
+                  <span className="text-base font-black text-[var(--yl-ink-muted)]">-</span>
+                  <input
+                    value={phonePrefix}
+                    onChange={(e) => {
+                      onPhonePartChange("prefix", e.target.value);
+                      if (contactError) setContactError(null);
+                    }}
+                    onBlur={handleContactBlur}
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={3}
+                    placeholder="555"
+                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2.5 text-center text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                  />
+                  <span className="text-base font-black text-[var(--yl-ink-muted)]">-</span>
+                  <input
+                    value={phoneLine}
+                    onChange={(e) => {
+                      onPhonePartChange("line", e.target.value);
+                      if (contactError) setContactError(null);
+                    }}
+                    onBlur={handleContactBlur}
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="1234"
+                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2.5 text-center text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                  />
+                </div>
               ) : (
                 <div className="mt-3 grid gap-2">
                   <div className="grid grid-cols-[1fr_auto_140px] items-center gap-2 sm:grid-cols-[1fr_auto_150px]">
