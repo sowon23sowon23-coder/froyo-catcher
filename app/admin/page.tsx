@@ -75,7 +75,7 @@ export default function AdminPage() {
         console.error("Admin leaderboard fetch error:", json);
         if (res.status === 401) {
           setIsAuthed(false);
-          setAuthError("?�션??만료?�었?�요. ?�시 로그?�해 주세??");
+          setAuthError("?몄뀡??留뚮즺?섏뿀?댁슂. ?ㅼ떆 濡쒓렇?명빐 二쇱꽭??");
         } else {
           alert(json.details ? `${json.error || "Failed to load leaderboard records."}\n${json.details}` : (json.error || "Failed to load leaderboard records."));
         }
