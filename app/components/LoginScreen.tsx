@@ -309,7 +309,7 @@ export default function LoginScreen({
                 >
                   {EMAIL_DOMAINS.map((domain) => (
                     <option key={domain} value={domain}>
-                      {`@${domain}`}
+                      {domain}
                     </option>
                   ))}
                   <option value={CUSTOM_EMAIL_DOMAIN}>Custom domain</option>
