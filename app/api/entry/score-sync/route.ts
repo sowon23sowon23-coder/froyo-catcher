@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeEmail, normalizeUsPhone, type EntryContactType } from "../../../lib/entry";
 
-type RegisterEntryBody = {
+type ScoreSyncBody = {
   contactType?: EntryContactType;
   contactValue?: string;
+  scoreBest?: number | null;
   nickname?: string | null;
   store?: string | null;
 };
@@ -16,6 +17,12 @@ function getServerSupabase() {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+function normalizeScoreBest(raw: unknown): number {
+  const n = Number(raw ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
 }
 
 function normalizeContact(
@@ -48,9 +55,9 @@ async function allowRateLimit(
 }
 
 export async function POST(req: NextRequest) {
-  let body: RegisterEntryBody;
+  let body: ScoreSyncBody;
   try {
-    body = (await req.json()) as RegisterEntryBody;
+    body = (await req.json()) as ScoreSyncBody;
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
@@ -66,6 +73,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid contact value." }, { status: 400 });
   }
 
+  const incomingBest = normalizeScoreBest(body.scoreBest);
+  if (incomingBest <= 0) {
+    return NextResponse.json({ error: "scoreBest must be a positive integer." }, { status: 400 });
+  }
+
   const nickname = String(body.nickname || "").trim();
   const store = String(body.store || "").trim();
 
@@ -77,8 +89,8 @@ export async function POST(req: NextRequest) {
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";
   const allowed = await allowRateLimit(
     supabase,
-    `entry-register:${contactType}:${normalizedContact}:${ip}`,
-    12,
+    `entry-score-sync:${contactType}:${normalizedContact}:${ip}`,
+    20,
     60
   );
   if (!allowed) {
@@ -87,7 +99,7 @@ export async function POST(req: NextRequest) {
 
   const existing = await supabase
     .from("entries")
-    .select("id")
+    .select("id,score_best")
     .eq("contact_type", contactType)
     .eq("contact_value", normalizedContact)
     .maybeSingle();
@@ -95,56 +107,32 @@ export async function POST(req: NextRequest) {
   if (existing.error && !isNoRowsError(existing.error.message)) {
     return NextResponse.json({ error: existing.error.message || "Failed to read entry." }, { status: 500 });
   }
-
-  const consentAt = new Date().toISOString();
-
-  if (existing.data?.id) {
-    const updatePayloads = [
-      {
-        consent_at: consentAt,
-        nickname_display: nickname || null,
-        store: store || null,
-      },
-      {
-        consent_at: consentAt,
-      },
-    ];
-
-    let lastError: { message?: string } | null = null;
-    for (const patch of updatePayloads) {
-      const result = await supabase.from("entries").update(patch).eq("id", existing.data.id);
-      if (!result.error) {
-        return NextResponse.json({ ok: true });
-      }
-      lastError = result.error as { message?: string };
-    }
-
-    return NextResponse.json({ error: lastError?.message || "Failed to update entry." }, { status: 500 });
+  if (!existing.data?.id) {
+    return NextResponse.json({ error: "Entry not found. Register contact first." }, { status: 404 });
   }
 
-  const insertPayloads = [
+  const existingBest = Number(existing.data.score_best ?? 0);
+  const nextBest = Math.max(existingBest, incomingBest);
+
+  const updatePayloads = [
     {
-      contact_type: contactType,
-      contact_value: normalizedContact,
-      consent_at: consentAt,
+      score_best: nextBest,
       nickname_display: nickname || null,
       store: store || null,
     },
     {
-      contact_type: contactType,
-      contact_value: normalizedContact,
-      consent_at: consentAt,
+      score_best: nextBest,
     },
   ];
 
   let lastError: { message?: string } | null = null;
-  for (const payload of insertPayloads) {
-    const result = await supabase.from("entries").insert([payload]);
+  for (const patch of updatePayloads) {
+    const result = await supabase.from("entries").update(patch).eq("id", existing.data.id);
     if (!result.error) {
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, score_best: nextBest });
     }
     lastError = result.error as { message?: string };
   }
 
-  return NextResponse.json({ error: lastError?.message || "Failed to create entry." }, { status: 500 });
+  return NextResponse.json({ error: lastError?.message || "Failed to sync score." }, { status: 500 });
 }

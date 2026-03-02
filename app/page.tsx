@@ -691,8 +691,7 @@ export default function Page() {
     contactType: EntryContactType,
     contactValue: string,
     nickname: string,
-    store: string,
-    scoreBest?: number
+    store: string
   ) => {
     const res = await fetch("/api/entry/register", {
       method: "POST",
@@ -702,13 +701,37 @@ export default function Page() {
         contactValue,
         nickname: nickname.trim() || null,
         store: store.trim() || null,
-        scoreBest: typeof scoreBest === "number" ? scoreBest : undefined,
       }),
     });
 
     if (!res.ok) {
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       throw new Error(json.error || "Failed to save contact info.");
+    }
+  };
+
+  const syncEntryScore = async (
+    contactType: EntryContactType,
+    contactValue: string,
+    nickname: string,
+    store: string,
+    scoreBest: number
+  ) => {
+    const res = await fetch("/api/entry/score-sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contactType,
+        contactValue,
+        nickname: nickname.trim() || null,
+        store: store.trim() || null,
+        scoreBest,
+      }),
+    });
+
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(json.error || "Failed to sync score.");
     }
   };
 
@@ -723,8 +746,7 @@ export default function Page() {
         payload.contactType,
         payload.contactValue,
         trimmed,
-        finalStore,
-        readSyncedLocalAllTimeBest(trimmed, finalStore) ?? 0
+        finalStore
       );
     } catch (err) {
       console.error(err);
@@ -890,7 +912,7 @@ export default function Page() {
                     const savedContact = readSavedContact();
                     if (savedContact) {
                       try {
-                        await upsertEntryContact(
+                        await syncEntryScore(
                           savedContact.type,
                           savedContact.value,
                           nick,
