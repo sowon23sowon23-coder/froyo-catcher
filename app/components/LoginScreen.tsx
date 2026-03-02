@@ -294,7 +294,7 @@ export default function LoginScreen({
               </div>
 
               {contactType === "phone" ? (
-                <div className="mt-3 grid grid-cols-[1fr_auto_1fr_auto_1.2fr] items-center gap-2">
+                <div className="mt-3 grid grid-cols-[1fr_auto_1fr_auto_1.2fr] items-center gap-1.5 sm:gap-2">
                   <input
                     value={phoneArea}
                     onChange={(e) => {
@@ -306,7 +306,7 @@ export default function LoginScreen({
                     inputMode="numeric"
                     maxLength={3}
                     placeholder="213"
-                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2.5 text-center text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-1.5 py-2 text-center text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)] sm:px-2 sm:py-2.5 sm:text-base"
                   />
                   <span className="text-base font-black text-[var(--yl-ink-muted)]">-</span>
                   <input
@@ -320,7 +320,7 @@ export default function LoginScreen({
                     inputMode="numeric"
                     maxLength={3}
                     placeholder="555"
-                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2.5 text-center text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-1.5 py-2 text-center text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)] sm:px-2 sm:py-2.5 sm:text-base"
                   />
                   <span className="text-base font-black text-[var(--yl-ink-muted)]">-</span>
                   <input
@@ -334,7 +334,7 @@ export default function LoginScreen({
                     inputMode="numeric"
                     maxLength={4}
                     placeholder="1234"
-                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-2 py-2.5 text-center text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                    className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-1.5 py-2 text-center text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)] sm:px-2 sm:py-2.5 sm:text-base"
                   />
                 </div>
               ) : (
@@ -389,7 +389,11 @@ export default function LoginScreen({
                 </div>
               )}
 
-              {contactError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{contactError}</p> : null}
+              {contactError ? (
+                <p className="mt-2 rounded-lg border border-[#f3bad5] bg-[#fff2f8] px-2.5 py-1.5 text-sm font-bold text-[var(--yl-primary-soft)]">
+                  {contactError}
+                </p>
+              ) : null}
               <p className="mt-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
                 Used only for digital coupon notification.
               </p>
@@ -410,7 +414,9 @@ export default function LoginScreen({
                 </button>
               ) : null}
               {changeNotice ? (
-                <p className="text-sm font-bold text-[var(--yl-primary-soft)]">{changeNotice}</p>
+                <p className="rounded-lg border border-[#f3bad5] bg-[#fff2f8] px-2.5 py-1.5 text-sm font-bold text-[var(--yl-primary-soft)]">
+                  {changeNotice}
+                </p>
               ) : null}
             </div>
 
@@ -423,7 +429,9 @@ export default function LoginScreen({
               {loading ? "Checking..." : "Login"}
             </button>
             {submitError ? (
-              <p className="text-sm font-bold text-[var(--yl-primary-soft)]">{submitError}</p>
+              <p className="rounded-lg border border-[#f3bad5] bg-[#fff2f8] px-2.5 py-1.5 text-sm font-bold text-[var(--yl-primary-soft)]">
+                {submitError}
+              </p>
             ) : null}
           </div>
         </section>

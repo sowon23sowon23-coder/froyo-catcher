@@ -27,6 +27,11 @@ type FeedbackRow = {
   created_at?: string | null;
 };
 
+type Notice = {
+  type: "error" | "success" | "info";
+  message: string;
+};
+
 function characterLabel(character?: CharId | null) {
   if (character === "green") return "Green";
   if (character === "berry") return "Berry";
@@ -47,6 +52,7 @@ export default function AdminPage() {
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [adminToken, setAdminToken] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const verifyAdminPassword = async (rawPassword: string) => {
     const res = await fetch("/api/admin/verify", {
@@ -67,27 +73,33 @@ export default function AdminPage() {
       const res = await fetch(`/api/admin/list?_ts=${Date.now()}`, {
         method: "GET",
         cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-      const json = (await res.json()) as { rows?: AdminRow[]; supportsStore?: boolean; error?: string; details?: string };
+      const json = (await res.json()) as {
+        rows?: AdminRow[];
+        supportsStore?: boolean;
+        error?: string;
+        details?: string;
+      };
 
       if (!res.ok) {
-        console.error("Admin leaderboard fetch error:", json);
         if (res.status === 401) {
           setIsAuthed(false);
-          setAuthError("?몄뀡??留뚮즺?섏뿀?댁슂. ?ㅼ떆 濡쒓렇?명빐 二쇱꽭??");
+          setAuthError("Session expired. Please log in again.");
         } else {
-          alert(json.details ? `${json.error || "Failed to load leaderboard records."}\n${json.details}` : (json.error || "Failed to load leaderboard records."));
+          setNotice({
+            type: "error",
+            message: json.details
+              ? `${json.error || "Failed to load leaderboard records."} ${json.details}`
+              : (json.error || "Failed to load leaderboard records."),
+          });
         }
         setRows([]);
       } else {
         setRows(json.rows ?? []);
       }
-    } catch (err) {
-      console.error("Admin leaderboard fetch exception:", err);
-      alert("Failed to load leaderboard records.");
+    } catch {
+      setNotice({ type: "error", message: "Failed to load leaderboard records." });
       setRows([]);
     } finally {
       setLoading(false);
@@ -103,9 +115,7 @@ export default function AdminPage() {
       const res = await fetch(`/api/admin/feedback?_ts=${Date.now()}`, {
         method: "GET",
         cache: "no-store",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const json = (await res.json()) as {
         rows?: FeedbackRow[];
@@ -114,24 +124,23 @@ export default function AdminPage() {
       };
 
       if (!res.ok) {
-        console.error("Admin feedback fetch error:", json);
         if (res.status === 401) {
           setIsAuthed(false);
           setAuthError("Session expired. Please log in again.");
         } else {
-          alert(
-            json.details
-              ? `${json.error || "Failed to load feedback."}\n${json.details}`
+          setNotice({
+            type: "error",
+            message: json.details
+              ? `${json.error || "Failed to load feedback."} ${json.details}`
               : (json.error || "Failed to load feedback."),
-          );
+          });
         }
         setFeedbackRows([]);
       } else {
         setFeedbackRows(json.rows ?? []);
       }
-    } catch (err) {
-      console.error("Admin feedback fetch exception:", err);
-      alert("Failed to load feedback.");
+    } catch {
+      setNotice({ type: "error", message: "Failed to load feedback." });
       setFeedbackRows([]);
     } finally {
       setFeedbackLoading(false);
@@ -139,14 +148,9 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    const boot = async () => {
-      // Always require password entry on each admin page visit.
-      setIsAuthed(false);
-      setAdminToken("");
-      setAuthLoading(false);
-    };
-
-    void boot();
+    setIsAuthed(false);
+    setAdminToken("");
+    setAuthLoading(false);
   }, []);
 
   useEffect(() => {
@@ -175,21 +179,19 @@ export default function AdminPage() {
   const deleteUserScores = async (nicknameKey: string, nicknameDisplay: string) => {
     const token = adminToken.trim();
     if (!token) {
-      alert("Enter admin token first.");
+      setNotice({ type: "error", message: "Enter admin token first." });
       return;
     }
 
+    const deleteCount = rows.filter((r) => r.nickname_key === nicknameKey).length;
     const ok = window.confirm(
-      `Delete all leaderboard scores for "${nicknameDisplay}"?\nThis cannot be undone.`
+      `Delete ${deleteCount} leaderboard record(s) for "${nicknameDisplay}"?\nThis cannot be undone.`
     );
     if (!ok) return;
 
-    const typed = window.prompt(
-      `Type "${nicknameDisplay}" to confirm permanent deletion.`,
-      ""
-    );
+    const typed = window.prompt(`Type "${nicknameDisplay}" to confirm permanent deletion.`, "");
     if ((typed || "").trim() !== nicknameDisplay) {
-      alert("Deletion canceled. Confirmation text did not match.");
+      setNotice({ type: "info", message: "Deletion canceled. Confirmation text did not match." });
       return;
     }
 
@@ -204,20 +206,15 @@ export default function AdminPage() {
         body: JSON.stringify({ nicknameKey }),
       });
 
-      const json = (await res.json()) as { error?: string };
-
       if (!res.ok) {
-        console.error("Delete user score error:", json);
-        if (res.status === 401) {
-          setIsAuthed(false);
-        }
-        alert("Failed to delete this user's scores.");
+        if (res.status === 401) setIsAuthed(false);
+        setNotice({ type: "error", message: "Failed to delete this user's scores." });
       } else {
         setRows((prev) => prev.filter((r) => r.nickname_key !== nicknameKey));
+        setNotice({ type: "success", message: `Deleted ${deleteCount} record(s) for "${nicknameDisplay}".` });
       }
-    } catch (err) {
-      console.error("Delete user score exception:", err);
-      alert("Failed to delete this user's scores.");
+    } catch {
+      setNotice({ type: "error", message: "Failed to delete this user's scores." });
     } finally {
       setDeletingKey(null);
     }
@@ -326,6 +323,20 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {notice ? (
+          <div
+            className={`mb-4 rounded-xl border px-4 py-3 text-sm font-semibold ${
+              notice.type === "error"
+                ? "border-[#efb1ca] bg-[#fff0f7] text-[#8a1f4d]"
+                : notice.type === "success"
+                  ? "border-[#b8eac8] bg-[#effcf3] text-[#1e6a3a]"
+                  : "border-[#f0d6e6] bg-[#fff8fc] text-[#6a3b58]"
+            }`}
+          >
+            {notice.message}
+          </div>
+        ) : null}
+
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-[#f4c5dd] bg-white/90 p-4">
             <p className="text-xs font-black uppercase tracking-[0.15em] text-[#8c4a6a]">Total Records</p>
@@ -362,18 +373,10 @@ export default function AdminPage() {
                   key={`${row.id ?? "feedback"}-${idx}`}
                   className="grid grid-cols-[120px_1fr_130px_130px] gap-3 border-t border-[#f9d7e8] px-4 py-3 text-sm"
                 >
-                  <div className="font-semibold text-[#6a3b58]">
-                    {row.created_at ? new Date(row.created_at).toLocaleString() : "-"}
-                  </div>
-                  <div className="font-semibold text-[#4e1434] break-words">
-                    {row.message?.trim() || "-"}
-                  </div>
-                  <div className="truncate font-semibold text-[#5f2b4b]">
-                    {row.nickname?.trim() || "-"}
-                  </div>
-                  <div className="truncate font-semibold text-[#5f2b4b]">
-                    {row.store?.trim() || "-"}
-                  </div>
+                  <div className="font-semibold text-[#6a3b58]">{row.created_at ? new Date(row.created_at).toLocaleString() : "-"}</div>
+                  <div className="font-semibold text-[#4e1434] break-words">{row.message?.trim() || "-"}</div>
+                  <div className="truncate font-semibold text-[#5f2b4b]">{row.nickname?.trim() || "-"}</div>
+                  <div className="truncate font-semibold text-[#5f2b4b]">{row.store?.trim() || "-"}</div>
                 </div>
               ))}
             </div>
@@ -384,14 +387,13 @@ export default function AdminPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search nickname / key / store"
+            placeholder="Search nickname / key / store / contact"
             className="w-full rounded-xl border border-[#edb8d3] bg-white px-3 py-2 text-sm font-semibold text-[#5b2041] outline-none"
           />
         </div>
 
-        {/* Full admin table ??always shown */}
         <div className="overflow-hidden rounded-2xl border border-[#f3c7dd] bg-white shadow-[0_12px_24px_rgba(150,9,83,0.12)]">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1.6fr_120px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75]">
+          <div className="hidden grid-cols-[2fr_1fr_1fr_1fr_1.6fr_120px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75] lg:grid">
             <div>Nickname</div>
             <div>Score</div>
             <div>Character</div>
@@ -406,41 +408,58 @@ export default function AdminPage() {
             <div className="px-4 py-8 text-sm font-semibold text-[#8b6178]">No records found.</div>
           ) : (
             <div className="max-h-[65vh] overflow-auto">
-              {filteredRows.map((row, idx) => (
-                <div
-                  key={`${row.nickname_key}-${row.updated_at}`}
-                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1.6fr_120px] border-t border-[#f9d7e8] px-4 py-3 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-black text-[#4e1434]">
-                      <span className="mr-1.5 text-xs font-semibold text-[#b08090]">#{idx + 1}</span>
-                      {row.nickname_display}
-                    </p>
+              <div className="space-y-2 p-3 lg:hidden">
+                {filteredRows.map((row, idx) => (
+                  <div key={`${row.nickname_key}-${row.updated_at}-card`} className="rounded-xl border border-[#f4d5e4] bg-[#fffafd] p-3">
+                    <p className="truncate font-black text-[#4e1434]"><span className="mr-1.5 text-xs font-semibold text-[#b08090]">#{idx + 1}</span>{row.nickname_display}</p>
                     <p className="truncate text-xs font-semibold text-[#8d6280]">{row.nickname_key}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-semibold text-[#6a3b58]">
+                      <div>Score: <span className="font-black text-[#7d1148]">{row.score}</span></div>
+                      <div>Character: {characterLabel(row.character)}</div>
+                      <div>Updated: {row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "-"}</div>
+                      <div className="truncate">{row.contact_type === "phone" ? "Phone" : row.contact_type === "email" ? "Email" : "Contact"}: {row.contact_value || "-"}</div>
+                    </div>
+                    <div className="mt-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => void deleteUserScores(row.nickname_key, row.nickname_display)}
+                        disabled={deletingKey === row.nickname_key}
+                        className="rounded-lg border border-[#d94b77] bg-[#ffe9f1] px-3 py-1.5 text-xs font-black text-[#b31d53] disabled:opacity-60"
+                      >
+                        {deletingKey === row.nickname_key ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="font-black text-[#7d1148]">{row.score}</div>
-                  <div className="font-semibold text-[#5f2b4b]">{characterLabel(row.character)}</div>
-                  <div className="font-semibold text-[#6a3b58]">
-                    {row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "-"}
+                ))}
+              </div>
+
+              <div className="hidden lg:block">
+                {filteredRows.map((row, idx) => (
+                  <div key={`${row.nickname_key}-${row.updated_at}`} className="grid grid-cols-[2fr_1fr_1fr_1fr_1.6fr_120px] border-t border-[#f9d7e8] px-4 py-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-black text-[#4e1434]"><span className="mr-1.5 text-xs font-semibold text-[#b08090]">#{idx + 1}</span>{row.nickname_display}</p>
+                      <p className="truncate text-xs font-semibold text-[#8d6280]">{row.nickname_key}</p>
+                    </div>
+                    <div className="font-black text-[#7d1148]">{row.score}</div>
+                    <div className="font-semibold text-[#5f2b4b]">{characterLabel(row.character)}</div>
+                    <div className="font-semibold text-[#6a3b58]">{row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "-"}</div>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-[#5f2b4b]">{row.contact_type === "phone" ? "Phone" : row.contact_type === "email" ? "Email" : "-"}</p>
+                      <p className="truncate text-xs font-semibold text-[#8d6280]">{row.contact_value || "-"}</p>
+                    </div>
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => void deleteUserScores(row.nickname_key, row.nickname_display)}
+                        disabled={deletingKey === row.nickname_key}
+                        className="rounded-lg border border-[#d94b77] bg-[#ffe9f1] px-3 py-1.5 text-xs font-black text-[#b31d53] disabled:opacity-60"
+                      >
+                        {deletingKey === row.nickname_key ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-[#5f2b4b]">
-                      {row.contact_type === "phone" ? "Phone" : row.contact_type === "email" ? "Email" : "-"}
-                    </p>
-                    <p className="truncate text-xs font-semibold text-[#8d6280]">{row.contact_value || "-"}</p>
-                  </div>
-                  <div className="text-right">
-                    <button
-                      type="button"
-                      onClick={() => void deleteUserScores(row.nickname_key, row.nickname_display)}
-                      disabled={deletingKey === row.nickname_key}
-                      className="rounded-lg bg-[#cb225e] px-3 py-1.5 text-xs font-black text-white disabled:opacity-60"
-                    >
-                      {deletingKey === row.nickname_key ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -448,4 +467,3 @@ export default function AdminPage() {
     </main>
   );
 }
-

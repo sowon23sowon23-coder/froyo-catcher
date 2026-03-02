@@ -158,10 +158,16 @@ export default function LeaderboardModal({
                       }`}
                     >
                       <div className="font-black text-[var(--yl-primary-deep)]">{r.rank}</div>
-                      <div className="truncate font-bold text-[var(--yl-ink-strong)]">
-                        {r.nickname}
-                        {isMe ? <span className="ml-2 text-xs font-black text-[var(--yl-green)]">YOU</span> : null}
-                        {r.date ? <span className="ml-2 text-xs font-semibold text-[#ac7f95]">{r.date}</span> : null}
+                      <div className="min-w-0 font-bold text-[var(--yl-ink-strong)]">
+                        <div className="truncate">
+                          {r.nickname}
+                          {isMe ? <span className="ml-2 text-xs font-black text-[var(--yl-green)]">YOU</span> : null}
+                        </div>
+                        {r.date ? (
+                          <div className="mt-1 inline-flex rounded-full bg-[#fff2f8] px-2 py-0.5 text-[10px] font-semibold text-[#ac7f95]">
+                            {r.date}
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-1 text-xs font-bold text-[var(--yl-ink-muted)]">
                         {r.character ? (
