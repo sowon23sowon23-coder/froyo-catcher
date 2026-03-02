@@ -28,6 +28,7 @@ export default function LoginScreen({
   onLogin,
   onChangeContact,
   onDeleteNickname,
+  submitError = null,
   loading = false,
 }: {
   initialNickname?: string;
@@ -36,6 +37,7 @@ export default function LoginScreen({
   onLogin: (payload: LoginPayload) => void;
   onChangeContact?: (payload: LoginPayload) => Promise<void>;
   onDeleteNickname?: () => void;
+  submitError?: string | null;
   loading?: boolean;
 }) {
   const [nickname, setNickname] = useState(initialNickname);
@@ -336,6 +338,9 @@ export default function LoginScreen({
             >
               {loading ? "Checking..." : "Login"}
             </button>
+            {submitError ? (
+              <p className="text-sm font-bold text-[var(--yl-primary-soft)]">{submitError}</p>
+            ) : null}
           </div>
         </section>
       </div>

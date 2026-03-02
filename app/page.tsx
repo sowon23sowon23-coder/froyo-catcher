@@ -296,6 +296,7 @@ export default function Page() {
   const [lastNick, setLastNick] = useState<string | undefined>(undefined);
   const [myRank, setMyRank] = useState<number | undefined>(undefined);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
@@ -738,6 +739,7 @@ export default function Page() {
   const onLogin = async (payload: LoginPayload) => {
     const trimmed = payload.nickname.trim();
     setLoginLoading(true);
+    setLoginError(null);
 
     const finalStore = "__ALL__";
 
@@ -750,7 +752,16 @@ export default function Page() {
       );
     } catch (err) {
       console.error(err);
-      alert("Failed to save contact info. Please try again.");
+      const message = (err as Error)?.message || "";
+      if (message.includes("Nickname is already in use")) {
+        setLoginError("This nickname is already used by another contact. Please choose a different nickname.");
+      } else if (message.includes("Invalid contact value")) {
+        setLoginError("Contact format is invalid. Please check your phone or email.");
+      } else if (message.includes("Too many requests")) {
+        setLoginError("Too many attempts. Please wait a moment and try again.");
+      } else {
+        setLoginError("Login failed while saving contact info. Please try again.");
+      }
       setLoginLoading(false);
       return;
     }
@@ -767,6 +778,7 @@ export default function Page() {
     setAuthContactType(payload.contactType);
     setAuthContactValue(payload.contactValue);
     setLastNick(trimmed);
+    setLoginError(null);
     setLoginLoading(false);
     setPhase("home");
   };
@@ -868,6 +880,7 @@ export default function Page() {
                 initialContactValue={authContactValue}
                 onLogin={onLogin}
                 onChangeContact={onChangeContact}
+                submitError={loginError}
                 onDeleteNickname={() => {
                   localStorage.removeItem("nickname");
                   localStorage.removeItem("entryContactType");
