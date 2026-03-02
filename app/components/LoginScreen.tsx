@@ -212,7 +212,7 @@ export default function LoginScreen({
         <section className="w-full overflow-hidden rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white/95 shadow-[0_20px_48px_rgba(150,9,83,0.2)] backdrop-blur-sm">
           <div className="border-b border-[var(--yl-card-border)] bg-[linear-gradient(135deg,#fff7fb,#ffe8f4)] px-5 py-5 sm:px-6">
             <img
-              src="/yogurtland-logo.svg"
+              src="/yogurtland-logo.png"
               alt="Yogurtland"
               className="h-8 w-auto"
               draggable={false}

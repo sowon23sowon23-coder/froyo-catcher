@@ -83,7 +83,7 @@ export default function HomeScreen({
           <div className="flex items-center gap-3">
             <div>
               <img
-                src="/yogurtland-logo.svg"
+                src="/yogurtland-logo.png"
                 alt="Yogurtland"
                 className="h-7 w-auto"
                 draggable={false}
