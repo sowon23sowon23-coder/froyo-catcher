@@ -5,7 +5,10 @@ import { trackEvent } from "../lib/gtag";
 
 type CharId = "green" | "berry" | "sprinkle";
 type GameMode = "free" | "mission" | "timeAttack";
-const FREE_HEART_SPAWN_CHANCE = 0.12;
+const HEART_EMOJI = "💗";
+const FREE_HEART_SPAWN_CHANCE = 0.08;
+const FREE_HEART_MIN_INTERVAL_MS = 7000;
+const FREE_HEART_MAX_ACTIVE = 1;
 const MAX_LIVES = 5;
 
 const FALLING_ITEM_CANDIDATES = [
@@ -199,6 +202,7 @@ export default function Game({
   const idRef = useRef(0);
   const popIdRef = useRef(0);
   const lastLifeLossRef = useRef(0);
+  const lastHeartSpawnAtRef = useRef(0);
   const spawnRef = useRef<number | null>(null);
   const loopRef = useRef<number | null>(null);
   const noticeTimeoutRef = useRef<number | null>(null);
@@ -337,6 +341,7 @@ export default function Game({
     idRef.current = 0;
     popIdRef.current = 0;
     lastLifeLossRef.current = 0;
+    lastHeartSpawnAtRef.current = 0;
     playerXRef.current = 50;
     gameOverFiredRef.current = false;
     collectedRef.current = [];
@@ -667,32 +672,47 @@ export default function Game({
     if (loopRef.current !== null) return;
 
     spawnRef.current = window.setInterval(() => {
-      let itemData: { emoji?: string; image?: string };
-      if (mode === "free" && Math.random() < FREE_HEART_SPAWN_CHANCE) {
-        itemData = { emoji: "💗" };
-      } else {
-        const randomImage = fallingItemImages[Math.floor(Math.random() * fallingItemImages.length)] ?? "gummy-bear.png";
-        itemData = { image: randomImage };
-      }
-      const currentScore = scoreRef.current;
-      const spawnCount = mode === "free" ? freeSpawnBurstCount(currentScore) : 1;
-      const nextItems: FallingItem[] = [];
+      setItems((currentItems) => {
+        const nowMs = Date.now();
+        const activeHeartCount = currentItems.filter((item) => item.emoji === HEART_EMOJI).length;
+        const canSpawnHeartByInterval =
+          nowMs - lastHeartSpawnAtRef.current >= FREE_HEART_MIN_INTERVAL_MS;
+        const shouldSpawnHeart =
+          mode === "free" &&
+          canSpawnHeartByInterval &&
+          activeHeartCount < FREE_HEART_MAX_ACTIVE &&
+          Math.random() < FREE_HEART_SPAWN_CHANCE;
 
-      for (let i = 0; i < spawnCount; i += 1) {
-        const baseFallSpeed =
-          mode === "free"
-            ? FREE_BASE_FALL_SPEED_MIN + Math.random() * FREE_BASE_FALL_SPEED_RANGE
-            : DEFAULT_BASE_FALL_SPEED_MIN + Math.random() * DEFAULT_BASE_FALL_SPEED_RANGE;
-        nextItems.push({
-          id: idRef.current++,
-          x: Math.random() * 90 + 5,
-          y: -5 - i * 3.2,
-          v: baseFallSpeed,
-          ...itemData,
-        });
-      }
+        let itemData: { emoji?: string; image?: string };
+        if (shouldSpawnHeart) {
+          itemData = { emoji: HEART_EMOJI };
+          lastHeartSpawnAtRef.current = nowMs;
+        } else {
+          const randomImage =
+            fallingItemImages[Math.floor(Math.random() * fallingItemImages.length)] ?? "gummy-bear.png";
+          itemData = { image: randomImage };
+        }
 
-      setItems((v) => [...v, ...nextItems]);
+        const currentScore = scoreRef.current;
+        const spawnCount = shouldSpawnHeart ? 1 : mode === "free" ? freeSpawnBurstCount(currentScore) : 1;
+        const nextItems: FallingItem[] = [];
+
+        for (let i = 0; i < spawnCount; i += 1) {
+          const baseFallSpeed =
+            mode === "free"
+              ? FREE_BASE_FALL_SPEED_MIN + Math.random() * FREE_BASE_FALL_SPEED_RANGE
+              : DEFAULT_BASE_FALL_SPEED_MIN + Math.random() * DEFAULT_BASE_FALL_SPEED_RANGE;
+          nextItems.push({
+            id: idRef.current++,
+            x: Math.random() * 90 + 5,
+            y: -5 - i * 3.2,
+            v: baseFallSpeed,
+            ...itemData,
+          });
+        }
+
+        return [...currentItems, ...nextItems];
+      });
     }, 900);
 
     loopRef.current = window.setInterval(() => {
@@ -736,7 +756,7 @@ export default function Game({
                 if (!lifeLossReason) lifeLossReason = { x: item.x, text: "WRONG" };
               }
             } else {
-              const isHeart = mode === "free" && item.emoji === "💗";
+              const isHeart = mode === "free" && item.emoji === HEART_EMOJI;
               if (isHeart) {
                 lifeGain += 1;
                 popsToAdd.push({
@@ -776,7 +796,7 @@ export default function Game({
           }
 
           if (ny > MISS_Y_PCT) {
-            const isHeart = mode === "free" && item.emoji === "💗";
+            const isHeart = mode === "free" && item.emoji === HEART_EMOJI;
             if (mode === "mission") {
               if (isMissionTarget) {
                 lifeLoss += 1;

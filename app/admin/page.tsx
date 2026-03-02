@@ -392,8 +392,24 @@ export default function AdminPage() {
           />
         </div>
 
+        {filteredRows.length > 0 && (
+          <div className="mb-4 rounded-2xl border border-[#f3c7dd] bg-white/90 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#8c4a6a]">Top Snapshot</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              {filteredRows.slice(0, 3).map((row, i) => (
+                <div key={`${row.nickname_key}-top-${i}`} className="rounded-xl border border-[#f6d9e8] bg-[#fff7fb] px-3 py-2">
+                  <p className="text-xs font-black text-[#960953]">#{i + 1}</p>
+                  <p className="truncate text-sm font-black text-[#4e1434]">{row.nickname_display}</p>
+                  <p className="text-xs font-semibold text-[#7d1148]">Score {row.score}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="overflow-hidden rounded-2xl border border-[#f3c7dd] bg-white shadow-[0_12px_24px_rgba(150,9,83,0.12)]">
-          <div className="hidden grid-cols-[2fr_1fr_1fr_1fr_1.6fr_120px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75] lg:grid">
+          <div className="hidden grid-cols-[68px_1.8fr_0.8fr_1fr_1fr_1.6fr_120px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75] lg:grid">
+            <div>RANK</div>
             <div>Nickname</div>
             <div>Score</div>
             <div>Character</div>
@@ -411,7 +427,10 @@ export default function AdminPage() {
               <div className="space-y-2 p-3 lg:hidden">
                 {filteredRows.map((row, idx) => (
                   <div key={`${row.nickname_key}-${row.updated_at}-card`} className="rounded-xl border border-[#f4d5e4] bg-[#fffafd] p-3">
-                    <p className="truncate font-black text-[#4e1434]"><span className="mr-1.5 text-xs font-semibold text-[#b08090]">#{idx + 1}</span>{row.nickname_display}</p>
+                    <div className="mb-2 inline-flex rounded-full border border-[#f0bfd8] bg-white px-2 py-0.5 text-[11px] font-black text-[#960953]">
+                      Rank #{idx + 1}
+                    </div>
+                    <p className="truncate font-black text-[#4e1434]">{row.nickname_display}</p>
                     <p className="truncate text-xs font-semibold text-[#8d6280]">{row.nickname_key}</p>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-semibold text-[#6a3b58]">
                       <div>Score: <span className="font-black text-[#7d1148]">{row.score}</span></div>
@@ -435,9 +454,10 @@ export default function AdminPage() {
 
               <div className="hidden lg:block">
                 {filteredRows.map((row, idx) => (
-                  <div key={`${row.nickname_key}-${row.updated_at}`} className="grid grid-cols-[2fr_1fr_1fr_1fr_1.6fr_120px] border-t border-[#f9d7e8] px-4 py-3 text-sm">
+                  <div key={`${row.nickname_key}-${row.updated_at}`} className="grid grid-cols-[68px_1.8fr_0.8fr_1fr_1fr_1.6fr_120px] border-t border-[#f9d7e8] px-4 py-3 text-sm">
+                    <div className="font-black text-[#960953]">#{idx + 1}</div>
                     <div className="min-w-0">
-                      <p className="truncate font-black text-[#4e1434]"><span className="mr-1.5 text-xs font-semibold text-[#b08090]">#{idx + 1}</span>{row.nickname_display}</p>
+                      <p className="truncate font-black text-[#4e1434]">{row.nickname_display}</p>
                       <p className="truncate text-xs font-semibold text-[#8d6280]">{row.nickname_key}</p>
                     </div>
                     <div className="font-black text-[#7d1148]">{row.score}</div>
