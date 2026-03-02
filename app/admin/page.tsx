@@ -184,6 +184,15 @@ export default function AdminPage() {
     );
     if (!ok) return;
 
+    const typed = window.prompt(
+      `Type "${nicknameDisplay}" to confirm permanent deletion.`,
+      ""
+    );
+    if ((typed || "").trim() !== nicknameDisplay) {
+      alert("Deletion canceled. Confirmation text did not match.");
+      return;
+    }
+
     setDeletingKey(nicknameKey);
     try {
       const res = await fetch("/api/admin/delete-user", {
