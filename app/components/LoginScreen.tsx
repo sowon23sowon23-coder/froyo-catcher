@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { normalizeEmail, normalizeUsPhone, type EntryContactType } from "../lib/entry";
+import { getContactValidationError, normalizeEmail, normalizeUsPhone, type EntryContactType } from "../lib/entry";
 import StoreCombobox from "./StoreCombobox";
 
 export type LoginPayload = {
@@ -100,6 +100,11 @@ export default function LoginScreen({
     }
   };
 
+  const handleContactBlur = () => {
+    const err = getContactValidationError(contactType, contactValue);
+    setContactError(err);
+  };
+
   const submit = () => {
     const trimmed = nickname.trim();
     if (trimmed.length < 2 || trimmed.length > 12) {
@@ -108,10 +113,12 @@ export default function LoginScreen({
     }
 
     const rawContact = contactValue.trim();
-    if (!rawContact) {
-      setContactError(contactType === "phone" ? "Phone number is required." : "Email is required.");
+    const contactValidationError = getContactValidationError(contactType, rawContact);
+    if (contactValidationError) {
+      setContactError(contactValidationError);
       return;
     }
+
     const normalizedContact =
       contactType === "phone" ? normalizeUsPhone(rawContact) : normalizeEmail(rawContact);
     if (!normalizedContact) {
@@ -191,6 +198,7 @@ export default function LoginScreen({
               type="button"
               onClick={() => {
                 setContactType("phone");
+                setContactValue("");
                 if (contactError) setContactError(null);
               }}
               className={`rounded-xl border px-3 py-2 text-sm font-black ${
@@ -205,6 +213,7 @@ export default function LoginScreen({
               type="button"
               onClick={() => {
                 setContactType("email");
+                setContactValue("");
                 if (contactError) setContactError(null);
               }}
               className={`rounded-xl border px-3 py-2 text-sm font-black ${
@@ -222,6 +231,9 @@ export default function LoginScreen({
               setContactValue(e.target.value);
               if (contactError) setContactError(null);
             }}
+            onBlur={handleContactBlur}
+            type={contactType === "phone" ? "tel" : "email"}
+            inputMode={contactType === "phone" ? "tel" : "email"}
             maxLength={contactType === "phone" ? 24 : 160}
             placeholder={contactType === "phone" ? "e.g. 213-555-1234" : "e.g. user@example.com"}
             className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
