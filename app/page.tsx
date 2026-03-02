@@ -771,6 +771,79 @@ export default function Page() {
     setPhase("home");
   };
 
+  const requestContactChange = async (payload: {
+    nickname: string;
+    oldContactType: EntryContactType;
+    oldContactValue: string;
+    newContactType: EntryContactType;
+    newContactValue: string;
+  }) => {
+    const res = await fetch("/api/entry/contact-change/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      requestId?: string;
+      debugCodes?: { oldCode?: string; newCode?: string };
+    };
+    if (!res.ok || !json.requestId) {
+      throw new Error(json.error || "Failed to request contact change.");
+    }
+    return {
+      requestId: json.requestId,
+      debugOldCode: json.debugCodes?.oldCode,
+      debugNewCode: json.debugCodes?.newCode,
+    };
+  };
+
+  const confirmContactChange = async (payload: {
+    requestId: string;
+    oldCode: string;
+    newCode: string;
+  }) => {
+    const verify = async (target: "old" | "new", code: string) => {
+      const res = await fetch("/api/entry/contact-change/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId: payload.requestId,
+          target,
+          code,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        completed?: boolean;
+        newContactType?: EntryContactType;
+        newContactValue?: string;
+      };
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to verify contact change.");
+      }
+      return json;
+    };
+
+    await verify("old", payload.oldCode);
+    const final = await verify("new", payload.newCode);
+
+    if (!final.completed || !final.newContactType || !final.newContactValue) {
+      throw new Error("Verification is incomplete.");
+    }
+
+    localStorage.setItem("entryContactType", final.newContactType);
+    localStorage.setItem("entryContactValue", final.newContactValue);
+    setAuthContactType(final.newContactType);
+    setAuthContactValue(final.newContactValue);
+
+    return {
+      newContactType: final.newContactType,
+      newContactValue: final.newContactValue,
+    };
+  };
+
   const submitFeedback = async () => {
     const message = feedbackText.trim();
     if (message.length < 5) {
@@ -841,6 +914,8 @@ export default function Page() {
                 initialContactType={authContactType}
                 initialContactValue={authContactValue}
                 onLogin={onLogin}
+                onRequestContactChange={requestContactChange}
+                onConfirmContactChange={confirmContactChange}
                 onDeleteNickname={() => {
                   localStorage.removeItem("nickname");
                   localStorage.removeItem("entryContactType");
