@@ -36,6 +36,10 @@ function isUniqueViolation(error: { code?: string; message?: string } | null | u
   return error?.code === "23505";
 }
 
+function isUndefinedTable(error: { code?: string } | null | undefined) {
+  return error?.code === "42P01";
+}
+
 function normalizeNicknameKey(raw: string) {
   return raw.trim().toLowerCase();
 }
@@ -100,7 +104,7 @@ export async function POST(req: NextRequest) {
 
   const existing = await supabase
     .from("entries")
-    .select("id")
+    .select("id,nickname_key,nickname_display")
     .eq("contact_type", contactType)
     .eq("contact_value", normalizedContact)
     .maybeSingle();
@@ -150,6 +154,11 @@ export async function POST(req: NextRequest) {
   };
 
   if (existing.data?.id) {
+    const oldNicknameKey = String(existing.data.nickname_key || "").trim();
+    const oldNicknameDisplay = String(existing.data.nickname_display || "").trim();
+    const nicknameChanged =
+      oldNicknameKey !== nicknameKey || oldNicknameDisplay !== nickname;
+
     const updatePayloads = [
       {
         consent_at: consentAt,
@@ -167,6 +176,21 @@ export async function POST(req: NextRequest) {
     for (const patch of updatePayloads) {
       const result = await supabase.from("entries").update(patch).eq("id", existing.data.id);
       if (!result.error) {
+        if (nicknameChanged) {
+          const logResult = await supabase.from("nickname_change_logs").insert([
+            {
+              entry_id: Number(existing.data.id),
+              old_nickname_key: oldNicknameKey || null,
+              old_nickname_display: oldNicknameDisplay || null,
+              new_nickname_key: nicknameKey,
+              new_nickname_display: nickname,
+              changed_by: "self_register",
+            },
+          ]);
+          if (logResult.error && !isUndefinedTable(logResult.error as { code?: string })) {
+            console.error("Failed to write nickname change log:", logResult.error);
+          }
+        }
         return buildOkResponse(Number(existing.data.id));
       }
       if (isUniqueViolation(result.error as { code?: string; message?: string })) {
