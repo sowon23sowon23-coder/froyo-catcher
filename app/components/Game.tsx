@@ -524,8 +524,8 @@ export default function Game({
 
   const handleShare = async () => {
     const url = window.location.href;
-    const title = "Ice Cream Catcher";
-    const text = `I scored ${score} points in Ice Cream Catcher! Try it here:`;
+    const title = "Froyo Catcher";
+    const text = `I scored ${score} points in Froyo Catcher! Try it here:`;
 
     trackEvent({ action: "share_click", category: "engagement", label: `score_${score}`, value: score });
 

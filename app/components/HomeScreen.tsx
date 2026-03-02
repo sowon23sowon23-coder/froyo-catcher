@@ -86,7 +86,7 @@ export default function HomeScreen({
             </div>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[var(--yl-primary)]">Yogurtland</p>
-              <h1 className="text-xl font-black text-[var(--yl-ink-strong)]">Ice Cream Catcher</h1>
+              <h1 className="text-xl font-black text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
             </div>
           </div>
           <button
