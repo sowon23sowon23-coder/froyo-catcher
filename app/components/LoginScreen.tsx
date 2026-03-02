@@ -2,10 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { normalizeEmail, normalizeUsPhone, type EntryContactType } from "../lib/entry";
 import StoreCombobox from "./StoreCombobox";
+
+export type LoginPayload = {
+  nickname: string;
+  contactType: EntryContactType;
+  contactValue: string;
+};
 
 export default function LoginScreen({
   initialNickname = "",
+  initialContactType = "phone",
+  initialContactValue = "",
   stores,
   selectedStore,
   onStoreChange,
@@ -14,15 +23,20 @@ export default function LoginScreen({
   loading = false,
 }: {
   initialNickname?: string;
+  initialContactType?: EntryContactType;
+  initialContactValue?: string;
   stores: string[];
   selectedStore: string;
   onStoreChange: (store: string) => void;
-  onLogin: (nickname: string) => void;
+  onLogin: (payload: LoginPayload) => void;
   onDeleteNickname?: () => void;
   loading?: boolean;
 }) {
   const [nickname, setNickname] = useState(initialNickname);
+  const [contactType, setContactType] = useState<EntryContactType>(initialContactType);
+  const [contactValue, setContactValue] = useState(initialContactValue);
   const [nicknameError, setNicknameError] = useState<string | null>(null);
+  const [contactError, setContactError] = useState<string | null>(null);
   const [storeError, setStoreError] = useState<string | null>(null);
   const [lockedStore, setLockedStore] = useState<string | null>(null);
   const [checkingStore, setCheckingStore] = useState(false);
@@ -31,6 +45,14 @@ export default function LoginScreen({
   useEffect(() => {
     setNickname(initialNickname);
   }, [initialNickname]);
+
+  useEffect(() => {
+    setContactType(initialContactType);
+  }, [initialContactType]);
+
+  useEffect(() => {
+    setContactValue(initialContactValue);
+  }, [initialContactValue]);
 
   // When initialNickname is pre-filled (returning user), look up their store immediately.
   useEffect(() => {
@@ -84,13 +106,35 @@ export default function LoginScreen({
       setNicknameError("Nickname must be 2-12 characters.");
       return;
     }
+
+    const rawContact = contactValue.trim();
+    if (!rawContact) {
+      setContactError(contactType === "phone" ? "Phone number is required." : "Email is required.");
+      return;
+    }
+    const normalizedContact =
+      contactType === "phone" ? normalizeUsPhone(rawContact) : normalizeEmail(rawContact);
+    if (!normalizedContact) {
+      setContactError(
+        contactType === "phone"
+          ? "Enter a valid US phone number."
+          : "Enter a valid email address.",
+      );
+      return;
+    }
+
     if (!selectedStore.trim()) {
       setStoreError("Please select a store.");
       return;
     }
     setNicknameError(null);
+    setContactError(null);
     setStoreError(null);
-    onLogin(trimmed);
+    onLogin({
+      nickname: trimmed,
+      contactType,
+      contactValue: normalizedContact,
+    });
   };
 
   const clearNickname = () => {
@@ -138,6 +182,54 @@ export default function LoginScreen({
             </button>
           )}
           {nicknameError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{nicknameError}</p> : null}
+
+          <p className="mt-4 text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-primary)]">
+            Contact (Coupon)
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setContactType("phone");
+                if (contactError) setContactError(null);
+              }}
+              className={`rounded-xl border px-3 py-2 text-sm font-black ${
+                contactType === "phone"
+                  ? "border-[var(--yl-primary)] bg-[var(--yl-primary)] text-white"
+                  : "border-[var(--yl-card-border)] bg-white text-[var(--yl-ink-muted)]"
+              }`}
+            >
+              Phone
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setContactType("email");
+                if (contactError) setContactError(null);
+              }}
+              className={`rounded-xl border px-3 py-2 text-sm font-black ${
+                contactType === "email"
+                  ? "border-[var(--yl-primary)] bg-[var(--yl-primary)] text-white"
+                  : "border-[var(--yl-card-border)] bg-white text-[var(--yl-ink-muted)]"
+              }`}
+            >
+              Email
+            </button>
+          </div>
+          <input
+            value={contactValue}
+            onChange={(e) => {
+              setContactValue(e.target.value);
+              if (contactError) setContactError(null);
+            }}
+            maxLength={contactType === "phone" ? 24 : 160}
+            placeholder={contactType === "phone" ? "e.g. 213-555-1234" : "e.g. user@example.com"}
+            className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+          />
+          {contactError ? <p className="mt-1 text-sm font-bold text-[var(--yl-primary-soft)]">{contactError}</p> : null}
+          <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
+            Used only for digital coupon notification.
+          </p>
 
           <label htmlFor="login-store" className="mt-4 block text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-primary)]">
             Store

@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { trackEvent } from "./lib/gtag";
-import LoginScreen from "./components/LoginScreen";
+import LoginScreen, { type LoginPayload } from "./components/LoginScreen";
 import HomeScreen from "./components/HomeScreen";
 import Game from "./components/Game";
 import LeaderboardModal, { LeaderMode, LeaderRow } from "./components/LeaderboardModal";
 import { supabase } from "./lib/supabaseClient";
 import { STORE_OPTIONS } from "./lib/stores";
+import { type EntryContactType } from "./lib/entry";
 
 type CharId = "green" | "berry" | "sprinkle";
 type Phase = "login" | "home" | "game";
@@ -29,8 +30,20 @@ type MyScoreRow = {
   store?: string | null;
 };
 
+type EntryContact = {
+  type: EntryContactType;
+  value: string;
+};
+
 function normalizeNick(raw: string) {
   return raw.trim().toLowerCase();
+}
+
+function readSavedContact(): EntryContact | null {
+  const type = (localStorage.getItem("entryContactType") || "").trim();
+  const value = (localStorage.getItem("entryContactValue") || "").trim();
+  if ((type !== "phone" && type !== "email") || !value) return null;
+  return { type, value };
 }
 
 async function fetchMyBestScore(nicknameDisplay: string, selectedStore: string) {
@@ -278,6 +291,8 @@ export default function Page() {
   const [best, setBest] = useState(0);
   const [startSignal, setStartSignal] = useState(0);
   const [authNick, setAuthNick] = useState<string | undefined>(undefined);
+  const [authContactType, setAuthContactType] = useState<EntryContactType>("phone");
+  const [authContactValue, setAuthContactValue] = useState<string>("");
 
   const [lbOpen, setLbOpen] = useState(false);
   const [lbRows, setLbRows] = useState<LeaderRow[]>([]);
@@ -299,10 +314,15 @@ export default function Page() {
   useEffect(() => {
     const savedNick = (localStorage.getItem("nickname") || "").trim();
     const savedStore = (localStorage.getItem("selectedStore") || "").trim();
+    const savedContact = readSavedContact();
     if (savedNick.length >= 2 && savedNick.length <= 12) {
       setAuthNick(savedNick);
     } else {
       setAuthNick(undefined);
+    }
+    if (savedContact) {
+      setAuthContactType(savedContact.type);
+      setAuthContactValue(savedContact.value);
     }
     if (savedStore && STORE_OPTIONS.includes(savedStore)) {
       setSelectedStore(savedStore);
@@ -767,8 +787,33 @@ export default function Page() {
     }
   };
 
-  const onLogin = async (nickname: string) => {
-    const trimmed = nickname.trim();
+  const upsertEntryContact = async (
+    contactType: EntryContactType,
+    contactValue: string,
+    nickname: string,
+    store: string,
+    scoreBest?: number
+  ) => {
+    const res = await fetch("/api/entry/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contactType,
+        contactValue,
+        nickname: nickname.trim() || null,
+        store: store.trim() || null,
+        scoreBest: typeof scoreBest === "number" ? scoreBest : undefined,
+      }),
+    });
+
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(json.error || "Failed to save contact info.");
+    }
+  };
+
+  const onLogin = async (payload: LoginPayload) => {
+    const trimmed = payload.nickname.trim();
     setLoginLoading(true);
 
     let finalStore = selectedStore;
@@ -793,13 +838,32 @@ export default function Page() {
       // fail silently — use the store selected on the login form
     }
 
+    try {
+      await upsertEntryContact(
+        payload.contactType,
+        payload.contactValue,
+        trimmed,
+        finalStore,
+        readSyncedLocalAllTimeBest(trimmed, finalStore) ?? 0
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save contact info. Please try again.");
+      setLoginLoading(false);
+      return;
+    }
+
     // Reset best score display to this user's own local history
     const myLocalBest = readSyncedLocalAllTimeBest(trimmed, finalStore) ?? 0;
     localStorage.setItem("bestScore", String(myLocalBest));
     setBest(myLocalBest);
 
     localStorage.setItem("nickname", trimmed);
+    localStorage.setItem("entryContactType", payload.contactType);
+    localStorage.setItem("entryContactValue", payload.contactValue);
     setAuthNick(trimmed);
+    setAuthContactType(payload.contactType);
+    setAuthContactValue(payload.contactValue);
     setLastNick(trimmed);
     setLoginLoading(false);
     setPhase("home");
@@ -872,13 +936,19 @@ export default function Page() {
             {phase === "login" && (
               <LoginScreen
                 initialNickname={authNick ?? ""}
+                initialContactType={authContactType}
+                initialContactValue={authContactValue}
                 stores={STORE_OPTIONS}
                 selectedStore={selectedStore}
                 onStoreChange={setSelectedStore}
                 onLogin={onLogin}
                 onDeleteNickname={() => {
                   localStorage.removeItem("nickname");
+                  localStorage.removeItem("entryContactType");
+                  localStorage.removeItem("entryContactValue");
                   setAuthNick(undefined);
+                  setAuthContactType("phone");
+                  setAuthContactValue("");
                   setLastNick(undefined);
                   setBest(0);
                 }}
@@ -944,6 +1014,20 @@ export default function Page() {
 
                   if (nick.length >= 2 && nick.length <= 12) {
                     await upsertBestScore(nick, finalScore, character, normalizedStore, false, false);
+                    const savedContact = readSavedContact();
+                    if (savedContact) {
+                      try {
+                        await upsertEntryContact(
+                          savedContact.type,
+                          savedContact.value,
+                          nick,
+                          normalizedStore,
+                          finalScore
+                        );
+                      } catch (err) {
+                        console.error("Failed to sync contact entry score:", err);
+                      }
+                    }
 
                     const mine = await fetchMyTodayScore(nick, normalizedStore);
 

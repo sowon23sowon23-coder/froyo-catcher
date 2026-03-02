@@ -40,23 +40,40 @@ export async function GET(req: NextRequest) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  let query = adminSupabase
-    .from("entries")
-    .select("id,contact_type,contact_value,score_best,coupon_status,coupon_sent_at,created_at")
-    .order("score_best", { ascending: false })
-    .order("created_at", { ascending: true })
-    .limit(limit);
+  const attempts = [
+    "id,contact_type,contact_value,nickname_display,store,score_best,coupon_status,coupon_sent_at,created_at",
+    "id,contact_type,contact_value,score_best,coupon_status,coupon_sent_at,created_at",
+  ];
 
-  if (status !== "all") {
-    query = query.eq("coupon_status", status);
+  let data: any[] | null = null;
+  let error: { message?: string } | null = null;
+
+  for (const selectColumns of attempts) {
+    let query = adminSupabase
+      .from("entries")
+      .select(selectColumns)
+      .order("score_best", { ascending: false })
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    if (status !== "all") {
+      query = query.eq("coupon_status", status);
+    }
+
+    const result = await query;
+    if (!result.error) {
+      data = (result.data as any[] | null) ?? [];
+      error = null;
+      break;
+    }
+    error = result.error as { message?: string };
   }
 
-  const { data, error } = await query;
   if (error) {
     return NextResponse.json({ error: error.message || "Failed to load entries." }, { status: 500 });
   }
 
-  const rows = (data || []).map((row: any) => ({
+  const rows = ((data || []) as any[]).map((row: any) => ({
     ...row,
     entry_code: formatEntryCode(Number(row.id)),
   }));
@@ -66,4 +83,3 @@ export async function GET(req: NextRequest) {
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
   );
 }
-
