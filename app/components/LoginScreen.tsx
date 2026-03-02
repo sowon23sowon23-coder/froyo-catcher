@@ -5,6 +5,18 @@ import { supabase } from "../lib/supabaseClient";
 import { getContactValidationError, normalizeEmail, normalizeUsPhone, type EntryContactType } from "../lib/entry";
 import StoreCombobox from "./StoreCombobox";
 
+const EMAIL_DOMAINS = [
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "icloud.com",
+  "naver.com",
+  "daum.net",
+] as const;
+
+const CUSTOM_EMAIL_DOMAIN = "__custom__";
+
 export type LoginPayload = {
   nickname: string;
   contactType: EntryContactType;
@@ -35,6 +47,8 @@ export default function LoginScreen({
   const [nickname, setNickname] = useState(initialNickname);
   const [contactType, setContactType] = useState<EntryContactType>(initialContactType);
   const [contactValue, setContactValue] = useState(initialContactValue);
+  const [emailDomainSelect, setEmailDomainSelect] = useState<string>(EMAIL_DOMAINS[0]);
+  const [customEmailDomain, setCustomEmailDomain] = useState("");
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [contactError, setContactError] = useState<string | null>(null);
   const [storeError, setStoreError] = useState<string | null>(null);
@@ -52,6 +66,22 @@ export default function LoginScreen({
 
   useEffect(() => {
     setContactValue(initialContactValue);
+    if (initialContactType !== "email") return;
+
+    const [localPartRaw = "", domainRaw = ""] = initialContactValue.split("@");
+    const localPart = localPartRaw.trim();
+    const domain = domainRaw.trim().toLowerCase();
+
+    if (localPart) setContactValue(localPart);
+    if (domain && EMAIL_DOMAINS.includes(domain as (typeof EMAIL_DOMAINS)[number])) {
+      setEmailDomainSelect(domain);
+      setCustomEmailDomain("");
+      return;
+    }
+    if (domain) {
+      setEmailDomainSelect(CUSTOM_EMAIL_DOMAIN);
+      setCustomEmailDomain(domain);
+    }
   }, [initialContactValue]);
 
   // When initialNickname is pre-filled (returning user), look up their store immediately.
@@ -101,8 +131,16 @@ export default function LoginScreen({
   };
 
   const handleContactBlur = () => {
-    const err = getContactValidationError(contactType, contactValue);
+    const err = getContactValidationError(contactType, getRawContact());
     setContactError(err);
+  };
+
+  const getRawContact = () => {
+    if (contactType === "phone") return contactValue.trim();
+    const local = contactValue.trim();
+    const domain =
+      emailDomainSelect === CUSTOM_EMAIL_DOMAIN ? customEmailDomain.trim() : emailDomainSelect.trim();
+    return `${local}@${domain}`;
   };
 
   const submit = () => {
@@ -112,7 +150,7 @@ export default function LoginScreen({
       return;
     }
 
-    const rawContact = contactValue.trim();
+    const rawContact = getRawContact();
     const contactValidationError = getContactValidationError(contactType, rawContact);
     if (contactValidationError) {
       setContactError(contactValidationError);
@@ -199,6 +237,8 @@ export default function LoginScreen({
               onClick={() => {
                 setContactType("phone");
                 setContactValue("");
+                setEmailDomainSelect(EMAIL_DOMAINS[0]);
+                setCustomEmailDomain("");
                 if (contactError) setContactError(null);
               }}
               className={`rounded-xl border px-3 py-2 text-sm font-black ${
@@ -214,6 +254,8 @@ export default function LoginScreen({
               onClick={() => {
                 setContactType("email");
                 setContactValue("");
+                setEmailDomainSelect(EMAIL_DOMAINS[0]);
+                setCustomEmailDomain("");
                 if (contactError) setContactError(null);
               }}
               className={`rounded-xl border px-3 py-2 text-sm font-black ${
@@ -225,19 +267,71 @@ export default function LoginScreen({
               Email
             </button>
           </div>
-          <input
-            value={contactValue}
-            onChange={(e) => {
-              setContactValue(e.target.value);
-              if (contactError) setContactError(null);
-            }}
-            onBlur={handleContactBlur}
-            type={contactType === "phone" ? "tel" : "email"}
-            inputMode={contactType === "phone" ? "tel" : "email"}
-            maxLength={contactType === "phone" ? 24 : 160}
-            placeholder={contactType === "phone" ? "e.g. 213-555-1234" : "e.g. user@example.com"}
-            className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-          />
+          {contactType === "phone" ? (
+            <input
+              value={contactValue}
+              onChange={(e) => {
+                setContactValue(e.target.value);
+                if (contactError) setContactError(null);
+              }}
+              onBlur={handleContactBlur}
+              type="tel"
+              inputMode="tel"
+              maxLength={24}
+              placeholder="e.g. 213-555-1234"
+              className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+            />
+          ) : (
+            <div className="mt-2 grid gap-2">
+              <div className="grid grid-cols-[1fr_auto_150px] items-center gap-2">
+                <input
+                  value={contactValue}
+                  onChange={(e) => {
+                    setContactValue(e.target.value.replace("@", ""));
+                    if (contactError) setContactError(null);
+                  }}
+                  onBlur={handleContactBlur}
+                  type="text"
+                  inputMode="email"
+                  maxLength={64}
+                  placeholder="username"
+                  className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                />
+                <span className="text-base font-black text-[var(--yl-ink-muted)]">@</span>
+                <select
+                  value={emailDomainSelect}
+                  onChange={(e) => {
+                    setEmailDomainSelect(e.target.value);
+                    if (contactError) setContactError(null);
+                  }}
+                  onBlur={handleContactBlur}
+                  className="rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                >
+                  {EMAIL_DOMAINS.map((domain) => (
+                    <option key={domain} value={domain}>
+                      {`@${domain}`}
+                    </option>
+                  ))}
+                  <option value={CUSTOM_EMAIL_DOMAIN}>Custom domain</option>
+                </select>
+              </div>
+              {emailDomainSelect === CUSTOM_EMAIL_DOMAIN && (
+                <input
+                  value={customEmailDomain}
+                  onChange={(e) => {
+                    setCustomEmailDomain(e.target.value.toLowerCase().replace(/^@+/, ""));
+                    if (contactError) setContactError(null);
+                  }}
+                  onBlur={handleContactBlur}
+                  type="text"
+                  inputMode="email"
+                  maxLength={120}
+                  placeholder="example.com"
+                  className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                />
+              )}
+            </div>
+          )}
           {contactError ? <p className="mt-1 text-sm font-bold text-[var(--yl-primary-soft)]">{contactError}</p> : null}
           <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
             Used only for digital coupon notification.
