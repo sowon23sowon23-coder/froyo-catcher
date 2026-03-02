@@ -7,7 +7,6 @@ import HomeScreen from "./components/HomeScreen";
 import Game from "./components/Game";
 import LeaderboardModal, { LeaderMode, LeaderRow } from "./components/LeaderboardModal";
 import { supabase } from "./lib/supabaseClient";
-import { STORE_OPTIONS } from "./lib/stores";
 import { type EntryContactType } from "./lib/entry";
 
 type CharId = "green" | "berry" | "sprinkle";
@@ -147,8 +146,6 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
 
     if (selectedStore !== "__ALL__") {
       query = query.eq("store", selectedStore);
-    } else {
-      query = query.neq("store", "__ALL__");
     }
 
     const initial = await query;
@@ -168,8 +165,6 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
             .limit(1);
           if (selectedStore !== "__ALL__") {
             q = q.eq("store", selectedStore);
-          } else {
-            q = q.neq("store", "__ALL__");
           }
           return q;
         },
@@ -184,8 +179,6 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
             .limit(1);
           if (selectedStore !== "__ALL__") {
             q = q.eq("store", selectedStore);
-          } else {
-            q = q.neq("store", "__ALL__");
           }
           return q;
         },
@@ -200,8 +193,6 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
             .limit(1);
           if (selectedStore !== "__ALL__") {
             q = q.eq("store", selectedStore);
-          } else {
-            q = q.neq("store", "__ALL__");
           }
           return q;
         },
@@ -299,7 +290,7 @@ export default function Page() {
   const [lbLoading, setLbLoading] = useState(false);
 
   const [mode, setMode] = useState<LeaderMode>("today");
-  const [selectedStore, setSelectedStore] = useState<string>("");
+  const selectedStore = "__ALL__";
 
   const [lastScore, setLastScore] = useState<number | undefined>(undefined);
   const [lastNick, setLastNick] = useState<string | undefined>(undefined);
@@ -313,7 +304,6 @@ export default function Page() {
 
   useEffect(() => {
     const savedNick = (localStorage.getItem("nickname") || "").trim();
-    const savedStore = (localStorage.getItem("selectedStore") || "").trim();
     const savedContact = readSavedContact();
     if (savedNick.length >= 2 && savedNick.length <= 12) {
       setAuthNick(savedNick);
@@ -324,9 +314,6 @@ export default function Page() {
       setAuthContactType(savedContact.type);
       setAuthContactValue(savedContact.value);
     }
-    if (savedStore && STORE_OPTIONS.includes(savedStore)) {
-      setSelectedStore(savedStore);
-    }
     setPhase("login");
   }, []);
 
@@ -335,12 +322,6 @@ export default function Page() {
     setBest(b);
     setLastNick(localStorage.getItem("nickname") ?? undefined);
   }, [phase]);
-
-  useEffect(() => {
-    if (selectedStore.trim() && selectedStore !== "__ALL__") {
-      localStorage.setItem("selectedStore", selectedStore);
-    }
-  }, [selectedStore]);
 
   const fetchTop20 = async (m: LeaderMode, store: string) => {
     setLbLoading(true);
@@ -355,8 +336,6 @@ export default function Page() {
 
       if (store !== "__ALL__") {
         query = query.eq("store", store);
-      } else if (m === "today") {
-        query = query.neq("store", "__ALL__");
       }
 
       if (m === "today") {
@@ -379,8 +358,6 @@ export default function Page() {
               .limit(20);
             if (store !== "__ALL__") {
               q = q.eq("store", store);
-            } else if (m === "today") {
-              q = q.neq("store", "__ALL__");
             }
             if (m === "today") q = q.gte("updated_at", startOfTodayLocalISO());
             return q;
@@ -394,8 +371,6 @@ export default function Page() {
               .limit(20);
             if (store !== "__ALL__") {
               q = q.eq("store", store);
-            } else if (m === "today") {
-              q = q.neq("store", "__ALL__");
             }
             if (m === "today") q = q.gte("updated_at", startOfTodayLocalISO());
             return q;
@@ -409,8 +384,6 @@ export default function Page() {
               .limit(20);
             if (store !== "__ALL__") {
               q = q.eq("store", store);
-            } else if (m === "today") {
-              q = q.neq("store", "__ALL__");
             }
             if (m === "today") q = q.gte("updated_at", startOfTodayLocalISO());
             return q;
@@ -472,8 +445,6 @@ export default function Page() {
 
       if (store !== "__ALL__") {
         query = query.eq("store", store);
-      } else if (m === "today") {
-        query = query.neq("store", "__ALL__");
       }
 
       if (m === "today") {
@@ -491,8 +462,6 @@ export default function Page() {
 
         if (store !== "__ALL__") {
           fallbackQuery = fallbackQuery.eq("store", store);
-        } else if (m === "today") {
-          fallbackQuery = fallbackQuery.neq("store", "__ALL__");
         }
         if (m === "today") {
           fallbackQuery = fallbackQuery.gte("updated_at", startOfTodayLocalISO());
@@ -672,7 +641,7 @@ export default function Page() {
 
   const syncAllTimeFromLocalIfNeeded = async (m: LeaderMode, store: string, nick: string) => {
     if (m !== "all") return;
-    if (!store.trim() || store === "__ALL__") return;
+    if (!store.trim()) return;
     if (nick.length < 2 || nick.length > 12) return;
 
     const localAllTime = readSyncedLocalAllTimeBest(nick, store);
@@ -747,27 +716,7 @@ export default function Page() {
     const trimmed = payload.nickname.trim();
     setLoginLoading(true);
 
-    let finalStore = selectedStore;
-
-    try {
-      const key = normalizeNick(trimmed);
-      const { data } = await supabase
-        .from("leaderboard_best_v2")
-        .select("store")
-        .eq("nickname_key", key)
-        .not("store", "is", null)
-        .order("updated_at", { ascending: false })
-        .limit(1);
-
-      const dbStore = (data?.[0] as { store?: string } | undefined)?.store?.trim();
-      if (dbStore && dbStore !== "__ALL__" && STORE_OPTIONS.includes(dbStore)) {
-        finalStore = dbStore;
-        setSelectedStore(dbStore);
-        localStorage.setItem("selectedStore", dbStore);
-      }
-    } catch {
-      // fail silently — use the store selected on the login form
-    }
+    const finalStore = "__ALL__";
 
     try {
       await upsertEntryContact(
@@ -817,7 +766,7 @@ export default function Page() {
         body: JSON.stringify({
           message,
           nickname: (authNick ?? localStorage.getItem("nickname") ?? "").trim() || null,
-          store: selectedStore || null,
+          store: selectedStore === "__ALL__" ? null : selectedStore,
           source: "home_tool",
         }),
       });
@@ -869,9 +818,6 @@ export default function Page() {
                 initialNickname={authNick ?? ""}
                 initialContactType={authContactType}
                 initialContactValue={authContactValue}
-                stores={STORE_OPTIONS}
-                selectedStore={selectedStore}
-                onStoreChange={setSelectedStore}
                 onLogin={onLogin}
                 onDeleteNickname={() => {
                   localStorage.removeItem("nickname");
@@ -918,9 +864,7 @@ export default function Page() {
                 }}
                 onGameOver={async (finalScore: number) => {
                   const nick = (localStorage.getItem("nickname") || "").trim();
-                  const fallbackStore = (localStorage.getItem("selectedStore") || STORE_OPTIONS[0] || "").trim();
-                  const normalizedStore =
-                    selectedStore && selectedStore !== "__ALL__" ? selectedStore : fallbackStore;
+                  const normalizedStore = "__ALL__";
                   const leaderboardMode: LeaderMode = "today";
                   const isFreePlay = gameMode === "free";
                   const todayBestLocal = isFreePlay
