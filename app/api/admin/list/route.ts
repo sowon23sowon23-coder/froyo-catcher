@@ -68,17 +68,56 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = (data ?? []) as Array<{ store?: string | null }>;
+  const enrichWithContacts = async (baseRows: any[]) => {
+    const nicknameKeys = Array.from(new Set(baseRows.map((r) => String(r.nickname_key || "")).filter(Boolean)));
+    if (nicknameKeys.length === 0) return baseRows;
+
+    const contactRes = await adminSupabase
+      .from("entries")
+      .select("nickname_key,contact_type,contact_value")
+      .in("nickname_key", nicknameKeys);
+
+    const contactMap = new Map<string, { contact_type?: string; contact_value?: string }>();
+    if (!contactRes.error && contactRes.data) {
+      for (const row of contactRes.data as Array<{
+        nickname_key?: string | null;
+        contact_type?: string | null;
+        contact_value?: string | null;
+      }>) {
+        const key = String(row.nickname_key || "");
+        if (!key || !row.contact_type || !row.contact_value) continue;
+        if (!contactMap.has(key)) {
+          contactMap.set(key, {
+            contact_type: row.contact_type,
+            contact_value: row.contact_value,
+          });
+        }
+      }
+    }
+
+    return baseRows.map((row) => {
+      const contact = contactMap.get(String(row.nickname_key || ""));
+      return {
+        ...row,
+        contact_type: contact?.contact_type ?? null,
+        contact_value: contact?.contact_value ?? null,
+      };
+    });
+  };
+
   if (supportsStore && store && store !== "__ALL__") {
     const wanted = store.trim().toLowerCase();
-    const filtered = rows.filter((r) => ((r.store ?? "").trim().toLowerCase() === wanted));
+    const filtered = rows.filter((r) => ((r.store ?? "").trim().toLowerCase() === wanted)) as any[];
+    const enriched = await enrichWithContacts(filtered);
     return NextResponse.json(
-      { rows: filtered, supportsStore },
+      { rows: enriched, supportsStore },
       { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
     );
   }
 
+  const enriched = await enrichWithContacts(rows as any[]);
   return NextResponse.json(
-    { rows, supportsStore },
+    { rows: enriched, supportsStore },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
   );
 }

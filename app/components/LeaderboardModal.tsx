@@ -10,8 +10,6 @@ export type LeaderRow = {
   score: number;
   date?: string;
   character?: CharId;
-  contactType?: "phone" | "email";
-  contactValue?: string;
 };
 
 export type LeaderMode = "today" | "all";
@@ -161,16 +159,9 @@ export default function LeaderboardModal({
                     >
                       <div className="font-black text-[var(--yl-primary-deep)]">{r.rank}</div>
                       <div className="truncate font-bold text-[var(--yl-ink-strong)]">
-                        <div className="truncate">
-                          {r.nickname}
-                          {isMe ? <span className="ml-2 text-xs font-black text-[var(--yl-green)]">YOU</span> : null}
-                          {r.date ? <span className="ml-2 text-xs font-semibold text-[#ac7f95]">{r.date}</span> : null}
-                        </div>
-                        {r.contactValue ? (
-                          <div className="truncate text-[11px] font-semibold text-[#ac7f95]">
-                            {r.contactType === "phone" ? "Phone" : "Email"}: {r.contactValue}
-                          </div>
-                        ) : null}
+                        {r.nickname}
+                        {isMe ? <span className="ml-2 text-xs font-black text-[var(--yl-green)]">YOU</span> : null}
+                        {r.date ? <span className="ml-2 text-xs font-semibold text-[#ac7f95]">{r.date}</span> : null}
                       </div>
                       <div className="flex items-center gap-1 text-xs font-bold text-[var(--yl-ink-muted)]">
                         {r.character ? (

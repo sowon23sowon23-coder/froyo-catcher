@@ -13,6 +13,8 @@ type AdminRow = {
   updated_at: string;
   character?: CharId | null;
   store?: string | null;
+  contact_type?: "phone" | "email" | null;
+  contact_value?: string | null;
 };
 
 type FeedbackRow = {
@@ -161,7 +163,8 @@ export default function AdminPage() {
         return (
           row.nickname_display.toLowerCase().includes(term) ||
           row.nickname_key.toLowerCase().includes(term) ||
-          (row.store ?? "").toLowerCase().includes(term)
+          (row.store ?? "").toLowerCase().includes(term) ||
+          (row.contact_value ?? "").toLowerCase().includes(term)
         );
       })
       .sort((a, b) => b.score - a.score || a.nickname_key.localeCompare(b.nickname_key));
@@ -379,11 +382,12 @@ export default function AdminPage() {
 
         {/* Full admin table ??always shown */}
         <div className="overflow-hidden rounded-2xl border border-[#f3c7dd] bg-white shadow-[0_12px_24px_rgba(150,9,83,0.12)]">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_120px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75]">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1.6fr_120px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75]">
             <div>Nickname</div>
             <div>Score</div>
             <div>Character</div>
             <div>Updated</div>
+            <div>Contact</div>
             <div className="text-right">Action</div>
           </div>
 
@@ -396,7 +400,7 @@ export default function AdminPage() {
               {filteredRows.map((row, idx) => (
                 <div
                   key={`${row.nickname_key}-${row.updated_at}`}
-                  className="grid grid-cols-[2fr_1fr_1fr_1fr_120px] border-t border-[#f9d7e8] px-4 py-3 text-sm"
+                  className="grid grid-cols-[2fr_1fr_1fr_1fr_1.6fr_120px] border-t border-[#f9d7e8] px-4 py-3 text-sm"
                 >
                   <div className="min-w-0">
                     <p className="truncate font-black text-[#4e1434]">
@@ -409,6 +413,12 @@ export default function AdminPage() {
                   <div className="font-semibold text-[#5f2b4b]">{characterLabel(row.character)}</div>
                   <div className="font-semibold text-[#6a3b58]">
                     {row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "-"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-[#5f2b4b]">
+                      {row.contact_type === "phone" ? "Phone" : row.contact_type === "email" ? "Email" : "-"}
+                    </p>
+                    <p className="truncate text-xs font-semibold text-[#8d6280]">{row.contact_value || "-"}</p>
                   </div>
                   <div className="text-right">
                     <button

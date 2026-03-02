@@ -20,8 +20,6 @@ type DbRow = {
   updated_at: string;
   character?: CharId;
   store?: string;
-  contact_type?: EntryContactType;
-  contact_value?: string;
 };
 
 type MyScoreRow = {
@@ -371,8 +369,6 @@ export default function Page() {
           score: r.score,
           date: new Date(r.updated_at).toLocaleDateString(),
           character: r.character,
-          contactType: r.contact_type,
-          contactValue: r.contact_value,
         };
       });
 
