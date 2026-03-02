@@ -38,6 +38,14 @@ function isNoRowsError(message?: string | null) {
   return m.includes("no rows");
 }
 
+function isUniqueViolation(error: { code?: string; message?: string } | null | undefined) {
+  return error?.code === "23505";
+}
+
+function normalizeNicknameKey(raw: string) {
+  return raw.trim().toLowerCase();
+}
+
 async function allowRateLimit(
   supabase: any,
   key: string,
@@ -79,6 +87,10 @@ export async function POST(req: NextRequest) {
   }
 
   const nickname = String(body.nickname || "").trim();
+  if (nickname.length < 2 || nickname.length > 12) {
+    return NextResponse.json({ error: "Nickname must be 2-12 characters." }, { status: 400 });
+  }
+  const nicknameKey = normalizeNicknameKey(nickname);
   const store = String(body.store || "").trim();
 
   const supabase = getServerSupabase();
@@ -111,17 +123,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Entry not found. Register contact first." }, { status: 404 });
   }
 
+  const nicknameOwner = await supabase
+    .from("entries")
+    .select("id")
+    .eq("nickname_key", nicknameKey)
+    .maybeSingle();
+  if (nicknameOwner.error && !isNoRowsError(nicknameOwner.error.message)) {
+    return NextResponse.json({ error: nicknameOwner.error.message || "Failed to verify nickname." }, { status: 500 });
+  }
+  if (
+    nicknameOwner.data?.id &&
+    Number(nicknameOwner.data.id) !== Number(existing.data.id)
+  ) {
+    return NextResponse.json({ error: "Nickname is already in use." }, { status: 409 });
+  }
+
   const existingBest = Number(existing.data.score_best ?? 0);
   const nextBest = Math.max(existingBest, incomingBest);
 
   const updatePayloads = [
     {
       score_best: nextBest,
+      nickname_key: nicknameKey,
       nickname_display: nickname || null,
       store: store || null,
     },
     {
       score_best: nextBest,
+      nickname_key: nicknameKey,
     },
   ];
 
@@ -130,6 +159,9 @@ export async function POST(req: NextRequest) {
     const result = await supabase.from("entries").update(patch).eq("id", existing.data.id);
     if (!result.error) {
       return NextResponse.json({ ok: true, score_best: nextBest });
+    }
+    if (isUniqueViolation(result.error as { code?: string; message?: string })) {
+      return NextResponse.json({ error: "Nickname is already in use." }, { status: 409 });
     }
     lastError = result.error as { message?: string };
   }
