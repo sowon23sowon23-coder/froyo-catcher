@@ -5,6 +5,8 @@ import { trackEvent } from "../lib/gtag";
 
 type CharId = "green" | "berry" | "sprinkle";
 type GameMode = "free" | "mission" | "timeAttack";
+const FREE_HEART_SPAWN_CHANCE = 0.12;
+const MAX_LIVES = 5;
 
 const FALLING_ITEM_CANDIDATES = [
   "gummy-bear.png",
@@ -666,8 +668,12 @@ export default function Game({
 
     spawnRef.current = window.setInterval(() => {
       let itemData: { emoji?: string; image?: string };
-      const randomImage = fallingItemImages[Math.floor(Math.random() * fallingItemImages.length)] ?? "gummy-bear.png";
-      itemData = { image: randomImage };
+      if (mode === "free" && Math.random() < FREE_HEART_SPAWN_CHANCE) {
+        itemData = { emoji: "💗" };
+      } else {
+        const randomImage = fallingItemImages[Math.floor(Math.random() * fallingItemImages.length)] ?? "gummy-bear.png";
+        itemData = { image: randomImage };
+      }
       const currentScore = scoreRef.current;
       const spawnCount = mode === "free" ? freeSpawnBurstCount(currentScore) : 1;
       const nextItems: FallingItem[] = [];
@@ -695,6 +701,7 @@ export default function Game({
 
       setItems((prev) => {
         let gained = 0;
+        let lifeGain = 0;
         let lifeLoss = 0;
         const popsToAdd: Pop[] = [];
         const next: FallingItem[] = [];
@@ -729,15 +736,28 @@ export default function Game({
                 if (!lifeLossReason) lifeLossReason = { x: item.x, text: "WRONG" };
               }
             } else {
-              gained += 1;
-              popsToAdd.push({
-                id: popIdRef.current++,
-                x: item.x,
-                y: 88,
-                text: "+1",
-                born: now,
-                kind: "gain",
-              });
+              const isHeart = mode === "free" && item.emoji === "💗";
+              if (isHeart) {
+                lifeGain += 1;
+                popsToAdd.push({
+                  id: popIdRef.current++,
+                  x: item.x,
+                  y: 88,
+                  text: "LIFE +1",
+                  born: now,
+                  kind: "gain",
+                });
+              } else {
+                gained += 1;
+                popsToAdd.push({
+                  id: popIdRef.current++,
+                  x: item.x,
+                  y: 88,
+                  text: "+1",
+                  born: now,
+                  kind: "gain",
+                });
+              }
               // Track caught items for Time Attack reveal screen
               if (mode === "timeAttack") {
                 const placement = pickCreamPlacementAvoidOverlap(collectedRef.current, item.image);
@@ -756,6 +776,7 @@ export default function Game({
           }
 
           if (ny > MISS_Y_PCT) {
+            const isHeart = mode === "free" && item.emoji === "💗";
             if (mode === "mission") {
               if (isMissionTarget) {
                 lifeLoss += 1;
@@ -763,6 +784,9 @@ export default function Game({
               }
             } else {
               if (mode !== "timeAttack") {
+                if (isHeart) {
+                  continue;
+                }
                 lifeLoss += 1;
                 if (!lifeLossReason) lifeLossReason = { x: item.x, text: "MISSED" };
               }
@@ -784,6 +808,11 @@ export default function Game({
             playSfx("combo");
             vibrateByEvent("combo");
           }
+        }
+        if (lifeGain) {
+          playSfx("catch");
+          vibrateByEvent("catch");
+          setLives((l) => Math.min(MAX_LIVES, l + lifeGain));
         }
 
         if (lifeLoss) {
@@ -904,7 +933,7 @@ export default function Game({
             <div className="flex flex-1 flex-col items-center rounded-2xl bg-white/90 py-2 shadow ring-1 ring-[var(--yl-card-border)]">
               <span className="text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">LIVES</span>
               <div className="mt-0.5 flex gap-0.5">
-                {Array.from({ length: 3 }).map((_, i) => (
+                {Array.from({ length: MAX_LIVES }).map((_, i) => (
                   <span key={i} className="text-lg leading-none">{i < lives ? "❤️" : "🤍"}</span>
                 ))}
               </div>
