@@ -281,6 +281,7 @@ export default function Page() {
   const [character, setCharacter] = useState<CharId>("green");
   const [gameMode, setGameMode] = useState<GameMode>("free");
   const [best, setBest] = useState(0);
+  const [todayBestScore, setTodayBestScore] = useState<number | undefined>(undefined);
   const [startSignal, setStartSignal] = useState(0);
   const [authNick, setAuthNick] = useState<string | undefined>(undefined);
   const [authContactType, setAuthContactType] = useState<EntryContactType>("phone");
@@ -319,6 +320,7 @@ export default function Page() {
     setLastScore(undefined);
     setMyRank(undefined);
     setBest(0);
+    setTodayBestScore(undefined);
     setLbOpen(false);
     setLbRows([]);
     setLoginError(null);
@@ -404,6 +406,34 @@ export default function Page() {
     setBest(b);
     setLastNick(localStorage.getItem("nickname") ?? undefined);
   }, [phase]);
+
+  const refreshTodayBestScore = async (nickname: string) => {
+    const nick = nickname.trim();
+    if (nick.length < 2 || nick.length > 12) {
+      setTodayBestScore(undefined);
+      return;
+    }
+
+    const localTodayBest = readLocalTodayBest(nick, "__ALL__");
+    setTodayBestScore(localTodayBest);
+
+    try {
+      const mine = await fetchMyTodayScore(nick, "__ALL__");
+      if (mine?.score && mine.score > 0) {
+        setTodayBestScore((prev) => Math.max(prev ?? 0, mine.score));
+      } else if (!localTodayBest) {
+        setTodayBestScore(undefined);
+      }
+    } catch {
+      // Keep local fallback if remote read fails.
+    }
+  };
+
+  useEffect(() => {
+    if (phase !== "home") return;
+    const nick = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
+    void refreshTodayBestScore(nick);
+  }, [phase, authNick]);
 
   const fetchTop20 = async (m: LeaderMode, store: string) => {
     setLbLoading(true);
@@ -802,6 +832,7 @@ export default function Page() {
     const myLocalBest = readSyncedLocalAllTimeBest(trimmed, finalStore) ?? 0;
     localStorage.setItem("bestScore", String(myLocalBest));
     setBest(myLocalBest);
+    await refreshTodayBestScore(trimmed);
 
     localStorage.setItem("rememberLogin", payload.rememberMe ? "true" : "false");
     if (payload.rememberMe) {
@@ -956,7 +987,7 @@ export default function Page() {
             {phase === "home" && (
               <HomeScreen
                 nickname={authNick}
-                bestScore={best}
+                todayBestScore={todayBestScore}
                 onStart={(char: CharId, mode: GameMode) => {
                   setCharacter(char);
                   setGameMode(mode);

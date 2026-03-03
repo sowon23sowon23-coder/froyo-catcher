@@ -33,14 +33,14 @@ const MODES: ModeOption[] = [
 
 export default function HomeScreen({
   nickname,
-  bestScore,
+  todayBestScore,
   onStart,
   onOpenLeaderboard,
   onOpenAdmin,
   onSwitchAccount,
 }: {
   nickname?: string;
-  bestScore: number;
+  todayBestScore?: number;
   onStart: (character: CharId, mode: GameMode) => void;
   onOpenLeaderboard: () => void;
   onOpenAdmin: () => void;
@@ -122,8 +122,12 @@ export default function HomeScreen({
         <section className="mb-4 rounded-3xl border border-[var(--yl-card-border)] bg-white/85 p-5 shadow-[0_16px_40px_rgba(150,9,83,0.16)] backdrop-blur-sm">
           <div className="flex items-center justify-between rounded-2xl bg-[var(--yl-card-bg)] px-4 py-3 ring-1 ring-[var(--yl-card-border)]">
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[var(--yl-primary)]">Best Score</p>
-              <p className="text-2xl font-black text-[var(--yl-ink-strong)]">{bestScore}</p>
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[var(--yl-primary)]">Today&apos;s Best Score</p>
+              {typeof todayBestScore === "number" && todayBestScore > 0 ? (
+                <p className="text-2xl font-black text-[var(--yl-ink-strong)]">{todayBestScore}</p>
+              ) : (
+                <p className="text-sm font-bold text-[var(--yl-ink-muted)]">Play the game first.</p>
+              )}
             </div>
             <button
               type="button"
