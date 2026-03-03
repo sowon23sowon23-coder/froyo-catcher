@@ -13,6 +13,7 @@ type CharId = "green" | "berry" | "sprinkle";
 type Phase = "login" | "switchAccount" | "home" | "game";
 type GameMode = "free" | "mission" | "timeAttack";
 const PHASE_STORAGE_KEY = "currentPhase";
+const SESSION_AUTH_STORAGE_KEY = "sessionAuth";
 
 type DbRow = {
   nickname_key: string;
@@ -35,6 +36,12 @@ type EntryContact = {
   value: string;
 };
 
+type SessionAuthSnapshot = {
+  nickname: string;
+  contactType: EntryContactType;
+  contactValue: string;
+};
+
 function normalizeNick(raw: string) {
   return raw.trim().toLowerCase();
 }
@@ -44,6 +51,32 @@ function readSavedContact(): EntryContact | null {
   const value = (localStorage.getItem("entryContactValue") || "").trim();
   if ((type !== "phone" && type !== "email") || !value) return null;
   return { type, value };
+}
+
+function readSessionAuthSnapshot(): SessionAuthSnapshot | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SessionAuthSnapshot>;
+    const nickname = String(parsed.nickname || "").trim();
+    const contactType = parsed.contactType;
+    const contactValue = String(parsed.contactValue || "").trim();
+    if (
+      nickname.length < 2 ||
+      nickname.length > 12 ||
+      (contactType !== "phone" && contactType !== "email") ||
+      !contactValue
+    ) {
+      return null;
+    }
+    return {
+      nickname,
+      contactType,
+      contactValue,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchMyBestScore(nicknameDisplay: string, selectedStore: string) {
@@ -343,6 +376,7 @@ export default function Page() {
 
       const savedNick = (localStorage.getItem("nickname") || "").trim();
       const savedContact = readSavedContact();
+      const sessionAuth = readSessionAuthSnapshot();
 
       if (savedNick.length >= 2 && savedNick.length <= 12) {
         if (active) setAuthNick(savedNick);
@@ -385,6 +419,14 @@ export default function Page() {
           localStorage.setItem("nickname", json.nickname);
           localStorage.setItem("entryContactType", json.contactType);
           localStorage.setItem("entryContactValue", json.contactValue);
+          sessionStorage.setItem(
+            SESSION_AUTH_STORAGE_KEY,
+            JSON.stringify({
+              nickname: json.nickname,
+              contactType: json.contactType,
+              contactValue: json.contactValue,
+            } satisfies SessionAuthSnapshot)
+          );
           if (active) {
             setAuthNick(json.nickname);
             setAuthContactType(json.contactType);
@@ -400,6 +442,29 @@ export default function Page() {
         }
       } catch {
         // Continue with login screen fallback.
+      }
+
+      const canRestoreFromLocal =
+        rememberEnabled &&
+        savedNick.length >= 2 &&
+        savedNick.length <= 12 &&
+        !!savedContact;
+      const canRestoreFromSession = !!sessionAuth;
+      if (active && (canRestoreFromLocal || canRestoreFromSession)) {
+        const restoredNick = canRestoreFromLocal ? savedNick : sessionAuth!.nickname;
+        const restoredContactType = canRestoreFromLocal ? savedContact!.type : sessionAuth!.contactType;
+        const restoredContactValue = canRestoreFromLocal ? savedContact!.value : sessionAuth!.contactValue;
+
+        setAuthNick(restoredNick);
+        setAuthContactType(restoredContactType);
+        setAuthContactValue(restoredContactValue);
+        setLastNick(restoredNick);
+        const nextPhase = savedPhase === "game" ? "game" : "home";
+        setPhase(nextPhase);
+        if (nextPhase === "game") {
+          setStartSignal((n) => n + 1);
+        }
+        return;
       }
 
       if (active) {
@@ -854,6 +919,14 @@ export default function Page() {
     await refreshTodayBestScore(trimmed);
 
     localStorage.setItem("rememberLogin", payload.rememberMe ? "true" : "false");
+    sessionStorage.setItem(
+      SESSION_AUTH_STORAGE_KEY,
+      JSON.stringify({
+        nickname: trimmed,
+        contactType: payload.contactType,
+        contactValue: payload.contactValue,
+      } satisfies SessionAuthSnapshot)
+    );
     if (payload.rememberMe) {
       localStorage.setItem("nickname", trimmed);
       localStorage.setItem("entryContactType", payload.contactType);
