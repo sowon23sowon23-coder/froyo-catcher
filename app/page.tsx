@@ -484,8 +484,8 @@ export default function Page() {
   useEffect(() => {
     const b = Number(localStorage.getItem("bestScore") || 0);
     setBest(b);
-    setLastNick(localStorage.getItem("nickname") ?? undefined);
-  }, [phase]);
+    setLastNick(authNick ?? localStorage.getItem("nickname") ?? undefined);
+  }, [phase, authNick]);
 
   useEffect(() => {
     sessionStorage.setItem(PHASE_STORAGE_KEY, phase);
@@ -626,7 +626,7 @@ export default function Page() {
 
   const openLeaderboard = async () => {
     trackEvent({ action: "leaderboard_open", category: "engagement" });
-    const nick = (localStorage.getItem("nickname") || "").trim();
+    const nick = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
     const leaderboardStore = "__ALL__";
     setLastNick(nick || undefined);
 
@@ -800,7 +800,7 @@ export default function Page() {
 
   const onChangeMode = async (m: LeaderMode) => {
     setMode(m);
-    const nick = (localStorage.getItem("nickname") || "").trim();
+    const nick = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
     const leaderboardStore = "__ALL__";
     await syncAllTimeFromLocalIfNeeded(m, leaderboardStore, nick);
     await fetchTop20(m, leaderboardStore);
@@ -1115,7 +1115,7 @@ export default function Page() {
                   localStorage.setItem("bestScore", String(newBest));
                 }}
                 onGameOver={async (finalScore: number) => {
-                  const nick = (localStorage.getItem("nickname") || "").trim();
+                  const nick = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
                   const normalizedStore = "__ALL__";
                   const leaderboardMode: LeaderMode = "today";
                   const isFreePlay = gameMode === "free";
