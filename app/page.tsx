@@ -305,6 +305,8 @@ export default function Page() {
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
   const [rememberMeDefault, setRememberMeDefault] = useState(true);
   const [switchSourceNick, setSwitchSourceNick] = useState<string>("");
+  const [switchSourceContactType, setSwitchSourceContactType] = useState<EntryContactType>("phone");
+  const [switchSourceContactValue, setSwitchSourceContactValue] = useState<string>("");
 
   const clearClientAuthState = () => {
     localStorage.clear();
@@ -886,7 +888,12 @@ export default function Page() {
 
   const switchAccount = async () => {
     const currentAccount = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
+    const savedContact = readSavedContact();
+    const currentContactType = savedContact?.type ?? authContactType;
+    const currentContactValue = savedContact?.value ?? authContactValue;
     setSwitchSourceNick(currentAccount || "Unknown");
+    setSwitchSourceContactType(currentContactType);
+    setSwitchSourceContactValue(currentContactValue);
     await invalidateServerSession();
     clearClientAuthState();
     setPhase("switchAccount");
@@ -937,8 +944,8 @@ export default function Page() {
                 mode="switch"
                 currentAccount={switchSourceNick}
                 initialNickname=""
-                initialContactType="phone"
-                initialContactValue=""
+                initialContactType={switchSourceContactType}
+                initialContactValue={switchSourceContactValue}
                 onLogin={onLogin}
                 submitError={loginError}
                 loading={loginLoading}
