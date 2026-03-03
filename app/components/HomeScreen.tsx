@@ -37,12 +37,14 @@ export default function HomeScreen({
   onStart,
   onOpenLeaderboard,
   onOpenAdmin,
+  onSwitchAccount,
 }: {
   nickname?: string;
   bestScore: number;
   onStart: (character: CharId, mode: GameMode) => void;
   onOpenLeaderboard: () => void;
   onOpenAdmin: () => void;
+  onSwitchAccount: () => void;
 }) {
   const [character, setCharacter] = useState<CharId>("green");
   const [mode, setMode] = useState<GameMode>("free");
@@ -103,9 +105,18 @@ export default function HomeScreen({
         </header>
 
         {nickname ? (
-          <p className="mb-3 text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-ink-muted)]">
-            Logged in as <span className="text-[var(--yl-primary)]">{nickname}</span>
-          </p>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-ink-muted)]">
+              Logged in as <span className="text-[var(--yl-primary)]">{nickname}</span>
+            </p>
+            <button
+              type="button"
+              onClick={onSwitchAccount}
+              className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+            >
+              Switch Nickname
+            </button>
+          </div>
         ) : null}
 
         <section className="mb-4 rounded-3xl border border-[var(--yl-card-border)] bg-white/85 p-5 shadow-[0_16px_40px_rgba(150,9,83,0.16)] backdrop-blur-sm">

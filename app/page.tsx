@@ -857,6 +857,21 @@ export default function Page() {
     }
   };
 
+  const switchAccount = async () => {
+    await fetch("/api/entry/logout", { method: "POST" }).catch(() => undefined);
+    localStorage.removeItem("nickname");
+    localStorage.removeItem("entryContactType");
+    localStorage.removeItem("entryContactValue");
+    localStorage.setItem("rememberLogin", "false");
+    setRememberMeDefault(false);
+    setAuthNick(undefined);
+    setAuthContactType("phone");
+    setAuthContactValue("");
+    setLastNick(undefined);
+    setLoginError(null);
+    setPhase("login");
+  };
+
   return (
     <>
       {bootLoading ? null : (
@@ -926,6 +941,7 @@ export default function Page() {
                   trackEvent({ action: "tools_open_click", category: "engagement" });
                   setToolsOpen(true);
                 }}
+                onSwitchAccount={switchAccount}
               />
             )}
 
