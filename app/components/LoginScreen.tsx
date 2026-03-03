@@ -44,6 +44,7 @@ export type LoginPayload = {
   nickname: string;
   contactType: EntryContactType;
   contactValue: string;
+  rememberMe: boolean;
 };
 
 export default function LoginScreen({
@@ -55,6 +56,7 @@ export default function LoginScreen({
   onDeleteNickname,
   submitError = null,
   loading = false,
+  initialRememberMe = true,
 }: {
   initialNickname?: string;
   initialContactType?: EntryContactType;
@@ -64,6 +66,7 @@ export default function LoginScreen({
   onDeleteNickname?: () => void;
   submitError?: string | null;
   loading?: boolean;
+  initialRememberMe?: boolean;
 }) {
   const [nickname, setNickname] = useState(initialNickname);
   const [contactType, setContactType] = useState<EntryContactType>(initialContactType);
@@ -77,6 +80,7 @@ export default function LoginScreen({
   const [contactError, setContactError] = useState<string | null>(null);
   const [changeLoading, setChangeLoading] = useState(false);
   const [changeNotice, setChangeNotice] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(initialRememberMe);
 
   useEffect(() => {
     setNickname(initialNickname);
@@ -85,6 +89,10 @@ export default function LoginScreen({
   useEffect(() => {
     setContactType(initialContactType);
   }, [initialContactType]);
+
+  useEffect(() => {
+    setRememberMe(initialRememberMe);
+  }, [initialRememberMe]);
 
   useEffect(() => {
     if (initialContactType === "phone") {
@@ -161,6 +169,7 @@ export default function LoginScreen({
       nickname: trimmed,
       contactType,
       contactValue: normalizedContact,
+      rememberMe,
     };
   };
 
@@ -438,6 +447,15 @@ export default function LoginScreen({
                 {submitError}
               </p>
             ) : null}
+            <label className="flex items-center gap-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-[var(--yl-card-border)] text-[var(--yl-primary)] focus:ring-[var(--yl-focus-ring)]"
+              />
+              Keep me signed in on this device
+            </label>
           </div>
         </section>
       </div>

@@ -8,6 +8,7 @@ type RegisterEntryBody = {
   contactValue?: string;
   nickname?: string | null;
   store?: string | null;
+  rememberMe?: boolean;
 };
 
 function getServerSupabase() {
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
   }
   const nicknameKey = normalizeNicknameKey(nickname);
   const store = String(body.store || "").trim();
+  const rememberMe = body.rememberMe !== false;
 
   const supabase = getServerSupabase();
   if (!supabase) {
@@ -147,7 +149,7 @@ export async function POST(req: NextRequest) {
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
         path: "/",
-        maxAge: 60 * 60 * 24 * 30,
+        ...(rememberMe ? { maxAge: 60 * 60 * 24 * 30 } : {}),
       });
     }
     return res;

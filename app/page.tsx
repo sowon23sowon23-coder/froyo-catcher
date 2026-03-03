@@ -277,6 +277,7 @@ function readSyncedLocalAllTimeBest(nickname: string, store: string) {
 
 export default function Page() {
   const [phase, setPhase] = useState<Phase>("login");
+  const [bootLoading, setBootLoading] = useState(true);
   const [character, setCharacter] = useState<CharId>("green");
   const [gameMode, setGameMode] = useState<GameMode>("free");
   const [best, setBest] = useState(0);
@@ -302,20 +303,76 @@ export default function Page() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+  const [rememberMeDefault, setRememberMeDefault] = useState(true);
 
   useEffect(() => {
-    const savedNick = (localStorage.getItem("nickname") || "").trim();
-    const savedContact = readSavedContact();
-    if (savedNick.length >= 2 && savedNick.length <= 12) {
-      setAuthNick(savedNick);
-    } else {
-      setAuthNick(undefined);
-    }
-    if (savedContact) {
-      setAuthContactType(savedContact.type);
-      setAuthContactValue(savedContact.value);
-    }
-    setPhase("login");
+    let active = true;
+
+    (async () => {
+      const rememberRaw = localStorage.getItem("rememberLogin");
+      const rememberEnabled = rememberRaw !== "false";
+      if (active) setRememberMeDefault(rememberEnabled);
+
+      const savedNick = (localStorage.getItem("nickname") || "").trim();
+      const savedContact = readSavedContact();
+
+      if (savedNick.length >= 2 && savedNick.length <= 12) {
+        if (active) setAuthNick(savedNick);
+      } else if (active) {
+        setAuthNick(undefined);
+      }
+      if (savedContact && active) {
+        setAuthContactType(savedContact.type);
+        setAuthContactValue(savedContact.value);
+      }
+
+      try {
+        const res = await fetch("/api/entry/session", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          authenticated?: boolean;
+          nickname?: string;
+          contactType?: EntryContactType;
+          contactValue?: string;
+        };
+
+        if (
+          res.ok &&
+          json.authenticated &&
+          json.nickname &&
+          (json.contactType === "phone" || json.contactType === "email") &&
+          json.contactValue
+        ) {
+          localStorage.setItem("nickname", json.nickname);
+          localStorage.setItem("entryContactType", json.contactType);
+          localStorage.setItem("entryContactValue", json.contactValue);
+          if (active) {
+            setAuthNick(json.nickname);
+            setAuthContactType(json.contactType);
+            setAuthContactValue(json.contactValue);
+            setLastNick(json.nickname);
+            setPhase("home");
+          }
+          return;
+        }
+      } catch {
+        // Continue with login screen fallback.
+      }
+
+      if (active) {
+        setPhase("login");
+      }
+    })().finally(() => {
+      if (active) {
+        setBootLoading(false);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -635,7 +692,8 @@ export default function Page() {
     contactType: EntryContactType,
     contactValue: string,
     nickname: string,
-    store: string
+    store: string,
+    rememberMe: boolean
   ) => {
     const res = await fetch("/api/entry/register", {
       method: "POST",
@@ -645,6 +703,7 @@ export default function Page() {
         contactValue,
         nickname: nickname.trim() || null,
         store: store.trim() || null,
+        rememberMe,
       }),
     });
 
@@ -691,7 +750,8 @@ export default function Page() {
         payload.contactType,
         payload.contactValue,
         trimmed,
-        finalStore
+        finalStore,
+        payload.rememberMe
       );
     } catch (err) {
       console.error(err);
@@ -714,9 +774,16 @@ export default function Page() {
     localStorage.setItem("bestScore", String(myLocalBest));
     setBest(myLocalBest);
 
-    localStorage.setItem("nickname", trimmed);
-    localStorage.setItem("entryContactType", payload.contactType);
-    localStorage.setItem("entryContactValue", payload.contactValue);
+    localStorage.setItem("rememberLogin", payload.rememberMe ? "true" : "false");
+    if (payload.rememberMe) {
+      localStorage.setItem("nickname", trimmed);
+      localStorage.setItem("entryContactType", payload.contactType);
+      localStorage.setItem("entryContactValue", payload.contactValue);
+    } else {
+      localStorage.removeItem("nickname");
+      localStorage.removeItem("entryContactType");
+      localStorage.removeItem("entryContactValue");
+    }
     setAuthNick(trimmed);
     setAuthContactType(payload.contactType);
     setAuthContactValue(payload.contactValue);
@@ -792,6 +859,7 @@ export default function Page() {
 
   return (
     <>
+      {bootLoading ? null : (
       <main
         className={`fixed inset-0 overflow-auto bg-[radial-gradient(circle_at_15%_5%,#ffffff_0%,#ffeef8_35%,#f8d5e8_100%)] flex justify-center p-1 sm:p-3 md:p-6 ${
           phase === "game" ? "items-start sm:items-center" : "items-center"
@@ -821,13 +889,17 @@ export default function Page() {
                 initialNickname={authNick ?? ""}
                 initialContactType={authContactType}
                 initialContactValue={authContactValue}
+                initialRememberMe={rememberMeDefault}
                 onLogin={onLogin}
                 onChangeContact={onChangeContact}
                 submitError={loginError}
                 onDeleteNickname={() => {
+                  fetch("/api/entry/logout", { method: "POST" }).catch(() => undefined);
                   localStorage.removeItem("nickname");
                   localStorage.removeItem("entryContactType");
                   localStorage.removeItem("entryContactValue");
+                  localStorage.setItem("rememberLogin", "false");
+                  setRememberMeDefault(false);
                   setAuthNick(undefined);
                   setAuthContactType("phone");
                   setAuthContactValue("");
@@ -926,6 +998,7 @@ export default function Page() {
 
         </div>
       </main>
+      )}
 
       {toolsOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
