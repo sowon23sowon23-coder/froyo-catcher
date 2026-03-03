@@ -692,8 +692,9 @@ export default function Page() {
       console.error("Fetch existing best error:", e);
     }
 
-    // Keep all-time records immutable unless a higher score is achieved.
-    if (!forceWrite && score <= existingBestAllTime) {
+    // Keep all-time records immutable unless a same-or-higher score is reached.
+    // Allow equal score writes so "today" ranking (updated_at filter) stays current.
+    if (!forceWrite && score < existingBestAllTime) {
       return existingBestAllTime;
     }
 
@@ -1124,6 +1125,7 @@ export default function Page() {
                   }
 
                   const todayBestLocal = writeLocalTodayBest(nick || "guest", normalizedStore, finalScore);
+                  setTodayBestScore((prev) => Math.max(prev ?? 0, todayBestLocal));
                   setLbOpen(true);
                   setLbLoading(true);
                   setMode(leaderboardMode);
