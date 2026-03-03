@@ -338,7 +338,6 @@ export default function Page() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
-  const [rememberMeDefault, setRememberMeDefault] = useState(true);
   const [switchSourceNick, setSwitchSourceNick] = useState<string>("");
   const [switchSourceContactType, setSwitchSourceContactType] = useState<EntryContactType>("phone");
   const [switchSourceContactValue, setSwitchSourceContactValue] = useState<string>("");
@@ -346,7 +345,6 @@ export default function Page() {
   const clearClientAuthState = () => {
     localStorage.clear();
     sessionStorage.clear();
-    setRememberMeDefault(false);
     setAuthNick(undefined);
     setAuthContactType("phone");
     setAuthContactValue("");
@@ -370,13 +368,9 @@ export default function Page() {
 
     (async () => {
       const savedPhase = (sessionStorage.getItem(PHASE_STORAGE_KEY) || "").trim() as Phase;
-      const rememberRaw = localStorage.getItem("rememberLogin");
-      const rememberEnabled = rememberRaw !== "false";
-      if (active) setRememberMeDefault(rememberEnabled);
 
       const savedNick = (localStorage.getItem("nickname") || "").trim();
       const savedContact = readSavedContact();
-      const sessionAuth = readSessionAuthSnapshot();
 
       if (savedNick.length >= 2 && savedNick.length <= 12) {
         if (active) setAuthNick(savedNick);
@@ -442,29 +436,6 @@ export default function Page() {
         }
       } catch {
         // Continue with login screen fallback.
-      }
-
-      const canRestoreFromLocal =
-        rememberEnabled &&
-        savedNick.length >= 2 &&
-        savedNick.length <= 12 &&
-        !!savedContact;
-      const canRestoreFromSession = !!sessionAuth;
-      if (active && (canRestoreFromLocal || canRestoreFromSession)) {
-        const restoredNick = canRestoreFromLocal ? savedNick : sessionAuth!.nickname;
-        const restoredContactType = canRestoreFromLocal ? savedContact!.type : sessionAuth!.contactType;
-        const restoredContactValue = canRestoreFromLocal ? savedContact!.value : sessionAuth!.contactValue;
-
-        setAuthNick(restoredNick);
-        setAuthContactType(restoredContactType);
-        setAuthContactValue(restoredContactValue);
-        setLastNick(restoredNick);
-        const nextPhase = savedPhase === "game" ? "game" : "home";
-        setPhase(nextPhase);
-        if (nextPhase === "game") {
-          setStartSignal((n) => n + 1);
-        }
-        return;
       }
 
       if (active) {
@@ -849,8 +820,7 @@ export default function Page() {
     contactType: EntryContactType,
     contactValue: string,
     nickname: string,
-    store: string,
-    rememberMe: boolean
+    store: string
   ) => {
     const res = await fetch("/api/entry/register", {
       method: "POST",
@@ -860,7 +830,7 @@ export default function Page() {
         contactValue,
         nickname: nickname.trim() || null,
         store: store.trim() || null,
-        rememberMe,
+        rememberMe: true,
       }),
     });
 
@@ -912,8 +882,7 @@ export default function Page() {
         payload.contactType,
         payload.contactValue,
         trimmed,
-        finalStore,
-        payload.rememberMe
+        finalStore
       );
     } catch (err) {
       console.error(err);
@@ -937,7 +906,7 @@ export default function Page() {
     setBest(myLocalBest);
     await refreshTodayBestScore(trimmed);
 
-    localStorage.setItem("rememberLogin", payload.rememberMe ? "true" : "false");
+    localStorage.setItem("rememberLogin", "true");
     sessionStorage.setItem(
       SESSION_AUTH_STORAGE_KEY,
       JSON.stringify({
@@ -946,15 +915,9 @@ export default function Page() {
         contactValue: payload.contactValue,
       } satisfies SessionAuthSnapshot)
     );
-    if (payload.rememberMe) {
-      localStorage.setItem("nickname", trimmed);
-      localStorage.setItem("entryContactType", payload.contactType);
-      localStorage.setItem("entryContactValue", payload.contactValue);
-    } else {
-      localStorage.removeItem("nickname");
-      localStorage.removeItem("entryContactType");
-      localStorage.removeItem("entryContactValue");
-    }
+    localStorage.setItem("nickname", trimmed);
+    localStorage.setItem("entryContactType", payload.contactType);
+    localStorage.setItem("entryContactValue", payload.contactValue);
     setAuthNick(trimmed);
     setAuthContactType(payload.contactType);
     setAuthContactValue(payload.contactValue);
@@ -1079,7 +1042,6 @@ export default function Page() {
                 initialNickname={authNick ?? ""}
                 initialContactType={authContactType}
                 initialContactValue={authContactValue}
-                initialRememberMe={rememberMeDefault}
                 onLogin={onLogin}
                 onChangeContact={onChangeContact}
                 submitError={loginError}

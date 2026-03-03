@@ -44,7 +44,6 @@ export type LoginPayload = {
   nickname: string;
   contactType: EntryContactType;
   contactValue: string;
-  rememberMe: boolean;
 };
 
 export default function LoginScreen({
@@ -55,7 +54,6 @@ export default function LoginScreen({
   onChangeContact,
   submitError = null,
   loading = false,
-  initialRememberMe = true,
   mode = "login",
   currentAccount,
   onCancel,
@@ -67,7 +65,6 @@ export default function LoginScreen({
   onChangeContact?: (payload: LoginPayload) => Promise<void>;
   submitError?: string | null;
   loading?: boolean;
-  initialRememberMe?: boolean;
   mode?: "login" | "switch";
   currentAccount?: string;
   onCancel?: () => void;
@@ -84,7 +81,6 @@ export default function LoginScreen({
   const [contactError, setContactError] = useState<string | null>(null);
   const [changeLoading, setChangeLoading] = useState(false);
   const [changeNotice, setChangeNotice] = useState<string | null>(null);
-  const [rememberMe, setRememberMe] = useState(initialRememberMe);
 
   useEffect(() => {
     setNickname(initialNickname);
@@ -93,10 +89,6 @@ export default function LoginScreen({
   useEffect(() => {
     setContactType(initialContactType);
   }, [initialContactType]);
-
-  useEffect(() => {
-    setRememberMe(initialRememberMe);
-  }, [initialRememberMe]);
 
   useEffect(() => {
     if (initialContactType === "phone") {
@@ -174,7 +166,6 @@ export default function LoginScreen({
       nickname: trimmed,
       contactType: contactTypeForSubmit,
       contactValue: normalizedContact,
-      rememberMe: mode === "switch" ? false : rememberMe,
     };
   };
 
@@ -458,17 +449,6 @@ export default function LoginScreen({
               <p className="rounded-lg border border-[#f3bad5] bg-[#fff2f8] px-2.5 py-1.5 text-sm font-bold text-[var(--yl-primary-soft)]">
                 {submitError}
               </p>
-            ) : null}
-            {mode === "login" ? (
-              <label className="flex items-center gap-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--yl-card-border)] text-[var(--yl-primary)] focus:ring-[var(--yl-focus-ring)]"
-                />
-                Keep me signed in on this device
-              </label>
             ) : null}
             {mode === "switch" && onCancel ? (
               <button
