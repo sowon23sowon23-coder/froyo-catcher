@@ -1079,7 +1079,7 @@ export default function Page() {
                 onLogin={onLogin}
                 submitError={loginError}
                 loading={loginLoading}
-                onCancel={() => setPhase("login")}
+                onCancel={() => setPhase("home")}
               />
             )}
 
