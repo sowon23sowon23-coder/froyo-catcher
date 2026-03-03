@@ -53,7 +53,6 @@ export default function LoginScreen({
   initialContactValue = "",
   onLogin,
   onChangeContact,
-  onDeleteNickname,
   submitError = null,
   loading = false,
   initialRememberMe = true,
@@ -63,7 +62,6 @@ export default function LoginScreen({
   initialContactValue?: string;
   onLogin: (payload: LoginPayload) => void;
   onChangeContact?: (payload: LoginPayload) => Promise<void>;
-  onDeleteNickname?: () => void;
   submitError?: string | null;
   loading?: boolean;
   initialRememberMe?: boolean;
@@ -196,12 +194,6 @@ export default function LoginScreen({
     }
   };
 
-  const clearNickname = () => {
-    setNickname("");
-    setNicknameError(null);
-    onDeleteNickname?.();
-  };
-
   const onPhonePartChange = (part: "area" | "prefix" | "line", value: string) => {
     const digits = value.replace(/\D/g, "");
     if (part === "area") {
@@ -252,15 +244,6 @@ export default function LoginScreen({
                 <p className="text-[11px] font-semibold text-[var(--yl-ink-muted)]">
                   One nickname is bound to one contact.
                 </p>
-                {(nickname.trim().length > 0 || initialNickname.trim().length > 0) && (
-                  <button
-                    type="button"
-                    onClick={clearNickname}
-                    className="text-[11px] font-black text-[var(--yl-primary-soft)] underline underline-offset-4"
-                  >
-                    Delete saved
-                  </button>
-                )}
               </div>
               {nicknameError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{nicknameError}</p> : null}
             </div>

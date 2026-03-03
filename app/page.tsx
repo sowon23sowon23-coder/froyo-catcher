@@ -908,19 +908,6 @@ export default function Page() {
                 onLogin={onLogin}
                 onChangeContact={onChangeContact}
                 submitError={loginError}
-                onDeleteNickname={() => {
-                  fetch("/api/entry/logout", { method: "POST" }).catch(() => undefined);
-                  localStorage.removeItem("nickname");
-                  localStorage.removeItem("entryContactType");
-                  localStorage.removeItem("entryContactValue");
-                  localStorage.setItem("rememberLogin", "false");
-                  setRememberMeDefault(false);
-                  setAuthNick(undefined);
-                  setAuthContactType("phone");
-                  setAuthContactValue("");
-                  setLastNick(undefined);
-                  setBest(0);
-                }}
                 loading={loginLoading}
               />
             )}
