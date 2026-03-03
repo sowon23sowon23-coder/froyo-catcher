@@ -12,6 +12,7 @@ import { type EntryContactType } from "./lib/entry";
 type CharId = "green" | "berry" | "sprinkle";
 type Phase = "login" | "switchAccount" | "home" | "game";
 type GameMode = "free" | "mission" | "timeAttack";
+const PHASE_STORAGE_KEY = "currentPhase";
 
 type DbRow = {
   nickname_key: string;
@@ -335,6 +336,7 @@ export default function Page() {
     let active = true;
 
     (async () => {
+      const savedPhase = (sessionStorage.getItem(PHASE_STORAGE_KEY) || "").trim() as Phase;
       const rememberRaw = localStorage.getItem("rememberLogin");
       const rememberEnabled = rememberRaw !== "false";
       if (active) setRememberMeDefault(rememberEnabled);
@@ -371,6 +373,15 @@ export default function Page() {
           (json.contactType === "phone" || json.contactType === "email") &&
           json.contactValue
         ) {
+          const savedChar = localStorage.getItem("selectedCharacter");
+          const savedMode = localStorage.getItem("selectedMode");
+          if (savedChar === "green" || savedChar === "berry" || savedChar === "sprinkle") {
+            setCharacter(savedChar);
+          }
+          if (savedMode === "free" || savedMode === "mission" || savedMode === "timeAttack") {
+            setGameMode(savedMode);
+          }
+
           localStorage.setItem("nickname", json.nickname);
           localStorage.setItem("entryContactType", json.contactType);
           localStorage.setItem("entryContactValue", json.contactValue);
@@ -379,7 +390,11 @@ export default function Page() {
             setAuthContactType(json.contactType);
             setAuthContactValue(json.contactValue);
             setLastNick(json.nickname);
-            setPhase("home");
+            const nextPhase = savedPhase === "game" ? "game" : "home";
+            setPhase(nextPhase);
+            if (nextPhase === "game") {
+              setStartSignal((n) => n + 1);
+            }
           }
           return;
         }
@@ -405,6 +420,10 @@ export default function Page() {
     const b = Number(localStorage.getItem("bestScore") || 0);
     setBest(b);
     setLastNick(localStorage.getItem("nickname") ?? undefined);
+  }, [phase]);
+
+  useEffect(() => {
+    sessionStorage.setItem(PHASE_STORAGE_KEY, phase);
   }, [phase]);
 
   const refreshTodayBestScore = async (nickname: string) => {
