@@ -228,7 +228,7 @@ export default function LoginScreen({
             <h1 className="mt-1 text-[2rem] font-black leading-[1.05] text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
               {mode === "switch"
-                ? "Switch account with a new nickname and contact."
+                ? "Switch nickname with a new nickname and contact."
                 : "Enter your nickname and coupon contact to continue."}
             </p>
             {mode === "switch" && currentAccount ? (
@@ -270,7 +270,7 @@ export default function LoginScreen({
                     {initialContactType === "phone" ? "Phone" : "Email"}: {initialContactValue}
                   </p>
                   <p className="mt-1 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
-                    Contact is locked in Switch Account mode.
+                    Contact is locked in Switch Nickname mode.
                   </p>
                 </div>
               ) : (

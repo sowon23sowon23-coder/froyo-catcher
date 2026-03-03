@@ -114,7 +114,7 @@ export default function HomeScreen({
               onClick={onSwitchAccount}
               className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
             >
-              Switch Account
+              Switch Nickname
             </button>
           </div>
         ) : null}
