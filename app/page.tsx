@@ -10,7 +10,7 @@ import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
 
 type CharId = "green" | "berry" | "sprinkle";
-type Phase = "login" | "home" | "game";
+type Phase = "login" | "switchAccount" | "home" | "game";
 type GameMode = "free" | "mission" | "timeAttack";
 
 type DbRow = {
@@ -304,6 +304,28 @@ export default function Page() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
   const [rememberMeDefault, setRememberMeDefault] = useState(true);
+  const [switchSourceNick, setSwitchSourceNick] = useState<string>("");
+
+  const clearClientAuthState = () => {
+    localStorage.clear();
+    sessionStorage.clear();
+    setRememberMeDefault(false);
+    setAuthNick(undefined);
+    setAuthContactType("phone");
+    setAuthContactValue("");
+    setLastNick(undefined);
+    setLastScore(undefined);
+    setMyRank(undefined);
+    setBest(0);
+    setLbOpen(false);
+    setLbRows([]);
+    setLoginError(null);
+    setMode("today");
+  };
+
+  const invalidateServerSession = async () => {
+    await fetch("/api/entry/logout", { method: "POST" }).catch(() => undefined);
+  };
 
   useEffect(() => {
     let active = true;
@@ -745,6 +767,11 @@ export default function Page() {
 
     const finalStore = "__ALL__";
 
+    if (phase === "switchAccount") {
+      await invalidateServerSession();
+      clearClientAuthState();
+    }
+
     try {
       await upsertEntryContact(
         payload.contactType,
@@ -858,18 +885,11 @@ export default function Page() {
   };
 
   const switchAccount = async () => {
-    await fetch("/api/entry/logout", { method: "POST" }).catch(() => undefined);
-    localStorage.removeItem("nickname");
-    localStorage.removeItem("entryContactType");
-    localStorage.removeItem("entryContactValue");
-    localStorage.setItem("rememberLogin", "false");
-    setRememberMeDefault(false);
-    setAuthNick(undefined);
-    setAuthContactType("phone");
-    setAuthContactValue("");
-    setLastNick(undefined);
-    setLoginError(null);
-    setPhase("login");
+    const currentAccount = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
+    setSwitchSourceNick(currentAccount || "Unknown");
+    await invalidateServerSession();
+    clearClientAuthState();
+    setPhase("switchAccount");
   };
 
   return (
@@ -889,7 +909,7 @@ export default function Page() {
         >
           <div
             className={`relative w-full overflow-hidden rounded-[2rem] ${
-              phase === "login"
+              phase === "login" || phase === "switchAccount"
                 ? ""
                 : "bg-white/95 shadow-[0_22px_60px_rgba(150,9,83,0.28)] ring-1 ring-[var(--yl-card-border)]"
             } ${phase === "home" ? "max-w-[390px]" : "max-w-[430px]"}`}
@@ -909,6 +929,20 @@ export default function Page() {
                 onChangeContact={onChangeContact}
                 submitError={loginError}
                 loading={loginLoading}
+              />
+            )}
+
+            {phase === "switchAccount" && (
+              <LoginScreen
+                mode="switch"
+                currentAccount={switchSourceNick}
+                initialNickname=""
+                initialContactType="phone"
+                initialContactValue=""
+                onLogin={onLogin}
+                submitError={loginError}
+                loading={loginLoading}
+                onCancel={() => setPhase("login")}
               />
             )}
 

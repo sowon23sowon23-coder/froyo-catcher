@@ -56,6 +56,9 @@ export default function LoginScreen({
   submitError = null,
   loading = false,
   initialRememberMe = true,
+  mode = "login",
+  currentAccount,
+  onCancel,
 }: {
   initialNickname?: string;
   initialContactType?: EntryContactType;
@@ -65,6 +68,9 @@ export default function LoginScreen({
   submitError?: string | null;
   loading?: boolean;
   initialRememberMe?: boolean;
+  mode?: "login" | "switch";
+  currentAccount?: string;
+  onCancel?: () => void;
 }) {
   const [nickname, setNickname] = useState(initialNickname);
   const [contactType, setContactType] = useState<EntryContactType>(initialContactType);
@@ -167,7 +173,7 @@ export default function LoginScreen({
       nickname: trimmed,
       contactType,
       contactValue: normalizedContact,
-      rememberMe,
+      rememberMe: mode === "switch" ? false : rememberMe,
     };
   };
 
@@ -220,8 +226,15 @@ export default function LoginScreen({
             />
             <h1 className="mt-1 text-[2rem] font-black leading-[1.05] text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-              Enter your nickname and coupon contact to continue.
+              {mode === "switch"
+                ? "Switch account with a new nickname and contact."
+                : "Enter your nickname and coupon contact to continue."}
             </p>
+            {mode === "switch" && currentAccount ? (
+              <p className="mt-2 text-sm font-black text-[var(--yl-primary)]">
+                Current account: {currentAccount}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-4 p-5 sm:p-6">
@@ -396,26 +409,28 @@ export default function LoginScreen({
               </p>
             </div>
 
-            <div className="space-y-2 rounded-2xl border border-[var(--yl-card-border)] bg-[#fffbfd] p-3">
-              <p className="text-[11px] font-semibold text-[var(--yl-ink-muted)]">
-                Contact change works only when this device already has a valid login session.
-              </p>
-              {onChangeContact ? (
-                <button
-                  type="button"
-                  onClick={changeContact}
-                  disabled={loading || changeLoading}
-                  className="inline-flex w-auto rounded-md border border-[var(--yl-card-border)] bg-white px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.02em] text-[var(--yl-primary)] disabled:opacity-60"
-                >
-                  {changeLoading ? "Updating..." : "Change Contact"}
-                </button>
-              ) : null}
-              {changeNotice ? (
-                <p className="rounded-lg border border-[#f3bad5] bg-[#fff2f8] px-2.5 py-1.5 text-sm font-bold text-[var(--yl-primary-soft)]">
-                  {changeNotice}
+            {mode === "login" ? (
+              <div className="space-y-2 rounded-2xl border border-[var(--yl-card-border)] bg-[#fffbfd] p-3">
+                <p className="text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+                  Contact change works only when this device already has a valid login session.
                 </p>
-              ) : null}
-            </div>
+                {onChangeContact ? (
+                  <button
+                    type="button"
+                    onClick={changeContact}
+                    disabled={loading || changeLoading}
+                    className="inline-flex w-auto rounded-md border border-[var(--yl-card-border)] bg-white px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.02em] text-[var(--yl-primary)] disabled:opacity-60"
+                  >
+                    {changeLoading ? "Updating..." : "Change Contact"}
+                  </button>
+                ) : null}
+                {changeNotice ? (
+                  <p className="rounded-lg border border-[#f3bad5] bg-[#fff2f8] px-2.5 py-1.5 text-sm font-bold text-[var(--yl-primary-soft)]">
+                    {changeNotice}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             <button
               type="button"
@@ -430,15 +445,26 @@ export default function LoginScreen({
                 {submitError}
               </p>
             ) : null}
-            <label className="flex items-center gap-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--yl-card-border)] text-[var(--yl-primary)] focus:ring-[var(--yl-focus-ring)]"
-              />
-              Keep me signed in on this device
-            </label>
+            {mode === "login" ? (
+              <label className="flex items-center gap-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-[var(--yl-card-border)] text-[var(--yl-primary)] focus:ring-[var(--yl-focus-ring)]"
+                />
+                Keep me signed in on this device
+              </label>
+            ) : null}
+            {mode === "switch" && onCancel ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="w-full rounded-2xl border border-[var(--yl-card-border)] bg-white px-4 py-3 text-base font-black uppercase tracking-[0.08em] text-[var(--yl-ink-muted)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+              >
+                Cancel
+              </button>
+            ) : null}
           </div>
         </section>
       </div>
