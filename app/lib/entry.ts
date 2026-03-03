@@ -2,9 +2,6 @@ export type EntryContactType = "phone" | "email";
 
 export function normalizeUsPhone(input: string): string | null {
   const raw = input.trim();
-  // Require dashed US format (e.g. 213-555-1234).
-  if (!raw.includes("-")) return null;
-  if (!/^(?:\+1[- ]?)?[2-9]\d{2}-[2-9]\d{2}-\d{4}$/.test(raw)) return null;
 
   let digits = raw.replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("1")) {
@@ -41,7 +38,7 @@ export function getContactValidationError(contactType: EntryContactType, rawValu
   const normalized = contactType === "phone" ? normalizeUsPhone(value) : normalizeEmail(value);
   if (!normalized) {
     return contactType === "phone"
-      ? "Enter a valid US phone number with dashes (e.g. 213-555-1234)."
+      ? "Enter a valid US phone number."
       : "Enter a valid email address (e.g. user@example.com).";
   }
 
