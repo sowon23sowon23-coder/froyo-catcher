@@ -317,7 +317,7 @@ export default function Game({
     }
 
     if (mode === "timeAttack") {
-      // Show Final Reveal Screen — leaderboard opens when user taps "See Leaderboard"
+      // Show Final Reveal Screen.
       setCollectedToppings([...collectedRef.current]);
       return;
     }
@@ -1357,21 +1357,8 @@ export default function Game({
             <div className="flex w-full max-w-sm flex-col">
               <button
                 type="button"
-                onClick={() => {
-                  if (!leaderboardOpenedRef.current) {
-                    leaderboardOpenedRef.current = true;
-                    onGameOver?.(score);
-                  }
-                }}
-                className="px-10 py-4 rounded-full bg-[var(--yl-primary)] text-white font-extrabold shadow-lg transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
-              >
-                Leaderboard
-              </button>
-
-              <button
-                type="button"
                 onClick={start}
-                className="mt-3 px-10 py-4 rounded-full border border-[var(--yl-primary)] bg-white text-[var(--yl-primary)] font-extrabold shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+                className="px-10 py-4 rounded-full border border-[var(--yl-primary)] bg-white text-[var(--yl-primary)] font-extrabold shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
               >
                 Retry
               </button>

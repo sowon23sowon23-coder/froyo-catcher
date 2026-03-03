@@ -872,21 +872,17 @@ export default function Page() {
                   const normalizedStore = "__ALL__";
                   const leaderboardMode: LeaderMode = "today";
                   const isFreePlay = gameMode === "free";
-                  const todayBestLocal = isFreePlay
-                    ? writeLocalTodayBest(nick || "guest", normalizedStore, finalScore)
-                    : readLocalTodayBest(nick || "guest", normalizedStore);
 
+                  if (!isFreePlay) {
+                    return;
+                  }
+
+                  const todayBestLocal = writeLocalTodayBest(nick || "guest", normalizedStore, finalScore);
                   setLbOpen(true);
                   setLbLoading(true);
                   setMode(leaderboardMode);
                   setLastNick(nick || "YOU");
                   setLastScore(todayBestLocal);
-
-                  if (!isFreePlay) {
-                    setMyRank(undefined);
-                    await fetchTop20(leaderboardMode, "__ALL__");
-                    return;
-                  }
 
                   writeLocalAllTimeBest(nick || "guest", normalizedStore, finalScore);
 
