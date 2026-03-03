@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trackEvent } from "./lib/gtag";
 import LoginScreen, { type LoginPayload } from "./components/LoginScreen";
 import HomeScreen from "./components/HomeScreen";
@@ -324,6 +324,9 @@ export default function Page() {
   const [lbOpen, setLbOpen] = useState(false);
   const [lbRows, setLbRows] = useState<LeaderRow[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
+  const leaderboardFetchSeqRef = useRef(0);
+  const leaderboardAbortRef = useRef<AbortController | null>(null);
+  const leaderboardInFlightKeyRef = useRef<string | null>(null);
 
   const [mode, setMode] = useState<LeaderMode>("today");
   const selectedStore = "__ALL__";
@@ -490,7 +493,47 @@ export default function Page() {
     void refreshTodayBestScore(nick);
   }, [phase, authNick]);
 
+  useEffect(() => {
+    return () => {
+      leaderboardAbortRef.current?.abort();
+    };
+  }, []);
+
+  const waitAbortable = (ms: number, signal: AbortSignal) =>
+    new Promise<void>((resolve, reject) => {
+      if (signal.aborted) {
+        reject(new DOMException("Aborted", "AbortError"));
+        return;
+      }
+
+      const id = window.setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
+
+      const onAbort = () => {
+        window.clearTimeout(id);
+        signal.removeEventListener("abort", onAbort);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
+
   const fetchTop20 = async (m: LeaderMode, store: string) => {
+    const requestId = ++leaderboardFetchSeqRef.current;
+    const todayFrom = m === "today" ? startOfTodayLocalISO() : "";
+    const requestKey = `${m}|${store}|${todayFrom}`;
+
+    if (leaderboardInFlightKeyRef.current === requestKey) {
+      return;
+    }
+
+    leaderboardAbortRef.current?.abort();
+    const controller = new AbortController();
+    leaderboardAbortRef.current = controller;
+    leaderboardInFlightKeyRef.current = requestKey;
+
     setLbLoading(true);
 
     try {
@@ -498,23 +541,54 @@ export default function Page() {
         mode: m,
         store,
       });
-      if (m === "today") {
-        params.set("todayFrom", startOfTodayLocalISO());
+      if (todayFrom) {
+        params.set("todayFrom", todayFrom);
       }
-      const res = await fetch(`/api/leaderboard?${params.toString()}`, {
-        method: "GET",
-        cache: "no-store",
-      });
-      const json = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        rows?: DbRow[];
-      };
+      let res: Response | null = null;
+      let json: { error?: string; rows?: DbRow[] } = {};
+      const url = `/api/leaderboard?${params.toString()}`;
 
-      setLbLoading(false);
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          res = await fetch(url, {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          json = (await res.json().catch(() => ({}))) as {
+            error?: string;
+            rows?: DbRow[];
+          };
+
+          const retryableStatus = res.status === 408 || res.status === 429 || res.status >= 500;
+          if (!res.ok && retryableStatus && attempt === 0) {
+            await waitAbortable(250, controller.signal);
+            continue;
+          }
+          break;
+        } catch (err) {
+          if ((err as { name?: string })?.name === "AbortError") {
+            throw err;
+          }
+          if (attempt === 0) {
+            await waitAbortable(250, controller.signal);
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      if (requestId !== leaderboardFetchSeqRef.current) {
+        return;
+      }
+
+      if (!res) {
+        console.error("Leaderboard error: No response received.");
+        return;
+      }
 
       if (!res.ok) {
         console.error("Leaderboard error:", json.error || "Failed to load leaderboard.");
-        setLbRows([]);
         return;
       }
 
@@ -531,7 +605,7 @@ export default function Page() {
 
         return {
           rank,
-          nickname: r.nickname_display,
+          nickname: String(r.nickname_display || "").trim() || r.nickname_key,
           score: r.score,
           date: new Date(r.updated_at).toLocaleDateString(),
           character: r.character,
@@ -540,9 +614,23 @@ export default function Page() {
 
       setLbRows(rows);
     } catch (err) {
+      if ((err as { name?: string })?.name === "AbortError") {
+        return;
+      }
       console.error("Leaderboard exception:", err);
-      setLbLoading(false);
-      setLbRows([]);
+      if (requestId !== leaderboardFetchSeqRef.current) {
+        return;
+      }
+    } finally {
+      if (requestId === leaderboardFetchSeqRef.current) {
+        setLbLoading(false);
+      }
+      if (leaderboardAbortRef.current === controller) {
+        leaderboardAbortRef.current = null;
+      }
+      if (leaderboardInFlightKeyRef.current === requestKey) {
+        leaderboardInFlightKeyRef.current = null;
+      }
     }
   };
 
