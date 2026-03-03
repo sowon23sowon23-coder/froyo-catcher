@@ -1161,10 +1161,8 @@ export default function Game({
                     <button
                       type="button"
                       onClick={() => {
-                        if (!leaderboardOpenedRef.current) {
-                          leaderboardOpenedRef.current = true;
-                          onGameOver?.(score);
-                        }
+                        leaderboardOpenedRef.current = true;
+                        onGameOver?.(score);
                       }}
                       className="px-10 py-4 rounded-full bg-[var(--yl-primary)] text-white font-extrabold shadow-lg transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
                     >
