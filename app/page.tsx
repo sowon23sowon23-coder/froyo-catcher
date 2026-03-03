@@ -1022,6 +1022,12 @@ export default function Page() {
     setPhase("switchAccount");
   };
 
+  const logout = async () => {
+    await invalidateServerSession();
+    clearClientAuthState();
+    setPhase("login");
+  };
+
   return (
     <>
       {bootLoading ? null : (
@@ -1093,6 +1099,7 @@ export default function Page() {
                   setToolsOpen(true);
                 }}
                 onSwitchAccount={switchAccount}
+                onLogout={logout}
               />
             )}
 

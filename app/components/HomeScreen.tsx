@@ -38,6 +38,7 @@ export default function HomeScreen({
   onOpenLeaderboard,
   onOpenAdmin,
   onSwitchAccount,
+  onLogout,
 }: {
   nickname?: string;
   todayBestScore?: number;
@@ -45,6 +46,7 @@ export default function HomeScreen({
   onOpenLeaderboard: () => void;
   onOpenAdmin: () => void;
   onSwitchAccount: () => void;
+  onLogout: () => void;
 }) {
   const [character, setCharacter] = useState<CharId>("green");
   const [mode, setMode] = useState<GameMode>("free");
@@ -109,13 +111,22 @@ export default function HomeScreen({
             <p className="text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-ink-muted)]">
               Logged in as <span className="text-[var(--yl-primary)]">{nickname}</span>
             </p>
-            <button
-              type="button"
-              onClick={onSwitchAccount}
-              className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
-            >
-              Switch Nickname
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onSwitchAccount}
+                className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+              >
+                Switch Nickname
+              </button>
+              <button
+                type="button"
+                onClick={onLogout}
+                className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary-soft)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+              >
+                Log Out
+              </button>
+            </div>
           </div>
         ) : null}
 
