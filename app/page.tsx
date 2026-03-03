@@ -643,6 +643,15 @@ export default function Page() {
           const bestScore = mine.score;
           setLastScore(bestScore);
           await calcMyRank(mode, bestScore, leaderboardStore);
+        } else if (mode === "today") {
+          const localTodayBest = readLocalTodayBest(nick, leaderboardStore);
+          if (localTodayBest && localTodayBest > 0) {
+            setLastScore(localTodayBest);
+            await calcMyRank(mode, localTodayBest, leaderboardStore);
+          } else {
+            setLastScore(undefined);
+            setMyRank(undefined);
+          }
         } else {
           setLastScore(undefined);
           setMyRank(undefined);
@@ -812,6 +821,15 @@ export default function Page() {
           const bestScore = mine.score;
           setLastScore(bestScore);
           await calcMyRank(m, bestScore, leaderboardStore);
+        } else if (m === "today") {
+          const localTodayBest = readLocalTodayBest(nick, leaderboardStore);
+          if (localTodayBest && localTodayBest > 0) {
+            setLastScore(localTodayBest);
+            await calcMyRank(m, localTodayBest, leaderboardStore);
+          } else {
+            setLastScore(undefined);
+            setMyRank(undefined);
+          }
         } else {
           setLastScore(undefined);
           setMyRank(undefined);
@@ -1159,7 +1177,11 @@ export default function Page() {
                       await calcMyRank(leaderboardMode, bestScore, "__ALL__");
                     } else {
                       setLastScore(todayBestLocal);
-                      setMyRank(undefined);
+                      if (todayBestLocal > 0) {
+                        await calcMyRank(leaderboardMode, todayBestLocal, "__ALL__");
+                      } else {
+                        setMyRank(undefined);
+                      }
                     }
                   } else {
                     setLastScore(todayBestLocal);
