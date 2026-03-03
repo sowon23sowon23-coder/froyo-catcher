@@ -45,6 +45,147 @@ function normalizeNicknameKey(raw: string) {
   return raw.trim().toLowerCase();
 }
 
+async function migrateLeaderboardNickname(
+  supabase: any,
+  oldNicknameKey: string,
+  newNicknameKey: string,
+  newNicknameDisplay: string
+) {
+  const oldKey = oldNicknameKey.trim().toLowerCase();
+  const nextKey = newNicknameKey.trim().toLowerCase();
+  const nextDisplay = newNicknameDisplay.trim();
+  if (!oldKey || !nextKey || oldKey === nextKey) return;
+
+  const directPatches = [
+    () =>
+      supabase
+        .from("leaderboard_best_v2")
+        .update({ nickname_key: nextKey, nickname_display: nextDisplay })
+        .eq("nickname_key", oldKey),
+    () =>
+      supabase
+        .from("leaderboard_best_v2")
+        .update({ nickname_key: nextKey })
+        .eq("nickname_key", oldKey),
+  ];
+
+  for (const patch of directPatches) {
+    const result = await patch();
+    if (!result.error) return;
+    if (result.error.code !== "23505") {
+      console.error("Failed to migrate leaderboard nickname:", result.error);
+      return;
+    }
+  }
+
+  const readBest = async (key: string) => {
+    const attempts = [
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .select("score,character,store")
+          .eq("nickname_key", key)
+          .order("score", { ascending: false })
+          .limit(1),
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .select("score,store")
+          .eq("nickname_key", key)
+          .order("score", { ascending: false })
+          .limit(1),
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .select("score,character")
+          .eq("nickname_key", key)
+          .order("score", { ascending: false })
+          .limit(1),
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .select("score")
+          .eq("nickname_key", key)
+          .order("score", { ascending: false })
+          .limit(1),
+    ];
+
+    for (const run of attempts) {
+      const res = await run();
+      if (!res.error) {
+        const row = Array.isArray(res.data) && res.data.length > 0 ? res.data[0] : null;
+        return row as { score?: number; character?: string; store?: string | null } | null;
+      }
+    }
+    return null;
+  };
+
+  const oldBest = await readBest(oldKey);
+  const newBest = await readBest(nextKey);
+  const oldScore = Number(oldBest?.score ?? 0);
+  const newScore = Number(newBest?.score ?? 0);
+
+  if (oldScore > newScore) {
+    const payloadBase: Record<string, unknown> = {
+      nickname_key: nextKey,
+      nickname_display: nextDisplay,
+      score: oldScore,
+    };
+
+    const attempts = [
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .upsert(
+            [{ ...payloadBase, character: oldBest?.character, store: oldBest?.store ?? null }],
+            { onConflict: "nickname_key,store" }
+          ),
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .upsert(
+            [{ ...payloadBase, character: oldBest?.character, store: oldBest?.store ?? null }],
+            { onConflict: "nickname_key" }
+          ),
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .upsert([{ ...payloadBase, store: oldBest?.store ?? null }], { onConflict: "nickname_key,store" }),
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .upsert([{ ...payloadBase, store: oldBest?.store ?? null }], { onConflict: "nickname_key" }),
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .upsert([{ ...payloadBase, character: oldBest?.character }], { onConflict: "nickname_key" }),
+      () => supabase.from("leaderboard_best_v2").upsert([payloadBase], { onConflict: "nickname_key" }),
+    ];
+
+    for (const run of attempts) {
+      const upsertRes = await run();
+      if (!upsertRes.error) break;
+    }
+  } else if (newScore > 0) {
+    const renameAttempts = [
+      () =>
+        supabase
+          .from("leaderboard_best_v2")
+          .update({ nickname_display: nextDisplay })
+          .eq("nickname_key", nextKey),
+    ];
+    for (const run of renameAttempts) {
+      const renameRes = await run();
+      if (!renameRes.error) break;
+    }
+  }
+
+  const deleteRes = await supabase.from("leaderboard_best_v2").delete().eq("nickname_key", oldKey);
+  if (deleteRes.error) {
+    console.error("Failed to cleanup old leaderboard nickname rows:", deleteRes.error);
+  }
+}
+
 async function allowRateLimit(
   supabase: any,
   key: string,
@@ -179,6 +320,8 @@ export async function POST(req: NextRequest) {
       const result = await supabase.from("entries").update(patch).eq("id", existing.data.id);
       if (!result.error) {
         if (nicknameChanged) {
+          await migrateLeaderboardNickname(supabase, oldNicknameKey, nicknameKey, nickname);
+
           const logResult = await supabase.from("nickname_change_logs").insert([
             {
               entry_id: Number(existing.data.id),
