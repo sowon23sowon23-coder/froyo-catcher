@@ -927,32 +927,6 @@ export default function Page() {
     setPhase("home");
   };
 
-  const onChangeContact = async (payload: LoginPayload) => {
-    const res = await fetch("/api/entry/contact-change", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nickname: payload.nickname,
-        newContactType: payload.contactType,
-        newContactValue: payload.contactValue,
-      }),
-    });
-
-    const json = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      contactType?: EntryContactType;
-      contactValue?: string;
-    };
-    if (!res.ok || !json.contactType || !json.contactValue) {
-      throw new Error(json.error || "Failed to change contact.");
-    }
-
-    localStorage.setItem("entryContactType", json.contactType);
-    localStorage.setItem("entryContactValue", json.contactValue);
-    setAuthContactType(json.contactType);
-    setAuthContactValue(json.contactValue);
-  };
-
   const submitFeedback = async () => {
     const message = feedbackText.trim();
     if (message.length < 5) {
@@ -1043,7 +1017,6 @@ export default function Page() {
                 initialContactType={authContactType}
                 initialContactValue={authContactValue}
                 onLogin={onLogin}
-                onChangeContact={onChangeContact}
                 submitError={loginError}
                 loading={loginLoading}
               />

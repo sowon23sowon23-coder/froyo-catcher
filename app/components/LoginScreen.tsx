@@ -51,7 +51,6 @@ export default function LoginScreen({
   initialContactType = "phone",
   initialContactValue = "",
   onLogin,
-  onChangeContact,
   submitError = null,
   loading = false,
   mode = "login",
@@ -62,7 +61,6 @@ export default function LoginScreen({
   initialContactType?: EntryContactType;
   initialContactValue?: string;
   onLogin: (payload: LoginPayload) => void;
-  onChangeContact?: (payload: LoginPayload) => Promise<void>;
   submitError?: string | null;
   loading?: boolean;
   mode?: "login" | "switch";
@@ -79,8 +77,6 @@ export default function LoginScreen({
   const [phoneLine, setPhoneLine] = useState("");
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [contactError, setContactError] = useState<string | null>(null);
-  const [changeLoading, setChangeLoading] = useState(false);
-  const [changeNotice, setChangeNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setNickname(initialNickname);
@@ -161,7 +157,6 @@ export default function LoginScreen({
 
     setNicknameError(null);
     setContactError(null);
-    setChangeNotice(null);
     return {
       nickname: trimmed,
       contactType: contactTypeForSubmit,
@@ -173,23 +168,6 @@ export default function LoginScreen({
     const payload = buildPayload();
     if (!payload) return;
     onLogin(payload);
-  };
-
-  const changeContact = async () => {
-    if (!onChangeContact) return;
-    const payload = buildPayload();
-    if (!payload) return;
-
-    setChangeLoading(true);
-    setChangeNotice(null);
-    try {
-      await onChangeContact(payload);
-      setChangeNotice("Contact updated. You can continue with this new contact.");
-    } catch (err) {
-      setChangeNotice((err as Error).message || "Failed to change contact.");
-    } finally {
-      setChangeLoading(false);
-    }
   };
 
   const onPhonePartChange = (part: "area" | "prefix" | "line", value: string) => {
@@ -413,29 +391,6 @@ export default function LoginScreen({
                 </>
               )}
             </div>
-
-            {mode === "login" ? (
-              <div className="space-y-2 rounded-2xl border border-[var(--yl-card-border)] bg-[#fffbfd] p-3">
-                <p className="text-[11px] font-semibold text-[var(--yl-ink-muted)]">
-                  Contact change works only when this device already has a valid login session.
-                </p>
-                {onChangeContact ? (
-                  <button
-                    type="button"
-                    onClick={changeContact}
-                    disabled={loading || changeLoading}
-                    className="inline-flex w-auto rounded-md border border-[var(--yl-card-border)] bg-white px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.02em] text-[var(--yl-primary)] disabled:opacity-60"
-                  >
-                    {changeLoading ? "Updating..." : "Change Contact"}
-                  </button>
-                ) : null}
-                {changeNotice ? (
-                  <p className="rounded-lg border border-[#f3bad5] bg-[#fff2f8] px-2.5 py-1.5 text-sm font-bold text-[var(--yl-primary-soft)]">
-                    {changeNotice}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
 
             <button
               type="button"
