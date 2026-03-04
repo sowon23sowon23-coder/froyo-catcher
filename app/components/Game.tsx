@@ -1012,7 +1012,7 @@ export default function Game({
                 style={{ width: `${(Math.min(score, MISSION_GOAL_SCORE) / MISSION_GOAL_SCORE) * 100}%` }}
               />
             </div>
-            <p className="mt-1 text-[11px] sm:text-sm">Catch only:</p>
+            <p className="mt-1 text-[11px] sm:text-sm">Grab only this!</p>
             <div className="mt-1 flex items-center justify-center gap-1.5 sm:mt-2 sm:gap-2">
               <img
                 src={`/${currentMissionTarget}`}
