@@ -521,13 +521,14 @@ export default function Page() {
     });
 
   const fetchTop20 = async (m: LeaderMode, store: string) => {
-    const requestId = ++leaderboardFetchSeqRef.current;
     const todayFrom = m === "today" ? startOfTodayLocalISO() : "";
     const requestKey = `${m}|${store}|${todayFrom}`;
 
     if (leaderboardInFlightKeyRef.current === requestKey) {
       return;
     }
+
+    const requestId = ++leaderboardFetchSeqRef.current;
 
     leaderboardAbortRef.current?.abort();
     const controller = new AbortController();
@@ -1167,6 +1168,7 @@ export default function Page() {
 
                   const todayBestLocal = writeLocalTodayBest(nick || "guest", normalizedStore, finalScore);
                   setTodayBestScore((prev) => Math.max(prev ?? 0, todayBestLocal));
+                  setLbRows([]);
                   setLbOpen(true);
                   setLbLoading(true);
                   setMode(leaderboardMode);
