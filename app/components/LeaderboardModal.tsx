@@ -132,7 +132,7 @@ export default function LeaderboardModal({
             </div>
           )}
 
-          <div className="overflow-hidden rounded-2xl border border-[var(--yl-card-border)]">
+          <div className="relative overflow-hidden rounded-2xl border border-[var(--yl-card-border)]">
             <div className="grid grid-cols-[52px_1fr_70px_84px] bg-[var(--yl-card-bg)] px-4 py-3 text-xs font-black text-[#8a5a75]">
               <div>RANK</div>
               <div>NICK</div>
@@ -186,6 +186,14 @@ export default function LeaderboardModal({
                 })}
               </div>
             )}
+
+            {loading ? (
+              <div className="absolute inset-x-0 bottom-0 top-[45px] z-10 flex items-center justify-center bg-white/72 backdrop-blur-[2px]">
+                <div className="rounded-full border border-[var(--yl-card-border)] bg-white px-4 py-2 text-sm font-black text-[var(--yl-primary)] shadow-sm">
+                  Updating leaderboard...
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <button

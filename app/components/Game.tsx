@@ -59,6 +59,13 @@ const TIME_ATTACK_CREAM_ZONES: CreamZone[] = [
   { minX: 27, maxX: 70, minY: 30, maxY: 40 },
   { minX: 23, maxX: 74, minY: 40, maxY: 49 },
 ];
+const LEVEL_UP_PRAISES = [
+  "Nice catch!",
+  "You're on a roll!",
+  "Keep it going!",
+  "Smooth moves!",
+  "Hot streak!",
+] as const;
 
 function randomCreamToppingPlacement() {
   const zone = TIME_ATTACK_CREAM_ZONES[Math.floor(Math.random() * TIME_ATTACK_CREAM_ZONES.length)];
@@ -157,6 +164,18 @@ function pickNextMissionTarget(pool: readonly string[], previous?: string | null
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+function pickRandomFallingImage(
+  pool: readonly string[],
+  excluded: readonly string[] = []
+) {
+  const fallback = pool[0] ?? "gummy-bear.png";
+  if (pool.length === 0) return fallback;
+  const excludedSet = new Set(excluded);
+  const candidates = pool.filter((item) => !excludedSet.has(item));
+  const source = candidates.length > 0 ? candidates : pool;
+  return source[Math.floor(Math.random() * source.length)] ?? fallback;
+}
+
 export default function Game({
   character,
   mode,
@@ -180,6 +199,7 @@ export default function Game({
   const [timeLeft, setTimeLeft] = useState(30);
   const [difficultyLevel, setDifficultyLevel] = useState(0);
   const [difficultyNotice, setDifficultyNotice] = useState<string | null>(null);
+  const [levelUpPraise, setLevelUpPraise] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [playerX, setPlayerX] = useState(50);
   const [missionTargets, setMissionTargets] = useState<MissionItemImage[]>([]);
@@ -208,6 +228,7 @@ export default function Game({
   const spawnRef = useRef<number | null>(null);
   const loopRef = useRef<number | null>(null);
   const noticeTimeoutRef = useRef<number | null>(null);
+  const levelCelebrateTimeoutRef = useRef<number | null>(null);
   const playerXRef = useRef(50);
   const gameOverFiredRef = useRef(false);
   const difficultyLevelRef = useRef(0);
@@ -237,6 +258,9 @@ export default function Game({
     () => () => {
       if (noticeTimeoutRef.current !== null) {
         clearTimeout(noticeTimeoutRef.current);
+      }
+      if (levelCelebrateTimeoutRef.current !== null) {
+        clearTimeout(levelCelebrateTimeoutRef.current);
       }
     },
     []
@@ -356,6 +380,7 @@ export default function Game({
     setTimeLeft(30);
     setDifficultyLevel(0);
     setDifficultyNotice(null);
+    setLevelUpPraise(null);
     setShareNotice(null);
     setPlayerX(50);
     setItems([]);
@@ -370,6 +395,10 @@ export default function Game({
     if (noticeTimeoutRef.current !== null) {
       clearTimeout(noticeTimeoutRef.current);
       noticeTimeoutRef.current = null;
+    }
+    if (levelCelebrateTimeoutRef.current !== null) {
+      clearTimeout(levelCelebrateTimeoutRef.current);
+      levelCelebrateTimeoutRef.current = null;
     }
 
     trackEvent({ action: "game_start", category: "game", label: mode, value: 0 });
@@ -416,7 +445,8 @@ export default function Game({
 
     difficultyLevelRef.current = nextLevel;
     setDifficultyLevel(nextLevel);
-    setDifficultyNotice(`Difficulty Up! Lv.${nextLevel}`);
+    setDifficultyNotice(`Level Up! Lv.${nextLevel}`);
+    setLevelUpPraise(LEVEL_UP_PRAISES[(nextLevel - 1) % LEVEL_UP_PRAISES.length]);
 
     if (noticeTimeoutRef.current !== null) {
       clearTimeout(noticeTimeoutRef.current);
@@ -425,6 +455,14 @@ export default function Game({
       setDifficultyNotice(null);
       noticeTimeoutRef.current = null;
     }, 1400);
+
+    if (levelCelebrateTimeoutRef.current !== null) {
+      clearTimeout(levelCelebrateTimeoutRef.current);
+    }
+    levelCelebrateTimeoutRef.current = window.setTimeout(() => {
+      setLevelUpPraise(null);
+      levelCelebrateTimeoutRef.current = null;
+    }, 1800);
   }, [mode, phase, score]);
 
   const PLAYER_W = 80;
@@ -685,31 +723,37 @@ export default function Game({
           activeHeartCount < FREE_HEART_MAX_ACTIVE &&
           Math.random() < FREE_HEART_SPAWN_CHANCE;
 
-        let itemData: { emoji?: string; image?: string };
+        let itemData: { emoji?: string; image?: string } | null = null;
         if (shouldSpawnHeart) {
           itemData = { emoji: HEART_EMOJI };
           lastHeartSpawnAtRef.current = nowMs;
-        } else {
-          const randomImage =
-            fallingItemImages[Math.floor(Math.random() * fallingItemImages.length)] ?? "gummy-bear.png";
-          itemData = { image: randomImage };
         }
 
         const currentScore = scoreRef.current;
         const spawnCount = shouldSpawnHeart ? 1 : mode === "free" ? freeSpawnBurstCount(currentScore) : 1;
         const nextItems: FallingItem[] = [];
+        const burstImages: string[] = [];
 
         for (let i = 0; i < spawnCount; i += 1) {
           const baseFallSpeed =
             mode === "free"
               ? FREE_BASE_FALL_SPEED_MIN + Math.random() * FREE_BASE_FALL_SPEED_RANGE
               : DEFAULT_BASE_FALL_SPEED_MIN + Math.random() * DEFAULT_BASE_FALL_SPEED_RANGE;
+          const nextItemData =
+            shouldSpawnHeart || itemData?.emoji
+              ? itemData
+              : {
+                  image: pickRandomFallingImage(fallingItemImages, burstImages),
+                };
+          if (nextItemData.image) {
+            burstImages.push(nextItemData.image);
+          }
           nextItems.push({
             id: idRef.current++,
             x: Math.random() * 90 + 5,
             y: -5 - i * 3.2,
             v: baseFallSpeed,
-            ...itemData,
+            ...nextItemData,
           });
         }
 
@@ -941,13 +985,38 @@ export default function Game({
         .reveal-fade-in {
           animation: revealFadeIn 0.4s ease-out forwards;
         }
+        @keyframes levelBadgeCelebrate {
+          0% { transform: translateY(0) scale(1); box-shadow: 0 10px 24px rgba(150,9,83,0.18); }
+          30% { transform: translateY(-2px) scale(1.08); box-shadow: 0 14px 32px rgba(150,9,83,0.26); }
+          100% { transform: translateY(0) scale(1); box-shadow: 0 10px 24px rgba(150,9,83,0.18); }
+        }
+        .level-badge-celebrate {
+          animation: levelBadgeCelebrate 0.7s ease-out;
+        }
+        @keyframes levelToastIn {
+          0% { opacity: 0; transform: translate(-50%, -14px) scale(0.92); }
+          100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+        }
+        .level-toast {
+          animation: levelToastIn 0.28s ease-out;
+        }
+        @keyframes sparkleFloat {
+          0% { opacity: 0; transform: translateY(10px) scale(0.7); }
+          25% { opacity: 1; }
+          100% { opacity: 0; transform: translateY(-14px) scale(1.15); }
+        }
+        .sparkle-float {
+          animation: sparkleFloat 0.95s ease-out forwards;
+        }
       `}</style>
 
       <div className="w-full max-w-[430px] py-1 sm:py-0">
         <div className="mb-3 flex gap-2">
           {/* Score */}
           <div className={`flex flex-col items-center rounded-2xl py-2 shadow ${mode === "timeAttack" ? "flex-[2] bg-[var(--yl-primary)]" : "flex-1 bg-white/90 ring-1 ring-[var(--yl-card-border)]"}`}>
-            <span className={`text-xs font-black uppercase tracking-[0.14em] ${mode === "timeAttack" ? "text-white/85" : "text-[var(--yl-primary)]"}`}>SCORE</span>
+            <span className={`text-xs font-black uppercase tracking-[0.14em] ${mode === "timeAttack" ? "text-white/85" : "text-[var(--yl-primary)]"}`}>
+              {mode === "timeAttack" ? "TOPPING COLLECTED" : "SCORE"}
+            </span>
             <span className={`font-black leading-tight ${mode === "timeAttack" ? "text-3xl text-white" : "text-2xl text-[var(--yl-ink-strong)]"}`}>{score}</span>
           </div>
           {/* Lives — free & mission only */}
@@ -968,9 +1037,24 @@ export default function Game({
           )}
           {/* Level — free play only */}
           {mode === "free" && (
-            <div className="flex flex-1 flex-col items-center rounded-2xl bg-[var(--yl-primary)] py-2 shadow">
+            <div
+              className={`relative flex flex-1 flex-col items-center rounded-2xl bg-[var(--yl-primary)] py-2 shadow ${
+                levelUpPraise ? "level-badge-celebrate" : ""
+              }`}
+            >
               <span className="text-xs font-black uppercase tracking-[0.14em] text-white/85">LEVEL</span>
               <span className="text-2xl font-black leading-tight text-white">{difficultyLevel}</span>
+              {levelUpPraise ? (
+                <>
+                  <span className="sparkle-float pointer-events-none absolute -left-1 top-2 text-xs text-yellow-200">*</span>
+                  <span
+                    className="sparkle-float pointer-events-none absolute -right-1 top-3 text-[10px] text-pink-100"
+                    style={{ animationDelay: "0.08s" }}
+                  >
+                    *
+                  </span>
+                </>
+              ) : null}
             </div>
           )}
           {/* Time — time attack only */}
@@ -1101,8 +1185,16 @@ export default function Game({
           )}
 
           {mode === "free" && phase === "play" && difficultyNotice && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 rounded-full bg-[var(--yl-primary)] text-white text-sm font-extrabold px-4 py-2 shadow-lg">
-              {difficultyNotice}
+            <div className="level-toast absolute top-4 left-1/2 z-30 w-[min(88%,320px)] -translate-x-1/2 rounded-[1.4rem] border border-white/65 bg-[linear-gradient(135deg,rgba(176,27,101,0.95),rgba(255,132,76,0.92))] px-4 py-3 text-white shadow-[0_18px_38px_rgba(113,15,68,0.28)]">
+              <div className="flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-white/75">
+                <span>*</span>
+                <span>Momentum Boost</span>
+                <span>*</span>
+              </div>
+              <div className="mt-1 text-center text-base font-black leading-tight">{difficultyNotice}</div>
+              {levelUpPraise ? (
+                <div className="mt-1 text-center text-xs font-bold text-white/88">{levelUpPraise}</div>
+              ) : null}
             </div>
           )}
 
@@ -1282,7 +1374,7 @@ export default function Game({
               "radial-gradient(circle at 50% 0%, #fff8fc 0%, #fce4f0 50%, #f3c0db 100%)",
           }}
         >
-          <div className="reveal-fade-in flex h-[100dvh] max-h-[100dvh] w-full max-w-md flex-col items-center justify-between gap-2 px-3 py-2 text-center sm:gap-3 sm:px-4 sm:py-3">
+          <div className="reveal-fade-in flex aspect-[3/5] sm:aspect-[9/16] w-full max-w-[430px] flex-col items-center justify-between overflow-hidden rounded-3xl border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,241,248,0.94))] px-3 py-4 text-center shadow-[0_24px_50px_rgba(150,9,83,0.22)] sm:gap-3 sm:px-4 sm:py-5">
             {/* Header */}
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">
@@ -1307,7 +1399,7 @@ export default function Game({
             </div>
 
             {/* Cup + toppings */}
-            <div className="relative h-72 w-64 max-w-full sm:h-80 sm:w-72 lg:h-96 lg:w-80">
+            <div className="relative h-72 w-64 max-w-full sm:h-80 sm:w-72">
               {!finalCupLoadFailed ? (
                 <img
                   src="/final-cup.png?v=20260223"

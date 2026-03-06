@@ -28,7 +28,7 @@ const CHARACTERS: CharacterOption[] = [
 const MODES: ModeOption[] = [
   { id: "free", label: "Free Play", detail: "Catch as many as you can." },
   { id: "mission", label: "Mission", detail: "Catch only target toppings." },
-  { id: "timeAttack", label: "Time Attack", detail: "30 seconds to set your best." },
+  { id: "timeAttack", label: "나만의 froyo 만들기", detail: "30초 동안 토핑을 모아 나만의 프로즌 요거트를 완성해 보세요." },
 ];
 
 export default function HomeScreen({

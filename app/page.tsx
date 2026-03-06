@@ -525,7 +525,7 @@ export default function Page() {
     const requestKey = `${m}|${store}|${todayFrom}`;
 
     if (leaderboardInFlightKeyRef.current === requestKey) {
-      return;
+      return [] as LeaderRow[];
     }
 
     const requestId = ++leaderboardFetchSeqRef.current;
@@ -614,6 +614,7 @@ export default function Page() {
       });
 
       setLbRows(rows);
+      return rows;
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") {
         return;
@@ -633,6 +634,51 @@ export default function Page() {
         leaderboardInFlightKeyRef.current = null;
       }
     }
+
+    return [] as LeaderRow[];
+  };
+
+  const waitForLeaderboardRefresh = async (
+    m: LeaderMode,
+    store: string,
+    nick: string,
+    expectedScore: number
+  ) => {
+    const normalizedNick = normalizeNick(nick);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const rows = await fetchTop20(m, store);
+
+      let resolvedScore = expectedScore;
+      if (nick.length >= 2 && nick.length <= 12) {
+        try {
+          const mine = m === "today" ? await fetchMyTodayScore(nick, store) : await fetchMyBestScore(nick, store);
+          if (mine?.score) {
+            resolvedScore = Math.max(expectedScore, mine.score);
+          }
+        } catch (err) {
+          console.error("Leaderboard refresh check failed:", err);
+        }
+      }
+
+      setLastScore(resolvedScore);
+      await calcMyRank(m, resolvedScore, store);
+
+      const inRows = rows.some(
+        (row) => normalizeNick(row.nickname) === normalizedNick && row.score === resolvedScore
+      );
+      const top20Cutoff = rows.length >= 20 ? rows[rows.length - 1]?.score ?? Number.NEGATIVE_INFINITY : Number.NEGATIVE_INFINITY;
+      const shouldBeVisible = rows.length < 20 || resolvedScore >= top20Cutoff;
+
+      if (!shouldBeVisible || inRows) {
+        return { rows, score: resolvedScore };
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+    }
+
+    const finalRows = await fetchTop20(m, store);
+    return { rows: finalRows, score: expectedScore };
   };
 
   const calcMyRank = async (m: LeaderMode, score: number, store: string) => {
@@ -1193,27 +1239,12 @@ export default function Page() {
                         console.error("Failed to sync contact entry score:", err);
                       }
                     }
-
-                    const mine = await fetchMyTodayScore(nick, "__ALL__");
-
-                    if (mine) {
-                      const bestScore = mine.score;
-                      setLastScore(bestScore);
-                      await calcMyRank(leaderboardMode, bestScore, "__ALL__");
-                    } else {
-                      setLastScore(todayBestLocal);
-                      if (todayBestLocal > 0) {
-                        await calcMyRank(leaderboardMode, todayBestLocal, "__ALL__");
-                      } else {
-                        setMyRank(undefined);
-                      }
-                    }
+                    await waitForLeaderboardRefresh(leaderboardMode, "__ALL__", nick, todayBestLocal);
                   } else {
                     setLastScore(todayBestLocal);
                     setMyRank(undefined);
+                    await fetchTop20(leaderboardMode, "__ALL__");
                   }
-
-                  await fetchTop20(leaderboardMode, "__ALL__");
                 }}
               />
             )}
