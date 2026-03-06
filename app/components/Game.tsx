@@ -197,6 +197,8 @@ export default function Game({
   const [finalCupLoadFailed, setFinalCupLoadFailed] = useState(false);
 
   const [collectedToppings, setCollectedToppings] = useState<CaughtItem[]>([]);
+  const visibleLives = Math.min(lives, MAX_LIVES);
+  const extraLives = Math.max(0, lives - MAX_LIVES);
 
   const areaRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
@@ -832,7 +834,7 @@ export default function Game({
         if (lifeGain) {
           playSfx("catch");
           vibrateByEvent("catch");
-          setLives((l) => Math.min(MAX_LIVES, l + lifeGain));
+          setLives((l) => l + lifeGain);
         }
 
         if (lifeLoss) {
@@ -952,10 +954,15 @@ export default function Game({
           {mode !== "timeAttack" && (
             <div className="flex flex-1 flex-col items-center rounded-2xl bg-white/90 py-2 shadow ring-1 ring-[var(--yl-card-border)]">
               <span className="text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">LIVES</span>
-              <div className="mt-0.5 flex gap-0.5">
+              <div className="mt-0.5 flex items-center gap-1">
                 {Array.from({ length: MAX_LIVES }).map((_, i) => (
-                  <span key={i} className="text-lg leading-none">{i < lives ? "❤️" : "🤍"}</span>
+                  <span key={i} className="text-lg leading-none">{i < visibleLives ? "❤️" : "🤍"}</span>
                 ))}
+                {extraLives > 0 && (
+                  <span className="ml-1 text-sm font-black leading-none text-[var(--yl-primary)]">
+                    x{extraLives}
+                  </span>
+                )}
               </div>
             </div>
           )}
