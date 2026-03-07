@@ -16,19 +16,19 @@ export const COUPON_REWARDS: CouponRewardDefinition[] = [
     type: "bogo",
     threshold: 250,
     title: "BOGO",
-    description: "Buy one frozen yogurt, get one of equal or lesser value free.",
+    description: "Buy one frozen yogurt and enjoy a second one free, up to the same value.",
   },
   {
     type: "dollar_off",
     threshold: 180,
     title: "$1 Off",
-    description: "Take $1 off your next frozen yogurt purchase.",
+    description: "Take $1 off your next frozen yogurt order at the counter.",
   },
   {
     type: "free_topping",
     threshold: 10,
     title: "Free Topping",
-    description: "Add one free topping to your next Yogurtland order.",
+    description: "Treat yourself to one complimentary topping on your next cup.",
   },
 ] as const;
 
@@ -37,9 +37,14 @@ export type WalletCoupon = {
   rewardType: CouponRewardType;
   title: string;
   description: string;
+  status: "active" | "redeemed" | "expired";
+  state: CouponState;
   expiresAt: string;
   redeemToken: string;
   createdAt: string;
+  redeemedAt?: string | null;
+  redeemedStaffName?: string | null;
+  redeemedStoreName?: string | null;
 };
 
 export function getEligibleCouponReward(score: number) {
@@ -68,4 +73,26 @@ export function formatCouponExpiry(expiresAt: string) {
     month: "short",
     day: "numeric",
   });
+}
+
+export function getCouponState(input: {
+  status?: string | null;
+  expiresAt?: string | null;
+  redeemedAt?: string | null;
+}): CouponState {
+  const isRedeemed = input.status === "redeemed" || Boolean(input.redeemedAt);
+  if (isRedeemed) return "already_redeemed";
+  if (isCouponExpired(String(input.expiresAt || ""))) return "expired";
+  return "valid";
+}
+
+export function getWalletCouponStatus(input: {
+  status?: string | null;
+  expiresAt?: string | null;
+  redeemedAt?: string | null;
+}): "active" | "redeemed" | "expired" {
+  const state = getCouponState(input);
+  if (state === "already_redeemed") return "redeemed";
+  if (state === "expired") return "expired";
+  return "active";
 }

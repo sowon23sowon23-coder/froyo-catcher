@@ -7,8 +7,11 @@ type RedeemCoupon = {
   id: number;
   title: string;
   description: string;
+  status?: "active" | "redeemed" | "expired";
   expiresAt: string;
   redeemedAt?: string | null;
+  redeemedStaffName?: string | null;
+  redeemedStoreName?: string | null;
 };
 
 type RedeemResponse = {
@@ -39,7 +42,8 @@ export default function RedeemPageClient({
   initialData: RedeemResponse;
 }) {
   const [data, setData] = useState<RedeemResponse>(initialData);
-  const [staffLabel, setStaffLabel] = useState("");
+  const [staffName, setStaffName] = useState("");
+  const [storeName, setStoreName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +61,8 @@ export default function RedeemPageClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          staffLabel: staffLabel.trim() || undefined,
+          staffName: staffName.trim(),
+          storeName: storeName.trim(),
         }),
       });
       const json = (await res.json().catch(() => ({}))) as RedeemResponse & { error?: string };
@@ -87,6 +92,10 @@ export default function RedeemPageClient({
             <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4">
               <p className="text-lg font-black text-[var(--yl-ink-strong)]">{data.coupon.title}</p>
               <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">{data.coupon.description}</p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">Offer</p>
+              <p className="text-sm font-bold text-[var(--yl-ink-strong)]">
+                Present this screen at the counter. One-time use only.
+              </p>
               <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">Expires</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{formatCouponExpiry(data.coupon.expiresAt)}</p>
               {data.coupon.redeemedAt ? (
@@ -94,6 +103,11 @@ export default function RedeemPageClient({
                   <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">Redeemed</p>
                   <p className="text-sm font-bold text-[var(--yl-ink-strong)]">
                     {new Date(data.coupon.redeemedAt).toLocaleString()}
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                    {data.coupon.redeemedStoreName ? `Store: ${data.coupon.redeemedStoreName}` : ""}
+                    {data.coupon.redeemedStoreName && data.coupon.redeemedStaffName ? " · " : ""}
+                    {data.coupon.redeemedStaffName ? `Staff: ${data.coupon.redeemedStaffName}` : ""}
                   </p>
                 </>
               ) : null}
@@ -103,14 +117,26 @@ export default function RedeemPageClient({
           {data.state === "valid" ? (
             <div className="mt-4 space-y-3">
               <div>
-                <label htmlFor="staff-label" className="block text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
-                  Staff Name (Optional)
+                <label htmlFor="store-name" className="block text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+                  Store Name
                 </label>
                 <input
-                  id="staff-label"
-                  value={staffLabel}
-                  onChange={(e) => setStaffLabel(e.target.value)}
-                  placeholder="Store staff"
+                  id="store-name"
+                  value={storeName}
+                  onChange={(e) => setStoreName(e.target.value)}
+                  placeholder="Yogurtland Torrance"
+                  className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-white px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+                />
+              </div>
+              <div>
+                <label htmlFor="staff-name" className="block text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+                  Staff Name
+                </label>
+                <input
+                  id="staff-name"
+                  value={staffName}
+                  onChange={(e) => setStaffName(e.target.value)}
+                  placeholder="Jamie"
                   className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-white px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
                 />
               </div>

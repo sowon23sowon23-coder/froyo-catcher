@@ -27,6 +27,26 @@ type FeedbackRow = {
   created_at?: string | null;
 };
 
+type CouponAdminRow = {
+  id: number;
+  entry_id: number;
+  reward_type: "free_topping" | "dollar_off" | "bogo";
+  title: string;
+  description: string;
+  status: "active" | "redeemed" | "expired";
+  state: "valid" | "already_redeemed" | "expired" | "invalid";
+  expires_at: string;
+  created_at: string;
+  redeemed_at?: string | null;
+  redeemed_staff_name?: string | null;
+  redeemed_store_name?: string | null;
+  nickname_display?: string | null;
+  nickname_key?: string | null;
+  contact_type?: "phone" | "email" | null;
+  contact_value?: string | null;
+  store?: string | null;
+};
+
 type Notice = {
   type: "error" | "success" | "info";
   message: string;
@@ -44,6 +64,7 @@ export default function AdminPage() {
   const [feedbackRows, setFeedbackRows] = useState<FeedbackRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [couponLoading, setCouponLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
   const [password, setPassword] = useState("");
@@ -51,6 +72,8 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState("");
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [couponSearch, setCouponSearch] = useState("");
+  const [couponRows, setCouponRows] = useState<CouponAdminRow[]>([]);
   const [adminToken, setAdminToken] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
 
@@ -147,6 +170,41 @@ export default function AdminPage() {
     }
   };
 
+  const loadCouponRows = async () => {
+    const token = adminToken.trim();
+    if (!token) return;
+
+    setCouponLoading(true);
+    try {
+      const res = await fetch(`/api/admin/coupons?_ts=${Date.now()}`, {
+        method: "GET",
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = (await res.json()) as {
+        rows?: CouponAdminRow[];
+        error?: string;
+      };
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setIsAuthed(false);
+          setAuthError("Session expired. Please log in again.");
+        } else {
+          setNotice({ type: "error", message: json.error || "Failed to load coupons." });
+        }
+        setCouponRows([]);
+      } else {
+        setCouponRows(json.rows ?? []);
+      }
+    } catch {
+      setNotice({ type: "error", message: "Failed to load coupons." });
+      setCouponRows([]);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
   useEffect(() => {
     setIsAuthed(false);
     setAdminToken("");
@@ -157,6 +215,7 @@ export default function AdminPage() {
     if (!isAuthed || !adminToken.trim()) return;
     void loadRows();
     void loadFeedbackRows();
+    void loadCouponRows();
   }, [isAuthed, adminToken]);
 
   const filteredRows = useMemo(() => {
@@ -175,6 +234,22 @@ export default function AdminPage() {
   }, [rows, search]);
 
   const totalUsers = useMemo(() => new Set(rows.map((r) => r.nickname_key)).size, [rows]);
+
+  const filteredCouponRows = useMemo(() => {
+    const term = couponSearch.trim().toLowerCase();
+    return couponRows.filter((row) => {
+      if (!term) return true;
+      return (
+        row.title.toLowerCase().includes(term) ||
+        (row.nickname_display ?? "").toLowerCase().includes(term) ||
+        (row.nickname_key ?? "").toLowerCase().includes(term) ||
+        (row.contact_value ?? "").toLowerCase().includes(term) ||
+        (row.redeemed_store_name ?? "").toLowerCase().includes(term) ||
+        (row.redeemed_staff_name ?? "").toLowerCase().includes(term) ||
+        row.status.toLowerCase().includes(term)
+      );
+    });
+  }, [couponRows, couponSearch]);
 
   const deleteUserScores = async (nicknameKey: string, nicknameDisplay: string) => {
     const token = adminToken.trim();
@@ -309,6 +384,7 @@ export default function AdminPage() {
               onClick={() => {
                 void loadRows();
                 void loadFeedbackRows();
+                void loadCouponRows();
               }}
               className="rounded-full border border-[#f2bad5] bg-white px-4 py-2 text-sm font-black text-[#960953]"
             >
@@ -390,6 +466,77 @@ export default function AdminPage() {
             placeholder="Search nickname / key / store / contact"
             className="w-full rounded-xl border border-[#edb8d3] bg-white px-3 py-2 text-sm font-semibold text-[#5b2041] outline-none"
           />
+        </div>
+
+        <div className="mb-4 overflow-hidden rounded-2xl border border-[#f3c7dd] bg-white shadow-[0_12px_24px_rgba(150,9,83,0.12)]">
+          <div className="bg-[linear-gradient(135deg,#fff1f8,#f8c8df)] px-4 py-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#960953]">Coupons</p>
+          </div>
+          <div className="border-b border-[#f6d6e6] bg-white px-4 py-3">
+            <input
+              value={couponSearch}
+              onChange={(e) => setCouponSearch(e.target.value)}
+              placeholder="Search coupon / nickname / contact / store / staff / status"
+              className="w-full rounded-xl border border-[#edb8d3] bg-white px-3 py-2 text-sm font-semibold text-[#5b2041] outline-none"
+            />
+          </div>
+          <div className="hidden grid-cols-[96px_1.2fr_1fr_110px_120px_140px_160px] bg-[#fff2f8] px-4 py-3 text-xs font-black text-[#8a5a75] lg:grid">
+            <div>Status</div>
+            <div>Coupon</div>
+            <div>Owner</div>
+            <div>Issued</div>
+            <div>Expires</div>
+            <div>Redeemed</div>
+            <div>Store / Staff</div>
+          </div>
+          {couponLoading ? (
+            <div className="px-4 py-6 text-sm font-semibold text-[#8b6178]">Loading coupons...</div>
+          ) : filteredCouponRows.length === 0 ? (
+            <div className="px-4 py-6 text-sm font-semibold text-[#8b6178]">No coupons found.</div>
+          ) : (
+            <div className="max-h-[60vh] overflow-auto">
+              <div className="space-y-2 p-3 lg:hidden">
+                {filteredCouponRows.map((row) => (
+                  <div key={`coupon-${row.id}`} className="rounded-lg border border-[#f4d5e4] bg-[#fffafd] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-black text-[#4e1434]">{row.title}</p>
+                      <span className="rounded-full bg-[#fff1f8] px-2 py-1 text-[10px] font-black uppercase text-[#960953]">{row.status}</span>
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-[#8d6280]">{row.description}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-semibold text-[#6a3b58]">
+                      <div>Owner: {row.nickname_display || row.nickname_key || "-"}</div>
+                      <div>Issued: {row.created_at ? new Date(row.created_at).toLocaleDateString() : "-"}</div>
+                      <div>Expires: {row.expires_at ? new Date(row.expires_at).toLocaleDateString() : "-"}</div>
+                      <div>Redeemed: {row.redeemed_at ? new Date(row.redeemed_at).toLocaleString() : "-"}</div>
+                      <div className="col-span-2">Store/Staff: {row.redeemed_store_name || "-"} / {row.redeemed_staff_name || "-"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden lg:block">
+                {filteredCouponRows.map((row) => (
+                  <div key={`coupon-row-${row.id}`} className="grid grid-cols-[96px_1.2fr_1fr_110px_120px_140px_160px] border-t border-[#f9d7e8] px-4 py-3 text-sm">
+                    <div><span className="rounded-full bg-[#fff1f8] px-2 py-1 text-[10px] font-black uppercase text-[#960953]">{row.status}</span></div>
+                    <div className="min-w-0">
+                      <p className="truncate font-black text-[#4e1434]">{row.title}</p>
+                      <p className="truncate text-xs font-semibold text-[#8d6280]">{row.description}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-black text-[#4e1434]">{row.nickname_display || "-"}</p>
+                      <p className="truncate text-xs font-semibold text-[#8d6280]">{row.contact_value || row.nickname_key || "-"}</p>
+                    </div>
+                    <div className="font-semibold text-[#6a3b58]">{row.created_at ? new Date(row.created_at).toLocaleDateString() : "-"}</div>
+                    <div className="font-semibold text-[#6a3b58]">{row.expires_at ? new Date(row.expires_at).toLocaleDateString() : "-"}</div>
+                    <div className="font-semibold text-[#6a3b58]">{row.redeemed_at ? new Date(row.redeemed_at).toLocaleString() : "-"}</div>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-[#5f2b4b]">{row.redeemed_store_name || "-"}</p>
+                      <p className="truncate text-xs font-semibold text-[#8d6280]">{row.redeemed_staff_name || "-"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-[#f3c7dd] bg-white shadow-[0_12px_24px_rgba(150,9,83,0.12)]">
