@@ -112,6 +112,12 @@ export default function HomeScreen({
               Logged in as <span className="text-[var(--yl-primary)]">{nickname}</span>
             </p>
             <div className="flex items-center gap-1.5">
+              <a
+                href="/wallet"
+                className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+              >
+                My Wallet
+              </a>
               <button
                 type="button"
                 onClick={onSwitchAccount}

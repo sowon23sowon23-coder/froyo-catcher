@@ -6,6 +6,7 @@ import LoginScreen, { type LoginPayload } from "./components/LoginScreen";
 import HomeScreen from "./components/HomeScreen";
 import Game from "./components/Game";
 import LeaderboardModal, { LeaderMode, LeaderRow } from "./components/LeaderboardModal";
+import { type CouponGameMode } from "./lib/coupons";
 import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
 
@@ -42,8 +43,29 @@ type SessionAuthSnapshot = {
   contactValue: string;
 };
 
+type IssuedCoupon = {
+  title: string;
+  expiresAt: string;
+};
+
 function normalizeNick(raw: string) {
   return raw.trim().toLowerCase();
+}
+
+function createGameSessionId() {
+  if (typeof window === "undefined" || !window.crypto) {
+    return "00000000-0000-4000-8000-000000000000";
+  }
+  if (typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function readSavedContact(): EntryContact | null {
@@ -341,9 +363,11 @@ export default function Page() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+  const [couponNotice, setCouponNotice] = useState<string | null>(null);
   const [switchSourceNick, setSwitchSourceNick] = useState<string>("");
   const [switchSourceContactType, setSwitchSourceContactType] = useState<EntryContactType>("phone");
   const [switchSourceContactValue, setSwitchSourceContactValue] = useState<string>("");
+  const [activeGameSessionId, setActiveGameSessionId] = useState<string>("");
 
   const clearClientAuthState = () => {
     localStorage.clear();
@@ -432,6 +456,7 @@ export default function Page() {
             const nextPhase = savedPhase === "game" ? "game" : "home";
             setPhase(nextPhase);
             if (nextPhase === "game") {
+              setActiveGameSessionId(createGameSessionId());
               setStartSignal((n) => n + 1);
             }
           }
@@ -464,6 +489,12 @@ export default function Page() {
   useEffect(() => {
     sessionStorage.setItem(PHASE_STORAGE_KEY, phase);
   }, [phase]);
+
+  useEffect(() => {
+    if (!couponNotice) return;
+    const id = window.setTimeout(() => setCouponNotice(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [couponNotice]);
 
   const refreshTodayBestScore = async (nickname: string) => {
     const nick = nickname.trim();
@@ -1000,6 +1031,52 @@ export default function Page() {
     }
   };
 
+  const issueCouponReward = async (
+    score: number,
+    gameSessionId: string,
+    mode: CouponGameMode
+  ): Promise<IssuedCoupon | null> => {
+    if (!gameSessionId) return null;
+
+    try {
+      const res = await fetch("/api/coupons/issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          score,
+          gameSessionId,
+          mode,
+        }),
+      });
+
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        eligible?: boolean;
+        issued?: boolean;
+        coupon?: {
+          title?: string;
+          expiresAt?: string;
+        } | null;
+      };
+
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to evaluate coupon reward.");
+      }
+
+      if (json.eligible && json.issued && json.coupon?.title && json.coupon?.expiresAt) {
+        return {
+          title: json.coupon.title,
+          expiresAt: json.coupon.expiresAt,
+        };
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Coupon issue failed:", err);
+      return null;
+    }
+  };
+
   const onLogin = async (payload: LoginPayload) => {
     const trimmed = payload.nickname.trim();
     setLoginLoading(true);
@@ -1178,6 +1255,8 @@ export default function Page() {
                 onStart={(char: CharId, mode: GameMode) => {
                   setCharacter(char);
                   setGameMode(mode);
+                  setCouponNotice(null);
+                  setActiveGameSessionId(createGameSessionId());
                   setLastNick(authNick ?? localStorage.getItem("nickname") ?? undefined);
                   setPhase("game");
                   setStartSignal((n) => n + 1);
@@ -1207,6 +1286,11 @@ export default function Page() {
                   const normalizedStore = "__ALL__";
                   const leaderboardMode: LeaderMode = "today";
                   const isFreePlay = gameMode === "free";
+                  const issuedCoupon = await issueCouponReward(finalScore, activeGameSessionId, gameMode);
+
+                  if (issuedCoupon) {
+                    setCouponNotice(`${issuedCoupon.title} added to My Wallet.`);
+                  }
 
                   if (!isFreePlay) {
                     return;
@@ -1253,6 +1337,23 @@ export default function Page() {
         </div>
       </main>
       )}
+
+      {couponNotice ? (
+        <div className="fixed left-1/2 top-4 z-[140] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-[var(--yl-card-border)] bg-white/95 px-4 py-3 shadow-[0_18px_36px_rgba(150,9,83,0.2)] backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Wallet Updated</p>
+              <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
+            </div>
+            <a
+              href="/wallet"
+              className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
+            >
+              Open
+            </a>
+          </div>
+        </div>
+      ) : null}
 
       {toolsOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">

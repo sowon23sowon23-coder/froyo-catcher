@@ -345,6 +345,7 @@ export default function Game({
     if (mode === "timeAttack") {
       // Show Final Reveal Screen.
       setCollectedToppings([...collectedRef.current]);
+      onGameOver?.(score);
       return;
     }
 
