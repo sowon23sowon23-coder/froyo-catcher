@@ -26,7 +26,7 @@ export const COUPON_REWARDS: CouponRewardDefinition[] = [
   },
   {
     type: "free_topping",
-    threshold: 100,
+    threshold: 10,
     title: "Free Topping",
     description: "Add one free topping to your next Yogurtland order.",
   },

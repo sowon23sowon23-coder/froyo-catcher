@@ -6,11 +6,10 @@ Apply the new migration after the existing `entries` and rate-limit migrations.
 
 Recommended order:
 
-1. `supabase/migrations/20260301_create_entries.sql`
+1. `supabase/migrations/20260301_initial_schema.sql`
 2. `supabase/migrations/20260302_add_entries_profile_columns.sql`
 3. `supabase/migrations/20260303_entries_nickname_key_unique.sql`
-4. `supabase/migrations/20260305_add_nickname_change_logs.sql`
-5. `supabase/migrations/20260305_enable_rls_sensitive_tables.sql`
+4. `supabase/migrations/20260305_entries_security_updates.sql`
 6. `supabase/migrations/20260307_create_wallet_coupons.sql`
 
 The new migration adds:
@@ -43,9 +42,9 @@ Recommended for correct QR/redeem URLs:
 
 ### Coupon issuing
 
-- Finish a game with score `99`.
+- Finish a game with score `9`.
   Expected: no coupon issued.
-- Finish a game with score `100`.
+- Finish a game with score `10`.
   Expected: `Free Topping` issued.
 - Finish a game with score `180`.
   Expected: `$1 Off` issued.

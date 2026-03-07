@@ -155,10 +155,10 @@ export default function WalletPageClient() {
           <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
             <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet</p>
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-              Finish a strong run and score at least 100 to unlock your first reward.
+              Finish a run and score at least 10 to unlock your first reward.
             </p>
             <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
-              Score 100+: Free Topping
+              Score 10+: Free Topping
               <br />
               Score 180+: $1 Off
               <br />
