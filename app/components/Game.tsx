@@ -357,7 +357,9 @@ export default function Game({
         window.setTimeout(() => {
           onGameOver?.(score);
         }, 650);
+        return;
       }
+      onGameOver?.(score);
       return;
     }
 
