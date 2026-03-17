@@ -1,112 +1,100 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { getCouponState, getWalletCouponStatus } from "../../../lib/coupons";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+import { adminCreateCouponSchema, getServiceSupabaseOrThrow, serializeCouponSummary } from "../../../lib/couponData";
+import { createCouponCode, getCouponExpiryIso, getCouponStatus, normalizeCouponCode } from "../../../lib/couponMvp";
+import { requirePortalRole } from "../../../lib/portalAuth";
 
-type AdminCouponStatusFilter = "all" | "active" | "redeemed" | "expired";
+async function createUniqueCouponCode() {
+  const supabase = getServiceSupabaseOrThrow();
 
-function parseLimit(raw: string | null): number {
-  const n = Number(raw || 200);
-  if (!Number.isFinite(n)) return 200;
-  return Math.min(500, Math.max(1, Math.floor(n)));
-}
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const code = createCouponCode();
+    const existing = await supabase.from("coupons").select("id").eq("code", code).maybeSingle();
+    if (!existing.data?.id) return code;
+  }
 
-function parseStatus(raw: string | null): AdminCouponStatusFilter {
-  if (raw === "active" || raw === "redeemed" || raw === "expired") return raw;
-  return "all";
+  throw new Error("Failed to create a unique coupon code.");
 }
 
 export async function GET(req: NextRequest) {
-  const adminToken = process.env.ADMIN_PANEL_TOKEN;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-  if (!adminToken || !serviceRoleKey || !supabaseUrl) {
-    return NextResponse.json({ error: "Server is not configured." }, { status: 500 });
+  const session = requirePortalRole(req, ["admin"]);
+  if (!session) {
+    return NextResponse.json({ error: "관리자 로그인이 필요합니다." }, { status: 401 });
   }
 
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token || token !== adminToken) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get("limit") || 30)));
+  const search = normalizeCouponCode(req.nextUrl.searchParams.get("search") || "");
+
+  try {
+    const supabase = getServiceSupabaseOrThrow();
+    let query = supabase.from("coupons").select("*").order("created_at", { ascending: false }).limit(limit);
+    if (search) query = query.eq("code", search);
+
+    const result = await query;
+    if (result.error) {
+      console.error("Failed to load coupons", result.error);
+      return NextResponse.json({ error: "쿠폰 목록을 불러오지 못했습니다." }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      rows: (result.data ?? []).map((row) => serializeCouponSummary(row, getCouponStatus(row))),
+    });
+  } catch (error) {
+    console.error("Admin coupons GET route error", error);
+    return NextResponse.json({ error: "쿠폰 목록 조회 중 오류가 발생했습니다." }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const session = requirePortalRole(req, ["admin"]);
+  if (!session) {
+    return NextResponse.json({ error: "관리자 로그인이 필요합니다." }, { status: 401 });
   }
 
-  const limit = parseLimit(req.nextUrl.searchParams.get("limit"));
-  const status = parseStatus(req.nextUrl.searchParams.get("status"));
-
-  const adminSupabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const result = await adminSupabase
-    .from("wallet_coupons")
-    .select(`
-      id,
-      entry_id,
-      reward_type,
-      title,
-      description,
-      status,
-      expires_at,
-      created_at,
-      redeemed_at,
-      redeemed_staff_name,
-      redeemed_store_name,
-      entries:entries (
-        nickname_display,
-        nickname_key,
-        contact_type,
-        contact_value,
-        store
-      )
-    `)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (result.error) {
-    return NextResponse.json({ error: result.error.message || "Failed to load coupons." }, { status: 500 });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
   }
 
-  const rows = ((result.data ?? []) as any[])
-    .map((row) => {
-      const state = getCouponState({
-        status: row.status,
-        expiresAt: row.expires_at,
-        redeemedAt: row.redeemed_at,
-      });
-      const normalizedStatus = getWalletCouponStatus({
-        status: row.status,
-        expiresAt: row.expires_at,
-        redeemedAt: row.redeemed_at,
-      });
-      const entry = Array.isArray(row.entries) ? row.entries[0] : row.entries;
+  const parsed = adminCreateCouponSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "쿠폰 생성 입력값을 확인해 주세요." }, { status: 400 });
+  }
 
-      return {
-        id: Number(row.id),
-        entry_id: Number(row.entry_id),
-        reward_type: row.reward_type,
-        title: row.title,
-        description: row.description,
-        status: normalizedStatus,
-        state,
-        expires_at: row.expires_at,
-        created_at: row.created_at,
-        redeemed_at: row.redeemed_at,
-        redeemed_staff_name: row.redeemed_staff_name,
-        redeemed_store_name: row.redeemed_store_name,
-        nickname_display: entry?.nickname_display ?? null,
-        nickname_key: entry?.nickname_key ?? null,
-        contact_type: entry?.contact_type ?? null,
-        contact_value: entry?.contact_value ?? null,
-        store: entry?.store ?? null,
-      };
-    })
-    .filter((row) => status === "all" || row.status === status);
+  try {
+    const supabase = getServiceSupabaseOrThrow();
+    const code = await createUniqueCouponCode();
+    const expiresAt = parsed.data.expiresAt || getCouponExpiryIso();
 
-  return NextResponse.json(
-    { rows, limit, status },
-    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
-  );
+    const inserted = await supabase
+      .from("coupons")
+      .insert([
+        {
+          code,
+          user_id: parsed.data.userId || null,
+          coupon_name: parsed.data.couponName,
+          reward_type: "manual_discount",
+          discount_amount: parsed.data.discountAmount,
+          status: "unused",
+          issued_at: new Date().toISOString(),
+          expires_at: expiresAt,
+        },
+      ])
+      .select("*")
+      .single();
+
+    if (inserted.error) {
+      console.error("Failed to create manual coupon", inserted.error);
+      return NextResponse.json({ error: "관리자 쿠폰 생성에 실패했습니다." }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      coupon: serializeCouponSummary(inserted.data),
+    });
+  } catch (error) {
+    console.error("Admin coupons POST route error", error);
+    return NextResponse.json({ error: "관리자 쿠폰 생성 중 오류가 발생했습니다." }, { status: 500 });
+  }
 }
