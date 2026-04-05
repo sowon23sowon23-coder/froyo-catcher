@@ -12,7 +12,7 @@ import { type EntryContactType } from "./lib/entry";
 
 type CharId = "green" | "berry" | "sprinkle";
 type Phase = "login" | "switchAccount" | "home" | "game";
-type GameMode = "free" | "mission" | "timeAttack";
+type GameMode = "free";
 const PHASE_STORAGE_KEY = "currentPhase";
 const SESSION_AUTH_STORAGE_KEY = "sessionAuth";
 
@@ -335,7 +335,6 @@ export default function Page() {
   const [phase, setPhase] = useState<Phase>("login");
   const [bootLoading, setBootLoading] = useState(true);
   const [character, setCharacter] = useState<CharId>("green");
-  const [gameMode, setGameMode] = useState<GameMode>("free");
   const [best, setBest] = useState(0);
   const [todayBestScore, setTodayBestScore] = useState<number | undefined>(undefined);
   const [startSignal, setStartSignal] = useState(0);
@@ -429,13 +428,10 @@ export default function Page() {
           json.contactValue
         ) {
           const savedChar = localStorage.getItem("selectedCharacter");
-          const savedMode = localStorage.getItem("selectedMode");
           if (savedChar === "green" || savedChar === "berry" || savedChar === "sprinkle") {
             setCharacter(savedChar);
           }
-          if (savedMode === "free" || savedMode === "mission" || savedMode === "timeAttack") {
-            setGameMode(savedMode);
-          }
+          localStorage.removeItem("selectedMode");
 
           localStorage.setItem("nickname", json.nickname);
           localStorage.setItem("entryContactType", json.contactType);
@@ -1252,9 +1248,8 @@ export default function Page() {
               <HomeScreen
                 nickname={authNick}
                 todayBestScore={todayBestScore}
-                onStart={(char: CharId, mode: GameMode) => {
+                onStart={(char: CharId) => {
                   setCharacter(char);
-                  setGameMode(mode);
                   setCouponNotice(null);
                   setActiveGameSessionId(createGameSessionId());
                   setLastNick(authNick ?? localStorage.getItem("nickname") ?? undefined);
@@ -1274,7 +1269,7 @@ export default function Page() {
             {phase === "game" && (
               <Game
                 character={character}
-                mode={gameMode}
+                mode="free"
                 startSignal={startSignal}
                 onExitToHome={() => setPhase("home")}
                 onBestScore={(newBest: number) => {
@@ -1285,8 +1280,8 @@ export default function Page() {
                   const nick = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
                   const normalizedStore = "__ALL__";
                   const leaderboardMode: LeaderMode = "today";
-                  const isFreePlay = gameMode === "free";
-                  const issuedCoupon = await issueCouponReward(finalScore, activeGameSessionId, gameMode);
+                  const isFreePlay = true;
+                  const issuedCoupon = await issueCouponReward(finalScore, activeGameSessionId, "free");
 
                   if (issuedCoupon) {
                     setCouponNotice(`${issuedCoupon.title} added to My Wallet.`);
