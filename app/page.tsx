@@ -1336,7 +1336,7 @@ export default function Page() {
                       redeemToken: issuedCoupon.redeemToken,
                       createdAt: issuedCoupon.createdAt,
                     });
-                    setCouponNotice("쿠폰이 발급되었습니다.");
+                    setCouponNotice("Your coupon has been issued.");
                   }
 
                   if (!isFreePlay) {
