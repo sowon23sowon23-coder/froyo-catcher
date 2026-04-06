@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 
-export const COUPON_SCORE_THRESHOLD = 80;
+export const COUPON_SCORE_THRESHOLD = 10;
 export const DEFAULT_DISCOUNT_AMOUNT = 3000;
 export const DEFAULT_EXPIRY_DAYS = 14;
 export const COUPON_NAME = "3,000원 할인 쿠폰";

@@ -46,6 +46,7 @@ type SessionAuthSnapshot = {
 type IssuedCoupon = {
   title: string;
   expiresAt: string;
+  redeemUrl?: string;
 };
 
 function normalizeNick(raw: string) {
@@ -1050,19 +1051,27 @@ export default function Page() {
         eligible?: boolean;
         issued?: boolean;
         coupon?: {
+          couponName?: string;
           title?: string;
           expiresAt?: string;
+          code?: string;
         } | null;
+        redeemUrl?: string;
+        qrPayload?: string;
       };
 
       if (!res.ok) {
         throw new Error(json.error || "Failed to evaluate coupon reward.");
       }
 
-      if (json.eligible && json.issued && json.coupon?.title && json.coupon?.expiresAt) {
+      const couponTitle = json.coupon?.couponName || json.coupon?.title;
+      const redeemUrl = json.redeemUrl || json.qrPayload;
+
+      if (json.eligible && couponTitle && json.coupon?.expiresAt) {
         return {
-          title: json.coupon.title,
+          title: couponTitle,
           expiresAt: json.coupon.expiresAt,
+          redeemUrl,
         };
       }
 
@@ -1285,6 +1294,9 @@ export default function Page() {
 
                   if (issuedCoupon) {
                     setCouponNotice(`${issuedCoupon.title} added to My Wallet.`);
+                    window.setTimeout(() => {
+                      window.location.href = "/wallet";
+                    }, 250);
                   }
 
                   if (!isFreePlay) {
