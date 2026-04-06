@@ -7,6 +7,7 @@ import { formatCouponExpiry, type WalletCoupon } from "../lib/coupons";
 
 const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 const WALLET_REFRESH_INTERVAL_MS = 10000;
+const EXPIRING_SOON_DAYS = 3;
 
 type WalletResponse = {
   nickname?: string;
@@ -37,6 +38,15 @@ function writeLocalWalletCoupons(coupons: WalletCoupon[]) {
   }
 }
 
+function getDaysUntilExpiry(expiresAt: string) {
+  const diffMs = new Date(expiresAt).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+function isExpiringSoon(expiresAt: string) {
+  return getDaysUntilExpiry(expiresAt) <= EXPIRING_SOON_DAYS;
+}
+
 function statusCopy(status: WalletCoupon["status"]) {
   if (status === "redeemed") return "Redeemed";
   if (status === "expired") return "Expired";
@@ -51,6 +61,8 @@ function statusClasses(status: WalletCoupon["status"]) {
 
 function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean }) {
   const [qrSrc, setQrSrc] = useState<string>("");
+  const daysUntilExpiry = getDaysUntilExpiry(coupon.expiresAt);
+  const expiresSoon = coupon.status === "active" && isExpiringSoon(coupon.expiresAt);
 
   useEffect(() => {
     if (!showQr) {
@@ -87,18 +99,35 @@ function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean 
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">
             {coupon.status === "active" ? "Active Coupon" : "Coupon History"}
           </p>
-          <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${statusClasses(coupon.status)}`}>
-            {statusCopy(coupon.status)}
-          </span>
+          <div className="flex items-center gap-2">
+            {expiresSoon ? (
+              <span className="rounded-full bg-[#fff1e8] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#9a3412]">
+                Expires Soon
+              </span>
+            ) : null}
+            <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${statusClasses(coupon.status)}`}>
+              {statusCopy(coupon.status)}
+            </span>
+          </div>
         </div>
         <h2 className="mt-1 text-2xl font-black text-[var(--yl-ink-strong)]">{coupon.title}</h2>
         <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">{coupon.description}</p>
       </div>
 
       <div className="grid gap-4 px-5 py-5">
-        <div className="rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-3">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Expires</p>
-          <p className="mt-1 text-lg font-black text-[var(--yl-ink-strong)]">{formatCouponExpiry(coupon.expiresAt)}</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Expires</p>
+            <p className="mt-1 text-lg font-black text-[var(--yl-ink-strong)]">{formatCouponExpiry(coupon.expiresAt)}</p>
+          </div>
+          <div className="rounded-2xl border border-[var(--yl-card-border)] bg-white px-4 py-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">
+              {coupon.status === "active" ? "Use By" : "Status"}
+            </p>
+            <p className="mt-1 text-lg font-black text-[var(--yl-ink-strong)]">
+              {coupon.status === "active" ? `${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"} left` : statusCopy(coupon.status)}
+            </p>
+          </div>
         </div>
 
         {showQr ? (
@@ -114,9 +143,12 @@ function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean 
                 Loading QR...
               </div>
             )}
-            <p className="mt-3 text-xs font-semibold text-[var(--yl-ink-muted)]">
-              Scan in store to validate and redeem this reward.
-            </p>
+            <div className="mt-3 rounded-2xl border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-3 text-left">
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">How to use</p>
+              <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)]">1. Show this QR before payment.</p>
+              <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">2. Ask staff to scan and redeem it at the counter.</p>
+              <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">3. This reward can be used one time only.</p>
+            </div>
           </div>
         ) : (
           <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
@@ -143,8 +175,10 @@ export default function WalletPageClient() {
   const [historyCoupons, setHistoryCoupons] = useState<WalletCoupon[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<WalletTab>("active");
+  const [redeemNotice, setRedeemNotice] = useState<string | null>(null);
   const activeCouponsRef = useRef<WalletCoupon[]>([]);
   const tabRef = useRef<WalletTab>("active");
+  const notifiedRedeemedTokensRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     activeCouponsRef.current = activeCoupons;
@@ -209,10 +243,24 @@ export default function WalletPageClient() {
         const nextHistory = [...serverHistory, ...mergedLocal.filter((coupon) => coupon.status !== "active")];
         const previousActiveTokens = new Set(activeCouponsRef.current.map((coupon) => coupon.redeemToken));
         const movedToHistory = nextHistory.some((coupon) => previousActiveTokens.has(coupon.redeemToken));
+        const newlyRedeemedCoupon = nextHistory.find(
+          (coupon) =>
+            previousActiveTokens.has(coupon.redeemToken) &&
+            coupon.status === "redeemed" &&
+            !notifiedRedeemedTokensRef.current.has(coupon.redeemToken)
+        );
 
         setActiveCoupons(nextActive);
         setHistoryCoupons(nextHistory);
         writeLocalWalletCoupons([...nextActive, ...nextHistory]);
+        if (newlyRedeemedCoupon) {
+          notifiedRedeemedTokensRef.current.add(newlyRedeemedCoupon.redeemToken);
+          setRedeemNotice(
+            `Redeemed: ${newlyRedeemedCoupon.title}${
+              newlyRedeemedCoupon.redeemedStoreName ? ` at ${newlyRedeemedCoupon.redeemedStoreName}` : ""
+            }${newlyRedeemedCoupon.redeemedStaffName ? ` by ${newlyRedeemedCoupon.redeemedStaffName}` : ""}.`
+          );
+        }
         if (options?.initial) {
           setTab(nextActive.length > 0 ? "active" : "history");
         } else if (movedToHistory && tabRef.current === "active") {
@@ -258,9 +306,45 @@ export default function WalletPageClient() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!redeemNotice) return;
+    const timeoutId = window.setTimeout(() => setRedeemNotice(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [redeemNotice]);
+
+  const sortedActiveCoupons = useMemo(
+    () =>
+      [...activeCoupons].sort((a, b) => {
+        const aSoon = isExpiringSoon(a.expiresAt) ? 0 : 1;
+        const bSoon = isExpiringSoon(b.expiresAt) ? 0 : 1;
+        if (aSoon !== bSoon) return aSoon - bSoon;
+        return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+      }),
+    [activeCoupons]
+  );
+
+  const sortedHistoryCoupons = useMemo(
+    () =>
+      [...historyCoupons].sort((a, b) => {
+        const aTime = new Date(a.redeemedAt || a.expiresAt).getTime();
+        const bTime = new Date(b.redeemedAt || b.expiresAt).getTime();
+        return bTime - aTime;
+      }),
+    [historyCoupons]
+  );
+
+  const walletSummary = useMemo(
+    () => ({
+      active: activeCoupons.length,
+      redeemed: historyCoupons.filter((coupon) => coupon.status === "redeemed").length,
+      expiringSoon: activeCoupons.filter((coupon) => isExpiringSoon(coupon.expiresAt)).length,
+    }),
+    [activeCoupons, historyCoupons]
+  );
+
   const visibleCoupons = useMemo(
-    () => (tab === "active" ? activeCoupons : historyCoupons),
-    [activeCoupons, historyCoupons, tab]
+    () => (tab === "active" ? sortedActiveCoupons : sortedHistoryCoupons),
+    [sortedActiveCoupons, sortedHistoryCoupons, tab]
   );
 
   return (
@@ -284,6 +368,13 @@ export default function WalletPageClient() {
           </p>
         </header>
 
+        {redeemNotice ? (
+          <section className="rounded-[1.6rem] border border-[#cfe7c4] bg-[#f4ffef] px-5 py-4 shadow-[0_14px_30px_rgba(71,128,52,0.12)]">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#4d7e32]">Updated</p>
+            <p className="mt-1 text-sm font-bold text-[#2f5a19]">{redeemNotice}</p>
+          </section>
+        ) : null}
+
         {loading ? (
           <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-10 text-center text-sm font-bold text-[var(--yl-ink-muted)] shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
             Loading wallet...
@@ -301,6 +392,21 @@ export default function WalletPageClient() {
           </section>
         ) : (
           <>
+            <section className="grid grid-cols-3 gap-3">
+              <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Active</p>
+                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.active}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Redeemed</p>
+                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.redeemed}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Soon</p>
+                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.expiringSoon}</p>
+              </div>
+            </section>
+
             <div className="grid grid-cols-2 gap-2 rounded-[1.6rem] border border-[var(--yl-card-border)] bg-white/90 p-2 shadow-[0_18px_44px_rgba(150,9,83,0.12)]">
               <button
                 type="button"
@@ -319,30 +425,38 @@ export default function WalletPageClient() {
             </div>
 
             {visibleCoupons.length === 0 ? (
-          <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
-            <p className="text-lg font-black text-[var(--yl-ink-strong)]">
-              {tab === "active" ? "No active coupons yet" : "No coupon history yet"}
-            </p>
-            <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-              {tab === "active"
-                ? "Finish a run and score at least 10 to unlock your first reward."
-                : "Redeemed and expired rewards will appear here after use."}
-            </p>
-            <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
-              Score 10+: Free Topping
-              <br />
-              Score 180+: $1 Off
-              <br />
-              Score 250+: BOGO
-            </div>
-          </section>
-        ) : (
-          <div className="grid gap-4">
-            {visibleCoupons.map((coupon) => (
-              <CouponCard key={coupon.id} coupon={coupon} showQr={tab === "active"} />
-            ))}
-          </div>
-        )}
+              <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
+                <p className="text-lg font-black text-[var(--yl-ink-strong)]">
+                  {tab === "active" ? "No active coupons yet" : "No coupon history yet"}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                  {tab === "active"
+                    ? "Finish a run and score at least 10 to unlock your first reward."
+                    : "Redeemed and expired rewards will appear here after use."}
+                </p>
+                <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                  Score 10+: Free Topping
+                  <br />
+                  Score 180+: $1 Off
+                  <br />
+                  Score 250+: BOGO
+                </div>
+                {tab === "active" ? (
+                  <Link
+                    href="/"
+                    className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--yl-primary)] px-4 py-3 text-sm font-black text-white"
+                  >
+                    Play Again
+                  </Link>
+                ) : null}
+              </section>
+            ) : (
+              <div className="grid gap-4">
+                {visibleCoupons.map((coupon) => (
+                  <CouponCard key={coupon.id} coupon={coupon} showQr={tab === "active"} />
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
