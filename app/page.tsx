@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
 import { trackEvent } from "./lib/gtag";
 import LoginScreen, { type LoginPayload } from "./components/LoginScreen";
 import HomeScreen from "./components/HomeScreen";
@@ -47,7 +46,6 @@ type SessionAuthSnapshot = {
 type IssuedCoupon = {
   title: string;
   expiresAt: string;
-  redeemUrl?: string;
 };
 
 function normalizeNick(raw: string) {
@@ -365,8 +363,6 @@ export default function Page() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
   const [couponNotice, setCouponNotice] = useState<string | null>(null);
-  const [couponRedeemUrl, setCouponRedeemUrl] = useState<string | null>(null);
-  const [couponQrSrc, setCouponQrSrc] = useState<string>("");
   const [switchSourceNick, setSwitchSourceNick] = useState<string>("");
   const [switchSourceContactType, setSwitchSourceContactType] = useState<EntryContactType>("phone");
   const [switchSourceContactValue, setSwitchSourceContactValue] = useState<string>("");
@@ -495,30 +491,6 @@ export default function Page() {
     const id = window.setTimeout(() => setCouponNotice(null), 5000);
     return () => window.clearTimeout(id);
   }, [couponNotice]);
-
-  useEffect(() => {
-    if (!couponRedeemUrl) {
-      setCouponQrSrc("");
-      return;
-    }
-
-    let active = true;
-    void QRCode.toDataURL(couponRedeemUrl, {
-      margin: 1,
-      width: 220,
-      color: { dark: "#4b0b31", light: "#ffffff" },
-    })
-      .then((dataUrl) => {
-        if (active) setCouponQrSrc(dataUrl);
-      })
-      .catch(() => {
-        if (active) setCouponQrSrc("");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [couponRedeemUrl]);
 
   const refreshTodayBestScore = async (nickname: string) => {
     const nick = nickname.trim();
@@ -1086,7 +1058,6 @@ export default function Page() {
           expiresAt?: string;
           code?: string;
         } | null;
-        redeemUrl?: string;
         qrPayload?: string;
       };
 
@@ -1095,13 +1066,10 @@ export default function Page() {
       }
 
       const couponTitle = json.coupon?.couponName || json.coupon?.title;
-      const redeemUrl = json.redeemUrl || json.qrPayload;
-
       if (json.eligible && couponTitle && json.coupon?.expiresAt) {
         return {
           title: couponTitle,
           expiresAt: json.coupon.expiresAt,
-          redeemUrl,
         };
       }
 
@@ -1290,8 +1258,6 @@ export default function Page() {
                 onStart={(char: CharId) => {
                   setCharacter(char);
                   setCouponNotice(null);
-                  setCouponRedeemUrl(null);
-                  setCouponQrSrc("");
                   setActiveGameSessionId(createGameSessionId());
                   setLastNick(authNick ?? localStorage.getItem("nickname") ?? undefined);
                   setPhase("game");
@@ -1325,8 +1291,7 @@ export default function Page() {
                   const issuedCoupon = await issueCouponReward(finalScore, activeGameSessionId, "free");
 
                   if (issuedCoupon) {
-                    setCouponNotice(`${issuedCoupon.title} added to My Wallet.`);
-                    setCouponRedeemUrl(issuedCoupon.redeemUrl || null);
+                    setCouponNotice("쿠폰이 발급되었습니다.");
                   }
 
                   if (!isFreePlay) {
@@ -1379,39 +1344,16 @@ export default function Page() {
         <div className="fixed left-1/2 top-4 z-[140] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-[var(--yl-card-border)] bg-white/95 px-4 py-3 shadow-[0_18px_36px_rgba(150,9,83,0.2)] backdrop-blur-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Ready</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Issued</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setCouponNotice(null);
-                setCouponRedeemUrl(null);
-                setCouponQrSrc("");
-              }}
-              className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--yl-primary)]"
+            <a
+              href="/wallet"
+              className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
             >
-              Close
-            </button>
+              My Wallet
+            </a>
           </div>
-          {couponRedeemUrl ? (
-            <div className="mt-3 rounded-[1.5rem] border border-dashed border-[var(--yl-card-border)] bg-white px-4 py-4 text-center">
-              {couponQrSrc ? (
-                <img
-                  src={couponQrSrc}
-                  alt="Coupon QR code"
-                  className="mx-auto h-52 w-52 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
-                />
-              ) : (
-                <div className="mx-auto grid h-52 w-52 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
-                  Loading QR...
-                </div>
-              )}
-              <p className="mt-3 text-xs font-semibold text-[var(--yl-ink-muted)]">
-                Scan this QR code in store to use your coupon.
-              </p>
-            </div>
-          ) : null}
         </div>
       ) : null}
 
