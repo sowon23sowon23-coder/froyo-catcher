@@ -30,7 +30,8 @@ async function createUniqueCouponCode() {
 export async function POST(req: NextRequest) {
   const auth = await requireAuthenticatedEntry(req);
   if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const failedAuth = auth as Extract<typeof auth, { ok: false }>;
+    return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
   }
 
   let body: unknown;
