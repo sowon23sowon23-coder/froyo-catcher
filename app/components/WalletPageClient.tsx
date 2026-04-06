@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { formatCouponExpiry, type WalletCoupon } from "../lib/coupons";
 
+const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
+
 type WalletResponse = {
   nickname?: string;
   coupons?: WalletCoupon[];
@@ -14,6 +16,17 @@ type WalletResponse = {
 };
 
 type WalletTab = "active" | "history";
+
+function readLocalWalletCoupons(): WalletCoupon[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as WalletCoupon[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 function statusCopy(status: WalletCoupon["status"]) {
   if (status === "redeemed") return "Redeemed";
@@ -140,10 +153,21 @@ export default function WalletPageClient() {
           cache: "no-store",
         });
         const json = (await res.json().catch(() => ({}))) as WalletResponse;
+        const localCoupons = readLocalWalletCoupons();
 
         if (!active) return;
 
         if (!res.ok) {
+          const localActive = localCoupons.filter((coupon) => coupon.status === "active");
+          const localHistory = localCoupons.filter((coupon) => coupon.status !== "active");
+          if (localCoupons.length > 0) {
+            setNickname(nickname || "");
+            setActiveCoupons(localActive);
+            setHistoryCoupons(localHistory);
+            setTab(localActive.length > 0 ? "active" : "history");
+            setError(null);
+            return;
+          }
           setError(json.error || (res.status === 401 ? "Please log in to open your wallet." : "Failed to load wallet."));
           setActiveCoupons([]);
           setHistoryCoupons([]);
@@ -151,8 +175,15 @@ export default function WalletPageClient() {
         }
 
         setNickname(String(json.nickname || "").trim());
-        const nextActive = Array.isArray(json.activeCoupons) ? json.activeCoupons : [];
-        const nextHistory = Array.isArray(json.historyCoupons) ? json.historyCoupons : [];
+        const serverActive = Array.isArray(json.activeCoupons) ? json.activeCoupons : [];
+        const serverHistory = Array.isArray(json.historyCoupons) ? json.historyCoupons : [];
+        const mergedLocal = localCoupons.filter(
+          (coupon) =>
+            !serverActive.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken) &&
+            !serverHistory.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken)
+        );
+        const nextActive = [...serverActive, ...mergedLocal.filter((coupon) => coupon.status === "active")];
+        const nextHistory = [...serverHistory, ...mergedLocal.filter((coupon) => coupon.status !== "active")];
         setActiveCoupons(nextActive);
         setHistoryCoupons(nextHistory);
         setTab(nextActive.length > 0 ? "active" : "history");
