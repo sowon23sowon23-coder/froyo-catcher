@@ -15,6 +15,9 @@ export const issueCouponSchema = z.object({
   score: z.number().int().nonnegative(),
   gameSessionId: z.string().uuid(),
   mode: z.enum(["free", "mission", "timeAttack"]).default("free"),
+  nickname: z.string().trim().min(2).max(12).optional(),
+  contactType: z.enum(["phone", "email"]).optional(),
+  contactValue: z.string().trim().min(3).max(160).optional(),
 });
 
 export const validateCouponSchema = z.object({

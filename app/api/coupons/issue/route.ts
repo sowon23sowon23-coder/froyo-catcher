@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/couponData";
 import { getEligibleCouponReward, getCouponExpiryIso } from "../../../lib/coupons";
+import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 import {
   buildRedeemUrl,
@@ -27,13 +28,11 @@ async function createUniqueCouponCode() {
   return createUniqueRedeemToken(supabase);
 }
 
-export async function POST(req: NextRequest) {
-  const auth = await requireAuthenticatedEntry(req);
-  if (!auth.ok) {
-    const failedAuth = auth as Extract<typeof auth, { ok: false }>;
-    return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
-  }
+function normalizeContactValue(contactType: EntryContactType, value: string) {
+  return contactType === "phone" ? normalizeUsPhone(value) : normalizeEmail(value);
+}
 
+export async function POST(req: NextRequest) {
   let body: unknown;
 
   try {
@@ -47,9 +46,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "userId와 score를 다시 확인해 주세요." }, { status: 400 });
   }
 
+  const auth = await requireAuthenticatedEntry(req);
+  let supabase: any;
+  let entry: { id: number; nickname: string };
+
+  if (auth.ok) {
+    supabase = auth.supabase;
+    entry = auth.entry;
+  } else {
+    const nickname = String(parsed.data.nickname || "").trim();
+    const contactType = parsed.data.contactType;
+    const contactValue = String(parsed.data.contactValue || "").trim();
+    const normalizedContact =
+      contactType && contactValue ? normalizeContactValue(contactType, contactValue) : null;
+
+    if (!nickname || !contactType || !normalizedContact) {
+      const failedAuth = auth as Extract<typeof auth, { ok: false }>;
+      return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
+    }
+
+    supabase = getServiceSupabaseOrThrow();
+    const fallbackEntry = await supabase
+      .from("entries")
+      .select("id,nickname_display")
+      .eq("contact_type", contactType)
+      .eq("contact_value", normalizedContact)
+      .maybeSingle();
+
+    if (fallbackEntry.error || !fallbackEntry.data?.id) {
+      return NextResponse.json({ error: "Login session is required." }, { status: 401 });
+    }
+
+    entry = {
+      id: Number(fallbackEntry.data.id),
+      nickname: String(fallbackEntry.data.nickname_display || nickname).trim() || nickname,
+    };
+  }
+
   const { score, gameSessionId, mode } = parsed.data;
   const reward = getEligibleCouponReward(score);
-  const userId = auth.entry.nickname;
+  const userId = entry.nickname;
 
   if (!reward || score < COUPON_SCORE_THRESHOLD) {
     return NextResponse.json({
@@ -60,7 +96,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { supabase, entry } = auth;
     const expiresAt = getCouponExpiryIso();
     const existingWallet = await supabase
       .from("wallet_coupons")

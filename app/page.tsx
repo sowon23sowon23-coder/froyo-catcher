@@ -1043,6 +1043,9 @@ export default function Page() {
           score,
           gameSessionId,
           mode,
+          nickname: (authNick ?? localStorage.getItem("nickname") ?? "").trim() || undefined,
+          contactType: authContactType,
+          contactValue: (authContactValue ?? localStorage.getItem("entryContactValue") ?? "").trim() || undefined,
         }),
       });
 
