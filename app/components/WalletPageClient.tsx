@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { formatCouponExpiry, type WalletCoupon } from "../lib/coupons";
 
 const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
+const WALLET_REFRESH_INTERVAL_MS = 10000;
 
 type WalletResponse = {
   nickname?: string;
@@ -25,6 +26,14 @@ function readLocalWalletCoupons(): WalletCoupon[] {
     return Array.isArray(parsed) ? (parsed as WalletCoupon[]) : [];
   } catch {
     return [];
+  }
+}
+
+function writeLocalWalletCoupons(coupons: WalletCoupon[]) {
+  try {
+    localStorage.setItem(LOCAL_WALLET_STORAGE_KEY, JSON.stringify(coupons));
+  } catch {
+    // Ignore storage write failures so wallet rendering still works.
   }
 }
 
@@ -134,11 +143,21 @@ export default function WalletPageClient() {
   const [historyCoupons, setHistoryCoupons] = useState<WalletCoupon[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<WalletTab>("active");
+  const activeCouponsRef = useRef<WalletCoupon[]>([]);
+  const tabRef = useRef<WalletTab>("active");
+
+  useEffect(() => {
+    activeCouponsRef.current = activeCoupons;
+  }, [activeCoupons]);
+
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
 
   useEffect(() => {
     let active = true;
 
-    void (async () => {
+    const loadWallet = async (options?: { initial?: boolean }) => {
       try {
         const nickname = (localStorage.getItem("nickname") || "").trim();
         const contactType = (localStorage.getItem("entryContactType") || "").trim();
@@ -164,7 +183,11 @@ export default function WalletPageClient() {
             setNickname(nickname || "");
             setActiveCoupons(localActive);
             setHistoryCoupons(localHistory);
-            setTab(localActive.length > 0 ? "active" : "history");
+            if (options?.initial) {
+              setTab(localActive.length > 0 ? "active" : "history");
+            } else if (tabRef.current === "active" && localActive.length === 0 && localHistory.length > 0) {
+              setTab("history");
+            }
             setError(null);
             return;
           }
@@ -184,9 +207,19 @@ export default function WalletPageClient() {
         );
         const nextActive = [...serverActive, ...mergedLocal.filter((coupon) => coupon.status === "active")];
         const nextHistory = [...serverHistory, ...mergedLocal.filter((coupon) => coupon.status !== "active")];
+        const previousActiveTokens = new Set(activeCouponsRef.current.map((coupon) => coupon.redeemToken));
+        const movedToHistory = nextHistory.some((coupon) => previousActiveTokens.has(coupon.redeemToken));
+
         setActiveCoupons(nextActive);
         setHistoryCoupons(nextHistory);
-        setTab(nextActive.length > 0 ? "active" : "history");
+        writeLocalWalletCoupons([...nextActive, ...nextHistory]);
+        if (options?.initial) {
+          setTab(nextActive.length > 0 ? "active" : "history");
+        } else if (movedToHistory && tabRef.current === "active") {
+          setTab("history");
+        } else if (tabRef.current === "active" && nextActive.length === 0 && nextHistory.length > 0) {
+          setTab("history");
+        }
         setError(null);
       } catch {
         if (!active) return;
@@ -196,10 +229,32 @@ export default function WalletPageClient() {
       } finally {
         if (active) setLoading(false);
       }
-    })();
+    };
+
+    void loadWallet({ initial: true });
+
+    const intervalId = window.setInterval(() => {
+      void loadWallet();
+    }, WALLET_REFRESH_INTERVAL_MS);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadWallet();
+      }
+    };
+
+    const handleFocus = () => {
+      void loadWallet();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
