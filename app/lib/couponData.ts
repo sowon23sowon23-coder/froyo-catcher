@@ -12,8 +12,9 @@ import {
 } from "./couponMvp";
 
 export const issueCouponSchema = z.object({
-  userId: z.string().trim().min(1).max(120).nullable().optional(),
   score: z.number().int().nonnegative(),
+  gameSessionId: z.string().uuid(),
+  mode: z.enum(["free", "mission", "timeAttack"]).default("free"),
 });
 
 export const validateCouponSchema = z.object({

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/couponData";
+import { getEligibleCouponReward, getCouponExpiryIso } from "../../../lib/coupons";
+import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 import {
   buildRedeemUrl,
   COUPON_NAME,
@@ -8,22 +10,29 @@ import {
   COUPON_SCORE_THRESHOLD,
   createCouponCode,
   DEFAULT_DISCOUNT_AMOUNT,
-  getCouponExpiryIso,
 } from "../../../lib/couponMvp";
+
+async function createUniqueRedeemToken(supabase: any) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const token = createCouponCode();
+    const existing = await supabase.from("wallet_coupons").select("id").eq("redeem_token", token).maybeSingle();
+    if (!existing.data?.id) return token;
+  }
+
+  throw new Error("Failed to create a unique redeem token.");
+}
 
 async function createUniqueCouponCode() {
   const supabase = getServiceSupabaseOrThrow();
-
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const code = createCouponCode();
-    const existing = await supabase.from("coupons").select("id").eq("code", code).maybeSingle();
-    if (!existing.data?.id) return code;
-  }
-
-  throw new Error("Failed to create a unique coupon code.");
+  return createUniqueRedeemToken(supabase);
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAuthenticatedEntry(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   let body: unknown;
 
   try {
@@ -37,37 +46,122 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "userId와 score를 다시 확인해 주세요." }, { status: 400 });
   }
 
-  const { score, userId } = parsed.data;
-  if (score < COUPON_SCORE_THRESHOLD) {
+  const { score, gameSessionId, mode } = parsed.data;
+  const reward = getEligibleCouponReward(score);
+  const userId = auth.entry.nickname;
+
+  if (!reward || score < COUPON_SCORE_THRESHOLD) {
     return NextResponse.json({
       eligible: false,
+      issued: false,
       reason: `점수 ${COUPON_SCORE_THRESHOLD}점 이상일 때 쿠폰이 발급됩니다.`,
     });
   }
 
   try {
-    const supabase = getServiceSupabaseOrThrow();
-    const code = await createUniqueCouponCode();
+    const { supabase, entry } = auth;
     const expiresAt = getCouponExpiryIso();
-    const inserted = await supabase
-      .from("coupons")
+    const existingWallet = await supabase
+      .from("wallet_coupons")
+      .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
+      .eq("game_session_id", gameSessionId)
+      .maybeSingle();
+
+    if (existingWallet.error) {
+      console.error("Wallet coupon lookup failed", existingWallet.error);
+      return NextResponse.json({ error: "Failed to look up wallet coupon." }, { status: 500 });
+    }
+
+    if (existingWallet.data?.id) {
+      const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
+      const redeemUrl = buildRedeemUrl(origin, String(existingWallet.data.redeem_token));
+
+      return NextResponse.json({
+        eligible: true,
+        issued: true,
+        coupon: {
+          id: Number(existingWallet.data.id),
+          title: String(existingWallet.data.title || reward.title),
+          couponName: String(existingWallet.data.title || reward.title),
+          rewardType: String(existingWallet.data.reward_type || reward.type),
+          expiresAt: String(existingWallet.data.expires_at || expiresAt),
+          issuedAt: String(existingWallet.data.created_at || ""),
+          redeemToken: String(existingWallet.data.redeem_token),
+        },
+        qrPayload: redeemUrl,
+        redeemUrl,
+      });
+    }
+
+    const evaluation = await supabase
+      .from("coupon_reward_evaluations")
       .insert([
         {
-          code,
-          user_id: userId || null,
-          coupon_name: COUPON_NAME,
-          reward_type: COUPON_REWARD_TYPE,
-          discount_amount: DEFAULT_DISCOUNT_AMOUNT,
-          status: "unused",
-          issued_at: new Date().toISOString(),
+          entry_id: entry.id,
+          game_session_id: gameSessionId,
+          game_mode: mode,
+          score,
+          reward_type: reward.type,
+        },
+      ])
+      .select("id")
+      .single();
+
+    if (evaluation.error || !evaluation.data?.id) {
+      console.error("Coupon evaluation failed", evaluation.error);
+      return NextResponse.json({ error: "Failed to create coupon evaluation." }, { status: 500 });
+    }
+
+    const redeemToken = await createUniqueRedeemToken(supabase);
+    const walletCoupon = await supabase
+      .from("wallet_coupons")
+      .insert([
+        {
+          evaluation_id: Number(evaluation.data.id),
+          entry_id: entry.id,
+          game_session_id: gameSessionId,
+          reward_type: reward.type,
+          title: reward.title,
+          description: reward.description,
+          status: "active",
+          redeem_token: redeemToken,
           expires_at: expiresAt,
         },
       ])
-      .select("*")
+      .select("id,title,reward_type,expires_at,redeem_token,created_at")
       .single();
 
-    if (inserted.error) {
-      console.error("Coupon issue failed", inserted.error);
+    if (walletCoupon.error || !walletCoupon.data?.id) {
+      console.error("Wallet coupon issue failed", walletCoupon.error);
+      return NextResponse.json({ error: "Failed to issue wallet coupon." }, { status: 500 });
+    }
+
+    const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
+    const redeemUrl = buildRedeemUrl(origin, redeemToken);
+
+    return NextResponse.json({
+      eligible: true,
+      issued: true,
+      coupon: {
+        id: Number(walletCoupon.data.id),
+        title: reward.title,
+        couponName: reward.title,
+        rewardType: reward.type,
+        status: "active",
+        issuedAt: String(walletCoupon.data.created_at || ""),
+        expiresAt,
+        redeemToken,
+      },
+      qrPayload: redeemUrl,
+      redeemUrl,
+    });
+
+    if (false) {
+      const code = "";
+      const inserted: any = { data: { id: 0, issued_at: "" } };
+
+    if (existingWallet.error) {
+      console.error("Wallet coupon lookup failed", existingWallet.error);
       return NextResponse.json({ error: "쿠폰 발급에 실패했습니다." }, { status: 500 });
     }
 
@@ -90,6 +184,7 @@ export async function POST(req: NextRequest) {
       qrPayload: redeemUrl,
       redeemUrl,
     });
+    }
   } catch (error) {
     console.error("Coupon issue route error", error);
     return NextResponse.json({ error: "쿠폰 발급 중 오류가 발생했습니다." }, { status: 500 });
