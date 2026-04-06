@@ -40,13 +40,27 @@ export async function GET(req: NextRequest) {
       .eq("contact_value", normalizedContact)
       .maybeSingle();
 
-    if (fallbackEntry.error || !fallbackEntry.data?.id) {
+    let resolvedEntry = fallbackEntry.data;
+
+    if (!resolvedEntry?.id && nickname) {
+      const nicknameEntry = await supabase
+        .from("entries")
+        .select("id,nickname_display")
+        .eq("nickname_key", nickname.trim().toLowerCase())
+        .maybeSingle();
+
+      if (!nicknameEntry.error && nicknameEntry.data?.id) {
+        resolvedEntry = nicknameEntry.data;
+      }
+    }
+
+    if (fallbackEntry.error || !resolvedEntry?.id) {
       return NextResponse.json({ error: "Login session is required." }, { status: 401 });
     }
 
     entry = {
-      id: Number(fallbackEntry.data.id),
-      nickname: String(fallbackEntry.data.nickname_display || nickname).trim() || nickname,
+      id: Number(resolvedEntry.id),
+      nickname: String(resolvedEntry.nickname_display || nickname).trim() || nickname,
     };
   }
 
