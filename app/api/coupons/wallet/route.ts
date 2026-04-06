@@ -1,14 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCouponState, getWalletCouponStatus } from "../../../lib/coupons";
+import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
+import { getServerSupabase } from "../../../lib/serverSupabase";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuthenticatedEntry(req);
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  let supabase: any;
+  let entry: { id: number; nickname: string };
 
-  const { supabase, entry } = auth;
+  if (auth.ok) {
+    supabase = auth.supabase;
+    entry = auth.entry;
+  } else {
+    const nickname = String(req.nextUrl.searchParams.get("nickname") || "").trim();
+    const contactType = String(req.nextUrl.searchParams.get("contactType") || "").trim() as EntryContactType;
+    const contactValue = String(req.nextUrl.searchParams.get("contactValue") || "").trim();
+    const normalizedContact =
+      contactType === "phone"
+        ? normalizeUsPhone(contactValue)
+        : contactType === "email"
+          ? normalizeEmail(contactValue)
+          : null;
+
+    if (!nickname || !normalizedContact) {
+      const failedAuth = auth as Extract<typeof auth, { ok: false }>;
+      return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
+    }
+
+    supabase = getServerSupabase();
+    if (!supabase) {
+      return NextResponse.json({ error: "Server is not configured for entries." }, { status: 500 });
+    }
+
+    const fallbackEntry = await supabase
+      .from("entries")
+      .select("id,nickname_display")
+      .eq("contact_type", contactType)
+      .eq("contact_value", normalizedContact)
+      .maybeSingle();
+
+    if (fallbackEntry.error || !fallbackEntry.data?.id) {
+      return NextResponse.json({ error: "Login session is required." }, { status: 401 });
+    }
+
+    entry = {
+      id: Number(fallbackEntry.data.id),
+      nickname: String(fallbackEntry.data.nickname_display || nickname).trim() || nickname,
+    };
+  }
 
   const rows = await supabase
     .from("wallet_coupons")

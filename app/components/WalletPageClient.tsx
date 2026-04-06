@@ -127,7 +127,15 @@ export default function WalletPageClient() {
 
     void (async () => {
       try {
-        const res = await fetch("/api/coupons/wallet", {
+        const nickname = (localStorage.getItem("nickname") || "").trim();
+        const contactType = (localStorage.getItem("entryContactType") || "").trim();
+        const contactValue = (localStorage.getItem("entryContactValue") || "").trim();
+        const params = new URLSearchParams();
+        if (nickname) params.set("nickname", nickname);
+        if (contactType) params.set("contactType", contactType);
+        if (contactValue) params.set("contactValue", contactValue);
+
+        const res = await fetch(`/api/coupons/wallet${params.toString() ? `?${params.toString()}` : ""}`, {
           method: "GET",
           cache: "no-store",
         });
