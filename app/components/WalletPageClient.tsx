@@ -59,13 +59,23 @@ function statusClasses(status: WalletCoupon["status"]) {
   return "bg-[#eff9ea] text-[#2f6c1a]";
 }
 
-function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean }) {
+function CouponCard({
+  coupon,
+  showQr,
+  expanded,
+  onToggle,
+}: {
+  coupon: WalletCoupon;
+  showQr: boolean;
+  expanded: boolean;
+  onToggle?: () => void;
+}) {
   const [qrSrc, setQrSrc] = useState<string>("");
   const daysUntilExpiry = getDaysUntilExpiry(coupon.expiresAt);
   const expiresSoon = coupon.status === "active" && isExpiringSoon(coupon.expiresAt);
 
   useEffect(() => {
-    if (!showQr) {
+    if (!showQr || !expanded) {
       setQrSrc("");
       return;
     }
@@ -90,7 +100,7 @@ function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean 
     return () => {
       active = false;
     };
-  }, [coupon.redeemToken, showQr]);
+  }, [coupon.redeemToken, expanded, showQr]);
 
   return (
     <article className="animate-card-entrance overflow-hidden rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
@@ -132,23 +142,42 @@ function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean 
 
         {showQr ? (
           <div className="rounded-[1.5rem] border border-dashed border-[var(--yl-card-border)] bg-white px-4 py-4 text-center">
-            {qrSrc ? (
-              <img
-                src={qrSrc}
-                alt={`${coupon.title} QR code`}
-                className="mx-auto h-52 w-52 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
-              />
-            ) : (
-              <div className="mx-auto grid h-52 w-52 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
-                Loading QR...
+            <button
+              type="button"
+              onClick={onToggle}
+              className="flex w-full items-center justify-between rounded-2xl border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-3 text-left"
+              aria-expanded={expanded}
+            >
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Show QR</p>
+                <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                  Tap to {expanded ? "hide" : "view"} this coupon's QR code.
+                </p>
               </div>
-            )}
-            <div className="mt-3 rounded-2xl border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-3 text-left">
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">How to use</p>
-              <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)]">1. Show this QR before payment.</p>
-              <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">2. Ask staff to scan and redeem it at the counter.</p>
-              <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">3. This reward can be used one time only.</p>
-            </div>
+              <span className="text-2xl font-black text-[var(--yl-primary)]">{expanded ? "^" : "+"}</span>
+            </button>
+
+            {expanded ? (
+              <>
+                {qrSrc ? (
+                  <img
+                    src={qrSrc}
+                    alt={`${coupon.title} QR code`}
+                    className="mx-auto mt-4 h-52 w-52 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
+                  />
+                ) : (
+                  <div className="mx-auto mt-4 grid h-52 w-52 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
+                    Loading QR...
+                  </div>
+                )}
+                <div className="mt-3 rounded-2xl border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-3 text-left">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">How to use</p>
+                  <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)]">1. Show this QR before payment.</p>
+                  <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">2. Ask staff to scan and redeem it at the counter.</p>
+                  <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">3. This reward can be used one time only.</p>
+                </div>
+              </>
+            ) : null}
           </div>
         ) : (
           <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
@@ -176,6 +205,7 @@ export default function WalletPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<WalletTab>("active");
   const [redeemNotice, setRedeemNotice] = useState<string | null>(null);
+  const [expandedCouponToken, setExpandedCouponToken] = useState<string | null>(null);
   const activeCouponsRef = useRef<WalletCoupon[]>([]);
   const tabRef = useRef<WalletTab>("active");
   const notifiedRedeemedTokensRef = useRef<Set<string>>(new Set());
@@ -187,6 +217,17 @@ export default function WalletPageClient() {
   useEffect(() => {
     tabRef.current = tab;
   }, [tab]);
+
+  useEffect(() => {
+    if (tab !== "active") {
+      setExpandedCouponToken(null);
+      return;
+    }
+
+    if (expandedCouponToken && !activeCoupons.some((coupon) => coupon.redeemToken === expandedCouponToken)) {
+      setExpandedCouponToken(null);
+    }
+  }, [activeCoupons, expandedCouponToken, tab]);
 
   useEffect(() => {
     let active = true;
@@ -453,7 +494,20 @@ export default function WalletPageClient() {
             ) : (
               <div className="grid gap-4">
                 {visibleCoupons.map((coupon) => (
-                  <CouponCard key={coupon.id} coupon={coupon} showQr={tab === "active"} />
+                  <CouponCard
+                    key={coupon.id}
+                    coupon={coupon}
+                    showQr={tab === "active"}
+                    expanded={tab === "active" && expandedCouponToken === coupon.redeemToken}
+                    onToggle={
+                      tab === "active"
+                        ? () =>
+                            setExpandedCouponToken((current) =>
+                              current === coupon.redeemToken ? null : coupon.redeemToken
+                            )
+                        : undefined
+                    }
+                  />
                 ))}
               </div>
             )}
