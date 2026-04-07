@@ -81,7 +81,12 @@ export default function RedeemPageClient({
   };
 
   useEffect(() => {
-    if (!data.redeemedNow) return;
+    const couponStatus = data.coupon?.status;
+    const shouldSyncHistory =
+      Boolean(data.coupon) &&
+      (couponStatus === "redeemed" || couponStatus === "expired" || data.state === "already_redeemed" || data.state === "expired");
+
+    if (!shouldSyncHistory) return;
 
     try {
       const raw = window.localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
@@ -92,8 +97,8 @@ export default function RedeemPageClient({
             if (!coupon || coupon.redeemToken !== token) return coupon;
             return {
               ...coupon,
-              status: "redeemed",
-              state: "already_redeemed",
+              status: couponStatus === "expired" || data.state === "expired" ? "expired" : "redeemed",
+              state: data.state === "expired" ? "expired" : "already_redeemed",
               redeemedAt: data.coupon?.redeemedAt || new Date().toISOString(),
               redeemedStaffName: data.coupon?.redeemedStaffName || null,
               redeemedStoreName: data.coupon?.redeemedStoreName || null,
@@ -106,11 +111,22 @@ export default function RedeemPageClient({
       // Ignore local wallet sync failures and continue to the wallet page.
     }
 
+    if (!data.redeemedNow) return;
+
     const timer = window.setTimeout(() => {
       window.location.href = "/wallet?tab=history";
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [data.coupon?.redeemedAt, data.coupon?.redeemedStaffName, data.coupon?.redeemedStoreName, data.redeemedNow, token]);
+  }, [
+    data.coupon,
+    data.coupon?.redeemedAt,
+    data.coupon?.redeemedStaffName,
+    data.coupon?.redeemedStoreName,
+    data.coupon?.status,
+    data.redeemedNow,
+    data.state,
+    token,
+  ]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
