@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { formatCouponExpiry, type WalletCoupon } from "../lib/coupons";
@@ -192,9 +191,8 @@ function CouponCard({
   );
 }
 
-export default function WalletPageClient() {
-  const searchParams = useSearchParams();
-  const requestedTab = searchParams.get("tab") === "history" ? "history" : "active";
+export default function WalletPageClient({ initialTab }: { initialTab?: string }) {
+  const requestedTab: WalletTab = initialTab === "history" ? "history" : "active";
   const [loading, setLoading] = useState(true);
   const [nickname, setNickname] = useState("");
   const [activeCoupons, setActiveCoupons] = useState<WalletCoupon[]>([]);
