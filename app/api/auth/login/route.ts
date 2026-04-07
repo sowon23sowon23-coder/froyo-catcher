@@ -33,7 +33,12 @@ export async function POST(req: NextRequest) {
     return response;
   }
 
-  if (!process.env.STAFF_PORTAL_PASSWORD || body.password !== process.env.STAFF_PORTAL_PASSWORD) {
+  const staffPassword =
+    process.env.STAFF_PORTAL_PASSWORD ||
+    process.env.STAFF_TOKEN ||
+    process.env.ADMIN_PANEL_TOKEN;
+
+  if (!staffPassword || body.password !== staffPassword) {
     return NextResponse.json({ error: "The staff password is incorrect." }, { status: 401 });
   }
 
