@@ -44,6 +44,8 @@ type CouponListResponse = {
   }>;
 };
 
+type AdminTab = "staff" | "admin";
+
 export default function AdminDashboardClient() {
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [coupons, setCoupons] = useState<CouponListResponse["rows"]>([]);
@@ -52,6 +54,7 @@ export default function AdminDashboardClient() {
   const [notice, setNotice] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
   const [discountAmount, setDiscountAmount] = useState("3000");
+  const [activeTab, setActiveTab] = useState<AdminTab>("staff");
 
   const load = async () => {
     setLoading(true);
@@ -95,8 +98,9 @@ export default function AdminDashboardClient() {
   };
 
   useEffect(() => {
+    if (activeTab !== "admin") return;
     void load();
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!notice) return;
@@ -116,15 +120,17 @@ export default function AdminDashboardClient() {
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[2rem] border border-[#f0ddd8] bg-white p-5 shadow-[0_20px_40px_rgba(158,108,87,0.12)]">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ec7d5d]">Admin Dashboard</p>
-            <h1 className="text-4xl font-black text-[#4f2832]">Coupon Operations Overview</h1>
+            <h1 className="text-4xl font-black text-[#4f2832]">Operations Portal</h1>
           </div>
           <div className="flex gap-2">
-            <a
-              href="/api/admin/redeem-logs?format=csv"
-              className="rounded-2xl border border-[#ecd9d2] px-4 py-3 text-sm font-black text-[#764a56]"
-            >
-              Download CSV
-            </a>
+            {activeTab === "admin" ? (
+              <a
+                href="/api/admin/redeem-logs?format=csv"
+                className="rounded-2xl border border-[#ecd9d2] px-4 py-3 text-sm font-black text-[#764a56]"
+              >
+                Download CSV
+              </a>
+            ) : null}
             <button
               type="button"
               onClick={() => void logout()}
@@ -135,7 +141,85 @@ export default function AdminDashboardClient() {
           </div>
         </div>
 
-        {loading || !stats ? (
+        <div className="mb-5 flex flex-wrap gap-2 rounded-[1.75rem] border border-[#f0ddd8] bg-white p-2 shadow-[0_16px_30px_rgba(158,108,87,0.08)]">
+          <button
+            type="button"
+            onClick={() => setActiveTab("staff")}
+            className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
+              activeTab === "staff"
+                ? "bg-[linear-gradient(135deg,#ff9473,#ff6675)] text-white"
+                : "bg-[#fff7f1] text-[#764a56]"
+            }`}
+          >
+            Staff
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("admin")}
+            className={`rounded-2xl px-5 py-3 text-sm font-black transition ${
+              activeTab === "admin"
+                ? "bg-[linear-gradient(135deg,#ff9473,#ff6675)] text-white"
+                : "bg-[#fff7f1] text-[#764a56]"
+            }`}
+          >
+            Admin
+          </button>
+        </div>
+
+        {activeTab === "staff" ? (
+          <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+            <section className="rounded-[2rem] border border-[#f0ddd8] bg-white p-6">
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Staff Tools</p>
+              <h2 className="mt-2 text-3xl font-black text-[#4f2832]">Open staff workflows quickly</h2>
+              <p className="mt-3 text-sm font-bold text-[#8a6670]">
+                Use this tab when store staff need to redeem coupons or move into coupon operations.
+              </p>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <a
+                  href="/redeem"
+                  className="rounded-[1.75rem] border border-[#f2ded8] bg-[linear-gradient(135deg,#fff1eb,#ffe1d4)] p-5"
+                >
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d46f62]">Staff Login</p>
+                  <h3 className="mt-2 text-xl font-black text-[#4f2832]">Open redeem page</h3>
+                  <p className="mt-2 text-sm font-bold text-[#7d5660]">
+                    Staff can log in here to validate and redeem customer coupons.
+                  </p>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("admin")}
+                  className="rounded-[1.75rem] border border-[#f2ded8] bg-[#fff9f4] p-5 text-left"
+                >
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#d46f62]">Admin Tools</p>
+                  <h3 className="mt-2 text-xl font-black text-[#4f2832]">Open admin dashboard</h3>
+                  <p className="mt-2 text-sm font-bold text-[#7d5660]">
+                    Switch to the admin tab for coupon analytics, manual issuance, and recent logs.
+                  </p>
+                </button>
+              </div>
+            </section>
+
+            <section className="rounded-[2rem] border border-[#f0ddd8] bg-white p-6">
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Guide</p>
+              <div className="mt-4 space-y-3">
+                <div className="rounded-[1.5rem] bg-[#fff8f3] p-4">
+                  <p className="text-sm font-black text-[#4f2832]">Staff tab</p>
+                  <p className="mt-1 text-sm font-bold text-[#8a6670]">
+                    Best for store staff who need to get into coupon redemption fast.
+                  </p>
+                </div>
+                <div className="rounded-[1.5rem] bg-[#fff8f3] p-4">
+                  <p className="text-sm font-black text-[#4f2832]">Admin tab</p>
+                  <p className="mt-1 text-sm font-bold text-[#8a6670]">
+                    Best for managers who need coupon status, logs, exports, and manual issue controls.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        ) : loading || !stats ? (
           <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-10 text-center text-lg font-bold text-[#87626b]">
             Loading dashboard...
           </div>
