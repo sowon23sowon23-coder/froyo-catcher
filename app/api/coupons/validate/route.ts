@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 import {
   ensureCouponExpiredIfNeeded,
@@ -12,19 +12,19 @@ import { requirePortalRole } from "../../../lib/portalAuth";
 export async function POST(req: NextRequest) {
   const session = requirePortalRole(req, ["admin", "staff"]);
   if (!session) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    return NextResponse.json({ error: "Login is required." }, { status: 401 });
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
   const parsed = validateCouponSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "쿠폰 코드를 확인해 주세요." }, { status: 400 });
+    return NextResponse.json({ error: "Please check the coupon code." }, { status: 400 });
   }
 
   try {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     if (result.error) {
       console.error("Coupon validate failed", result.error);
-      return NextResponse.json({ error: "쿠폰 검증에 실패했습니다." }, { status: 500 });
+      return NextResponse.json({ error: "Failed to validate the coupon." }, { status: 500 });
     }
 
     if (!result.data) {
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         valid: false,
         status: "invalid",
-        reason: "존재하지 않는 쿠폰입니다.",
+        reason: "This coupon does not exist.",
         coupon: null,
       });
     }
@@ -76,6 +76,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Coupon validate route error", error);
-    return NextResponse.json({ error: "쿠폰 검증 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "An error occurred while validating the coupon." }, { status: 500 });
   }
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
@@ -69,9 +69,9 @@ export default function CouponIssueClient() {
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="rounded-[2rem] border border-[#f6d7d2] bg-white/95 p-6 shadow-[0_28px_60px_rgba(173,95,87,0.18)]">
           <p className="text-xs font-black uppercase tracking-[0.24em] text-[#f1735d]">Game Reward</p>
-          <h1 className="mt-2 text-4xl font-black leading-none text-[#5a2f39]">쿠폰 받기 화면</h1>
+          <h1 className="mt-2 text-4xl font-black leading-none text-[#5a2f39]">Coupon Reward Demo</h1>
           <p className="mt-3 text-sm font-semibold text-[#8b5b67]">
-            점수 {COUPON_SCORE_THRESHOLD}점 이상이면 자동으로 3,000원 할인 쿠폰이 발급됩니다.
+            A 3,000 KRW off coupon is issued automatically when the score is {COUPON_SCORE_THRESHOLD} or higher.
           </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -99,7 +99,7 @@ export default function CouponIssueClient() {
             disabled={loading}
             className="mt-5 rounded-2xl bg-[linear-gradient(135deg,#ff9671,#ff5d73)] px-6 py-4 text-lg font-black text-white disabled:opacity-60"
           >
-            {loading ? "발급 중..." : "쿠폰 발급"}
+            {loading ? "Issuing..." : "Issue Coupon"}
           </button>
 
           {result?.error ? (
@@ -120,14 +120,14 @@ export default function CouponIssueClient() {
             <>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-[#f1735d]">Issued Coupon</p>
               <h2 className="mt-2 text-3xl font-black text-[#512733]">
-                축하합니다! {formatCurrency(result.coupon.discountAmount)} 할인 쿠폰이 발급되었어요.
+                Success! A {formatCurrency(result.coupon.discountAmount)} discount coupon has been issued.
               </h2>
               <div className="mt-5 rounded-[1.75rem] border border-[#f7dfd6] bg-white p-5">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-2xl font-black text-[#4e2430]">{result.coupon.couponName}</p>
-                    <p className="mt-3 text-sm font-semibold text-[#7a4e59]">만료일: {formatDateTime(result.coupon.expiresAt)}</p>
-                    <p className="mt-2 text-sm font-semibold text-[#7a4e59]">코드: <span className="font-black">{result.coupon.code}</span></p>
+                    <p className="mt-3 text-sm font-semibold text-[#7a4e59]">Expires: {formatDateTime(result.coupon.expiresAt)}</p>
+                    <p className="mt-2 text-sm font-semibold text-[#7a4e59]">Code: <span className="font-black">{result.coupon.code}</span></p>
                     {result.redeemUrl ? (
                       <p className="mt-2 break-all text-xs font-bold text-[#b76172]">{result.redeemUrl}</p>
                     ) : null}
@@ -140,7 +140,7 @@ export default function CouponIssueClient() {
             </>
           ) : (
             <div className="flex h-full min-h-[320px] items-center justify-center rounded-[1.75rem] border border-dashed border-[#f0d8d0] bg-white/80 p-8 text-center text-sm font-semibold text-[#88606a]">
-              쿠폰을 발급하면 이 영역에 쿠폰명, 할인 금액, 만료일, QR 코드, 코드 값이 표시됩니다.
+              Once a coupon is issued, this area will show the coupon name, discount amount, expiration date, QR code, and coupon code.
             </div>
           )}
         </section>

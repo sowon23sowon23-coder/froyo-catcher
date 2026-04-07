@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 import { buildChartSeries, getCouponStatus } from "../../../lib/couponMvp";
 import { getServiceSupabaseOrThrow } from "../../../lib/couponData";
@@ -7,7 +7,7 @@ import { requirePortalRole } from "../../../lib/portalAuth";
 export async function GET(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) {
-    return NextResponse.json({ error: "관리자 로그인이 필요합니다." }, { status: 401 });
+    return NextResponse.json({ error: "Admin login is required." }, { status: 401 });
   }
 
   try {
@@ -27,20 +27,15 @@ export async function GET(req: NextRequest) {
 
     if (couponsResult.error) {
       console.error("Failed to load coupon stats", couponsResult.error);
-      return NextResponse.json({ error: "통계를 불러오지 못했습니다." }, { status: 500 });
+      return NextResponse.json({ error: "Failed to load stats." }, { status: 500 });
     }
     if (recentLogsResult.error) {
       console.error("Failed to load recent logs", recentLogsResult.error);
-      return NextResponse.json({ error: "로그를 불러오지 못했습니다." }, { status: 500 });
+      return NextResponse.json({ error: "Failed to load logs." }, { status: 500 });
     }
 
     const rows = couponsResult.data ?? [];
-    const totals = {
-      issued: rows.length,
-      used: 0,
-      unused: 0,
-      expired: 0,
-    };
+    const totals = { issued: rows.length, used: 0, unused: 0, expired: 0 };
     const storeUsage = new Map<string, number>();
     const issueDates: string[] = [];
     const redeemDates: string[] = [];
@@ -85,6 +80,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("Admin stats route error", error);
-    return NextResponse.json({ error: "통계 조회 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "An error occurred while loading stats." }, { status: 500 });
   }
 }

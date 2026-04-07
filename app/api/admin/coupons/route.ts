@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 import { adminCreateCouponSchema, getServiceSupabaseOrThrow, serializeCouponSummary } from "../../../lib/couponData";
 import { createCouponCode, getCouponExpiryIso, getCouponStatus, normalizeCouponCode } from "../../../lib/couponMvp";
@@ -19,7 +19,7 @@ async function createUniqueCouponCode() {
 export async function GET(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) {
-    return NextResponse.json({ error: "관리자 로그인이 필요합니다." }, { status: 401 });
+    return NextResponse.json({ error: "Admin login is required." }, { status: 401 });
   }
 
   const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get("limit") || 30)));
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const result = await query;
     if (result.error) {
       console.error("Failed to load coupons", result.error);
-      return NextResponse.json({ error: "쿠폰 목록을 불러오지 못했습니다." }, { status: 500 });
+      return NextResponse.json({ error: "Failed to load the coupon list." }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -41,26 +41,26 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("Admin coupons GET route error", error);
-    return NextResponse.json({ error: "쿠폰 목록 조회 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "An error occurred while loading the coupon list." }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) {
-    return NextResponse.json({ error: "관리자 로그인이 필요합니다." }, { status: 401 });
+    return NextResponse.json({ error: "Admin login is required." }, { status: 401 });
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
   const parsed = adminCreateCouponSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "쿠폰 생성 입력값을 확인해 주세요." }, { status: 400 });
+    return NextResponse.json({ error: "Please check the coupon creation inputs." }, { status: 400 });
   }
 
   try {
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     if (inserted.error) {
       console.error("Failed to create manual coupon", inserted.error);
-      return NextResponse.json({ error: "관리자 쿠폰 생성에 실패했습니다." }, { status: 500 });
+      return NextResponse.json({ error: "Failed to create the admin coupon." }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -95,6 +95,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Admin coupons POST route error", error);
-    return NextResponse.json({ error: "관리자 쿠폰 생성 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "An error occurred while creating the admin coupon." }, { status: 500 });
   }
 }

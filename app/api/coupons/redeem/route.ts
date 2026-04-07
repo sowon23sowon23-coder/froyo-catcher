@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow, redeemCouponSchema, serializeCouponSummary } from "../../../lib/couponData";
 import { requirePortalRole } from "../../../lib/portalAuth";
@@ -6,24 +6,24 @@ import { requirePortalRole } from "../../../lib/portalAuth";
 export async function POST(req: NextRequest) {
   const session = requirePortalRole(req, ["staff"]);
   if (!session) {
-    return NextResponse.json({ error: "직원 로그인 후 사용할 수 있습니다." }, { status: 401 });
+    return NextResponse.json({ error: "You must be logged in as staff to redeem coupons." }, { status: 401 });
   }
 
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
   const parsed = redeemCouponSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "코드와 직원 정보를 확인해 주세요." }, { status: 400 });
+    return NextResponse.json({ error: "Please check the code and staff information." }, { status: 400 });
   }
 
   const { code, storeId, staffId, orderNumber } = parsed.data;
   if (session.storeId !== storeId || session.staffId !== staffId) {
-    return NextResponse.json({ error: "현재 로그인한 직원 정보와 요청값이 일치하지 않습니다." }, { status: 403 });
+    return NextResponse.json({ error: "The logged-in staff information does not match this request." }, { status: 403 });
   }
 
   try {
@@ -37,12 +37,12 @@ export async function POST(req: NextRequest) {
 
     if (rpcResult.error) {
       console.error("Coupon redeem rpc failed", rpcResult.error);
-      return NextResponse.json({ error: "사용 처리에 실패했습니다." }, { status: 500 });
+      return NextResponse.json({ error: "Failed to redeem the coupon." }, { status: 500 });
     }
 
     const row = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
     if (!row) {
-      return NextResponse.json({ error: "사용 처리 결과를 확인할 수 없습니다." }, { status: 500 });
+      return NextResponse.json({ error: "Could not verify the redeem result." }, { status: 500 });
     }
 
     const coupon = row.coupon_id
@@ -72,10 +72,10 @@ export async function POST(req: NextRequest) {
           status: row.status,
           reason:
             row.reason === "already_used"
-              ? "이미 사용된 쿠폰입니다."
+              ? "This coupon has already been used."
               : row.reason === "expired"
-                ? "만료된 쿠폰입니다."
-                : "존재하지 않는 쿠폰입니다.",
+                ? "This coupon has expired."
+                : "This coupon does not exist.",
           coupon,
         },
         { status: 409 }
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       status: "used",
-      reason: "사용 처리 완료",
+      reason: "Coupon redeemed successfully.",
       coupon,
       redeem: {
         redeemedAt: row.redeemed_at,
@@ -96,6 +96,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Coupon redeem route error", error);
-    return NextResponse.json({ error: "사용 처리 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "An error occurred while redeeming the coupon." }, { status: 500 });
   }
 }

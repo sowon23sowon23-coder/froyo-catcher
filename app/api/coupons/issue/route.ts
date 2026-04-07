@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/couponData";
 import { getEligibleCouponReward, getCouponExpiryIso } from "../../../lib/coupons";
@@ -6,11 +6,8 @@ import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../.
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 import {
   buildRedeemUrl,
-  COUPON_NAME,
-  COUPON_REWARD_TYPE,
   COUPON_SCORE_THRESHOLD,
   createCouponCode,
-  DEFAULT_DISCOUNT_AMOUNT,
 } from "../../../lib/couponMvp";
 
 async function createUniqueRedeemToken(supabase: any) {
@@ -23,11 +20,6 @@ async function createUniqueRedeemToken(supabase: any) {
   throw new Error("Failed to create a unique redeem token.");
 }
 
-async function createUniqueCouponCode() {
-  const supabase = getServiceSupabaseOrThrow();
-  return createUniqueRedeemToken(supabase);
-}
-
 function normalizeContactValue(contactType: EntryContactType, value: string) {
   return contactType === "phone" ? normalizeUsPhone(value) : normalizeEmail(value);
 }
@@ -38,12 +30,12 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청 본문입니다." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
   const parsed = issueCouponSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "userId와 score를 다시 확인해 주세요." }, { status: 400 });
+    return NextResponse.json({ error: "Please check the userId and score." }, { status: 400 });
   }
 
   const auth = await requireAuthenticatedEntry(req);
@@ -85,13 +77,12 @@ export async function POST(req: NextRequest) {
 
   const { score, gameSessionId, mode } = parsed.data;
   const reward = getEligibleCouponReward(score);
-  const userId = entry.nickname;
 
   if (!reward || score < COUPON_SCORE_THRESHOLD) {
     return NextResponse.json({
       eligible: false,
       issued: false,
-      reason: `점수 ${COUPON_SCORE_THRESHOLD}점 이상일 때 쿠폰이 발급됩니다.`,
+      reason: `Coupons are issued only when the score is ${COUPON_SCORE_THRESHOLD} or higher.`,
     });
   }
 
@@ -193,38 +184,8 @@ export async function POST(req: NextRequest) {
       qrPayload: redeemUrl,
       redeemUrl,
     });
-
-    if (false) {
-      const code = "";
-      const inserted: any = { data: { id: 0, issued_at: "" } };
-
-    if (existingWallet.error) {
-      console.error("Wallet coupon lookup failed", existingWallet.error);
-      return NextResponse.json({ error: "쿠폰 발급에 실패했습니다." }, { status: 500 });
-    }
-
-    const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
-    const redeemUrl = buildRedeemUrl(origin, code);
-
-    return NextResponse.json({
-      eligible: true,
-      coupon: {
-        id: inserted.data.id,
-        code,
-        couponName: COUPON_NAME,
-        rewardType: COUPON_REWARD_TYPE,
-        discountAmount: DEFAULT_DISCOUNT_AMOUNT,
-        status: "unused",
-        issuedAt: inserted.data.issued_at,
-        expiresAt,
-        userId: userId || null,
-      },
-      qrPayload: redeemUrl,
-      redeemUrl,
-    });
-    }
   } catch (error) {
     console.error("Coupon issue route error", error);
-    return NextResponse.json({ error: "쿠폰 발급 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "An error occurred while issuing the coupon." }, { status: 500 });
   }
 }

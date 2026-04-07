@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -143,21 +143,21 @@ export default function RedeemConsoleClient({
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-[#f16e59]">Store Redeem Console</p>
             <h1 className="text-3xl font-black text-[#4f2831]">{session.storeName}</h1>
-            <p className="text-sm font-semibold text-[#855562]">{session.staffName} · {session.staffId}</p>
+            <p className="text-sm font-semibold text-[#855562]">{session.staffName} / {session.staffId}</p>
           </div>
           <button
             type="button"
             onClick={() => void logout()}
             className="rounded-2xl border border-[#edd4cf] px-4 py-3 text-sm font-black text-[#744753]"
           >
-            로그아웃
+            Log Out
           </button>
         </div>
 
         <section className="rounded-[2rem] border border-[#f2d8d1] bg-white p-5 shadow-[0_24px_48px_rgba(163,100,84,0.12)]">
           <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
             <div>
-              <label className="text-xs font-black uppercase tracking-[0.18em] text-[#cc6d60]">쿠폰 코드 또는 스캐너 입력</label>
+              <label className="text-xs font-black uppercase tracking-[0.18em] text-[#cc6d60]">Coupon Code or Scanner Input</label>
               <input
                 ref={inputRef}
                 value={code}
@@ -175,39 +175,39 @@ export default function RedeemConsoleClient({
               disabled={loading || !normalizedCode}
               className="rounded-[1.6rem] bg-[linear-gradient(135deg,#ff9975,#ff6677)] px-4 py-5 text-2xl font-black text-white disabled:opacity-60"
             >
-              {loading ? "검증 중..." : "검증"}
+              {loading ? "Checking..." : "Validate"}
             </button>
           </div>
 
           <div className={`mt-5 rounded-[1.6rem] border px-5 py-4 text-center text-2xl font-black ${statusStyle(validateResult?.status)}`}>
             {validateResult?.status === "unused"
-              ? "사용 가능"
+              ? "Valid"
               : validateResult?.status === "used"
-                ? "이미 사용됨"
+                ? "Already Used"
                 : validateResult?.status === "expired"
-                  ? "만료됨"
+                  ? "Expired"
                   : validateResult?.status === "invalid"
-                    ? "존재하지 않음"
-                    : "코드를 입력하고 검증하세요"}
+                    ? "Not Found"
+                    : "Enter a code and validate it"}
           </div>
 
           {validateResult?.coupon ? (
             <div className="mt-5 rounded-[1.6rem] border border-[#f0ddda] bg-[#fffdfa] p-5">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">쿠폰명</p>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">Coupon Name</p>
                   <p className="mt-1 text-2xl font-black text-[#4d262f]">{validateResult.coupon.couponName}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">할인 금액</p>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">Discount Amount</p>
                   <p className="mt-1 text-2xl font-black text-[#4d262f]">{formatCurrency(validateResult.coupon.discountAmount)}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">만료일</p>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">Expires</p>
                   <p className="mt-1 text-lg font-bold text-[#67414a]">{formatDateTime(validateResult.coupon.expiresAt)}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">쿠폰 코드</p>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">Coupon Code</p>
                   <p className="mt-1 text-lg font-bold text-[#67414a]">{validateResult.coupon.code}</p>
                 </div>
               </div>
@@ -217,7 +217,7 @@ export default function RedeemConsoleClient({
                   <input
                     value={orderNumber}
                     onChange={(event) => setOrderNumber(event.target.value)}
-                    placeholder="주문번호 (선택)"
+                    placeholder="Order number (optional)"
                     className="rounded-[1.4rem] border border-[#efdad8] px-4 py-4 text-lg font-bold text-[#4f2831] outline-none"
                   />
                   <button
@@ -226,20 +226,20 @@ export default function RedeemConsoleClient({
                     disabled={redeeming}
                     className="rounded-[1.4rem] bg-[#1e9b58] px-4 py-4 text-2xl font-black text-white disabled:opacity-60"
                   >
-                    {redeeming ? "처리 중..." : "사용 처리"}
+                    {redeeming ? "Redeeming..." : "Redeem Coupon"}
                   </button>
                 </div>
               ) : null}
 
               {validateResult.coupon.redeemedAt ? (
                 <div className="mt-5 rounded-2xl bg-[#f8f5f3] p-4 text-sm font-bold text-[#6e5258]">
-                  사용 시간: {formatDateTime(validateResult.coupon.redeemedAt)}
+                  Redeemed at: {formatDateTime(validateResult.coupon.redeemedAt)}
                   <br />
-                  매장 ID: {validateResult.coupon.redeemedStoreId || "-"}
+                  Store ID: {validateResult.coupon.redeemedStoreId || "-"}
                   <br />
-                  직원 ID: {validateResult.coupon.redeemedStaffId || "-"}
+                  Staff ID: {validateResult.coupon.redeemedStaffId || "-"}
                   <br />
-                  주문번호: {validateResult.coupon.orderNumber || "-"}
+                  Order number: {validateResult.coupon.orderNumber || "-"}
                 </div>
               ) : null}
             </div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
@@ -35,14 +35,14 @@ export default function PortalLoginClient({ nextPath }: { nextPath: string }) {
       const json = (await res.json().catch(() => ({}))) as { error?: string; session?: { role: PortalRole } };
 
       if (!res.ok) {
-        setError(json.error || "로그인에 실패했습니다.");
+        setError(json.error || "Login failed.");
         return;
       }
 
       const fallback = json.session?.role === "admin" ? "/admin" : "/redeem";
       window.location.href = nextPath || fallback;
     } catch {
-      setError("로그인 처리 중 오류가 발생했습니다.");
+      setError("An error occurred while logging in.");
     } finally {
       setLoading(false);
     }
@@ -53,9 +53,9 @@ export default function PortalLoginClient({ nextPath }: { nextPath: string }) {
       <div className="mx-auto max-w-md">
         <div className="rounded-[2rem] border border-[#f4c7d7] bg-white/95 p-6 shadow-[0_24px_60px_rgba(167,71,95,0.18)]">
           <p className="text-xs font-black uppercase tracking-[0.24em] text-[#c05a71]">Yogurtland Portal</p>
-          <h1 className="mt-2 text-4xl font-black leading-none text-[#5d2735]">쿠폰 운영 로그인</h1>
+          <h1 className="mt-2 text-4xl font-black leading-none text-[#5d2735]">Coupon Operations Login</h1>
           <p className="mt-3 text-sm font-semibold text-[#855161]">
-            직원은 리딤 화면, 관리자는 통계 대시보드로 이동합니다.
+            Staff members go to the redeem console, and admins go to the stats dashboard.
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-[#fff2f4] p-1.5">
@@ -64,21 +64,21 @@ export default function PortalLoginClient({ nextPath }: { nextPath: string }) {
               onClick={() => setRole("staff")}
               className={`rounded-2xl px-4 py-3 text-sm font-black ${role === "staff" ? "bg-[#ff7f8f] text-white" : "text-[#874c5c]"}`}
             >
-              직원 로그인
+              Staff Login
             </button>
             <button
               type="button"
               onClick={() => setRole("admin")}
               className={`rounded-2xl px-4 py-3 text-sm font-black ${role === "admin" ? "bg-[#5d2735] text-white" : "text-[#874c5c]"}`}
             >
-              관리자 로그인
+              Admin Login
             </button>
           </div>
 
           {role === "staff" ? (
             <div className="mt-5 space-y-4">
               <div>
-                <label className="text-xs font-black uppercase tracking-[0.14em] text-[#b15d71]">매장 ID</label>
+                <label className="text-xs font-black uppercase tracking-[0.14em] text-[#b15d71]">Store ID</label>
                 <input
                   value={storeId}
                   onChange={(event) => setStoreId(event.target.value)}
@@ -86,7 +86,7 @@ export default function PortalLoginClient({ nextPath }: { nextPath: string }) {
                 />
               </div>
               <div>
-                <label className="text-xs font-black uppercase tracking-[0.14em] text-[#b15d71]">직원 ID</label>
+                <label className="text-xs font-black uppercase tracking-[0.14em] text-[#b15d71]">Staff ID</label>
                 <input
                   value={staffId}
                   onChange={(event) => setStaffId(event.target.value)}
@@ -97,7 +97,7 @@ export default function PortalLoginClient({ nextPath }: { nextPath: string }) {
           ) : null}
 
           <div className="mt-5">
-            <label className="text-xs font-black uppercase tracking-[0.14em] text-[#b15d71]">비밀번호</label>
+            <label className="text-xs font-black uppercase tracking-[0.14em] text-[#b15d71]">Password</label>
             <input
               type="password"
               value={password}
@@ -121,15 +121,15 @@ export default function PortalLoginClient({ nextPath }: { nextPath: string }) {
             disabled={loading}
             className="mt-5 w-full rounded-2xl bg-[linear-gradient(135deg,#ff8f70,#ff6b7d)] px-4 py-4 text-lg font-black text-white disabled:opacity-60"
           >
-            {loading ? "로그인 중..." : "로그인"}
+            {loading ? "Signing in..." : "Sign In"}
           </button>
 
           <div className="mt-5 rounded-2xl bg-[#fff7ef] px-4 py-4 text-sm font-semibold text-[#7e5c48]">
-            테스트용 샘플
+            Sample credentials
             <br />
-            직원: `storeId=pohang_01`, `staffId=staff_02`
+            Staff: `storeId=pohang_01`, `staffId=staff_02`
             <br />
-            관리자 비밀번호: `ADMIN_PANEL_TOKEN`
+            Admin password: `ADMIN_PANEL_TOKEN`
           </div>
         </div>
       </div>

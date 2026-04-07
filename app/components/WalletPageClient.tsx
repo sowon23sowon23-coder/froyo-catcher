@@ -73,6 +73,7 @@ function CouponCard({
   const [qrSrc, setQrSrc] = useState<string>("");
   const daysUntilExpiry = getDaysUntilExpiry(coupon.expiresAt);
   const expiresSoon = coupon.status === "active" && isExpiringSoon(coupon.expiresAt);
+  const activeSummary = `${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"} left`;
 
   useEffect(() => {
     if (!showQr || !expanded) {
@@ -103,8 +104,8 @@ function CouponCard({
   }, [coupon.redeemToken, expanded, showQr]);
 
   return (
-    <article className="animate-card-entrance overflow-hidden rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
-      <div className="bg-[linear-gradient(135deg,#fff8fb,#ffe6f2)] px-5 py-4">
+    <article className="animate-card-entrance overflow-hidden rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white shadow-[0_14px_32px_rgba(150,9,83,0.14)]">
+      <div className="bg-[linear-gradient(135deg,#fff8fb,#ffe6f2)] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">
             {coupon.status === "active" ? "Active Coupon" : "Coupon History"}
@@ -120,41 +121,37 @@ function CouponCard({
             </span>
           </div>
         </div>
-        <h2 className="mt-1 text-2xl font-black text-[var(--yl-ink-strong)]">{coupon.title}</h2>
-        <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">{coupon.description}</p>
+        <div className="mt-2 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xl font-black text-[var(--yl-ink-strong)]">{coupon.title}</h2>
+            <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
+              {coupon.status === "active" ? `Expires ${formatCouponExpiry(coupon.expiresAt)}` : coupon.description}
+            </p>
+          </div>
+          {coupon.status === "active" ? (
+            <div className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--yl-primary)]">
+              {activeSummary}
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <div className="grid gap-4 px-5 py-5">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-3">
-            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Expires</p>
-            <p className="mt-1 text-lg font-black text-[var(--yl-ink-strong)]">{formatCouponExpiry(coupon.expiresAt)}</p>
-          </div>
-          <div className="rounded-2xl border border-[var(--yl-card-border)] bg-white px-4 py-3">
-            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">
-              {coupon.status === "active" ? "Use By" : "Status"}
-            </p>
-            <p className="mt-1 text-lg font-black text-[var(--yl-ink-strong)]">
-              {coupon.status === "active" ? `${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"} left` : statusCopy(coupon.status)}
-            </p>
-          </div>
-        </div>
-
+      <div className="grid gap-3 px-4 py-4">
         {showQr ? (
-          <div className="rounded-[1.5rem] border border-dashed border-[var(--yl-card-border)] bg-white px-4 py-4 text-center">
+          <div className="rounded-[1.25rem] border border-dashed border-[var(--yl-card-border)] bg-white p-3 text-center">
             <button
               type="button"
               onClick={onToggle}
-              className="flex w-full items-center justify-between rounded-2xl border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-3 text-left"
+              className="flex w-full items-center justify-between rounded-[1rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-2.5 text-left"
               aria-expanded={expanded}
             >
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Show QR</p>
-                <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
                   Tap to {expanded ? "hide" : "view"} this coupon's QR code.
                 </p>
               </div>
-              <span className="text-2xl font-black text-[var(--yl-primary)]">{expanded ? "^" : "+"}</span>
+              <span className="text-xl font-black text-[var(--yl-primary)]">{expanded ? "^" : "+"}</span>
             </button>
 
             {expanded ? (
@@ -163,24 +160,21 @@ function CouponCard({
                   <img
                     src={qrSrc}
                     alt={`${coupon.title} QR code`}
-                    className="mx-auto mt-4 h-52 w-52 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
+                    className="mx-auto mt-3 h-44 w-44 rounded-2xl border border-[var(--yl-card-border)] bg-white p-2.5"
                   />
                 ) : (
-                  <div className="mx-auto mt-4 grid h-52 w-52 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
+                  <div className="mx-auto mt-3 grid h-44 w-44 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
                     Loading QR...
                   </div>
                 )}
-                <div className="mt-3 rounded-2xl border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-3 text-left">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">How to use</p>
-                  <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)]">1. Show this QR before payment.</p>
-                  <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">2. Ask staff to scan and redeem it at the counter.</p>
-                  <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">3. This reward can be used one time only.</p>
+                <div className="mt-3 rounded-[1rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-2.5 text-left text-xs font-semibold text-[var(--yl-ink-muted)]">
+                  Show this at the counter before payment. One-time use only.
                 </div>
               </>
             ) : null}
           </div>
         ) : (
-          <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
+          <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3 text-sm font-semibold text-[var(--yl-ink-muted)]">
             {coupon.status === "redeemed" ? (
               <>
                 Redeemed {coupon.redeemedAt ? new Date(coupon.redeemedAt).toLocaleString() : ""}.

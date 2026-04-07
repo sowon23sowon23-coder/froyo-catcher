@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 
@@ -77,12 +77,12 @@ export default function AdminDashboardClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: userId.trim() || undefined,
-          couponName: "3,000원 할인 쿠폰",
+          couponName: "3,000 KRW Off Coupon",
           discountAmount: Number(discountAmount),
         }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string; coupon?: { code: string } };
-      setNotice(json.error || (json.coupon ? `쿠폰 ${json.coupon.code} 생성 완료` : "처리 완료"));
+      setNotice(json.error || (json.coupon ? `Coupon ${json.coupon.code} created.` : "Done."));
       await load();
     } finally {
       setCreating(false);
@@ -116,49 +116,49 @@ export default function AdminDashboardClient() {
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[2rem] border border-[#f0ddd8] bg-white p-5 shadow-[0_20px_40px_rgba(158,108,87,0.12)]">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ec7d5d]">Admin Dashboard</p>
-            <h1 className="text-4xl font-black text-[#4f2832]">쿠폰 운영 현황</h1>
+            <h1 className="text-4xl font-black text-[#4f2832]">Coupon Operations Overview</h1>
           </div>
           <div className="flex gap-2">
             <a
               href="/api/admin/redeem-logs?format=csv"
               className="rounded-2xl border border-[#ecd9d2] px-4 py-3 text-sm font-black text-[#764a56]"
             >
-              CSV 다운로드
+              Download CSV
             </a>
             <button
               type="button"
               onClick={() => void logout()}
               className="rounded-2xl bg-[#4f2832] px-4 py-3 text-sm font-black text-white"
             >
-              로그아웃
+              Log Out
             </button>
           </div>
         </div>
 
         {loading || !stats ? (
           <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-10 text-center text-lg font-bold text-[#87626b]">
-            대시보드 로딩 중...
+            Loading dashboard...
           </div>
         ) : (
           <>
             <div className="grid gap-4 md:grid-cols-4">
-              <StatCard label="총 발급 수" value={String(stats.totals.issued)} />
-              <StatCard label="총 사용 수" value={String(stats.totals.redeemed)} />
-              <StatCard label="사용률" value={`${stats.totals.usageRate}%`} />
-              <StatCard label="만료 수" value={String(stats.statusCounts.expired)} />
+              <StatCard label="Total Issued" value={String(stats.totals.issued)} />
+              <StatCard label="Total Redeemed" value={String(stats.totals.redeemed)} />
+              <StatCard label="Usage Rate" value={`${stats.totals.usageRate}%`} />
+              <StatCard label="Expired" value={String(stats.statusCounts.expired)} />
             </div>
 
             <div className="mt-5 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
               <section className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">날짜별 발급 / 사용</p>
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Issued / Redeemed by Day</p>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <MiniChart title="발급 수" series={stats.charts.issuedByDay} color="bg-[#ff9a76]" />
-                  <MiniChart title="사용 수" series={stats.charts.redeemedByDay} color="bg-[#46b874]" />
+                  <MiniChart title="Issued" series={stats.charts.issuedByDay} color="bg-[#ff9a76]" />
+                  <MiniChart title="Redeemed" series={stats.charts.redeemedByDay} color="bg-[#46b874]" />
                 </div>
               </section>
 
               <section className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">상태별 쿠폰 수</p>
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Coupons by Status</p>
                 <div className="mt-4 space-y-3">
                   <StatusRow label="Unused" count={stats.statusCounts.unused} color="bg-[#4abf71]" />
                   <StatusRow label="Used" count={stats.statusCounts.used} color="bg-[#7c8595]" />
@@ -169,18 +169,18 @@ export default function AdminDashboardClient() {
 
             <div className="mt-5 grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
               <section className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">관리자 수동 생성</p>
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Admin Manual Issue</p>
                 <div className="mt-4 grid gap-3">
                   <input
                     value={userId}
                     onChange={(event) => setUserId(event.target.value)}
-                    placeholder="사용자 ID (선택)"
+                    placeholder="User ID (optional)"
                     className="rounded-2xl border border-[#edd9d5] px-4 py-3 text-base font-bold text-[#4d2931] outline-none"
                   />
                   <input
                     value={discountAmount}
                     onChange={(event) => setDiscountAmount(event.target.value.replace(/[^\d]/g, ""))}
-                    placeholder="할인 금액"
+                    placeholder="Discount amount"
                     className="rounded-2xl border border-[#edd9d5] px-4 py-3 text-base font-bold text-[#4d2931] outline-none"
                   />
                   <button
@@ -189,20 +189,20 @@ export default function AdminDashboardClient() {
                     disabled={creating}
                     className="rounded-2xl bg-[linear-gradient(135deg,#ff9473,#ff6675)] px-4 py-4 text-lg font-black text-white disabled:opacity-60"
                   >
-                    {creating ? "생성 중..." : "쿠폰 생성"}
+                    {creating ? "Creating..." : "Create Coupon"}
                   </button>
                 </div>
 
                 <div className="mt-6">
-                  <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">매장별 사용 횟수</p>
+                  <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Redeems by Store</p>
                   <div className="mt-3 space-y-2">
                     {stats.storeUsage.length === 0 ? (
-                      <p className="text-sm font-semibold text-[#8a6670]">아직 사용 기록이 없습니다.</p>
+                      <p className="text-sm font-semibold text-[#8a6670]">No redeem history yet.</p>
                     ) : (
                       stats.storeUsage.map((item) => (
                         <div key={item.storeId} className="flex items-center justify-between rounded-2xl bg-[#fff7f1] px-4 py-3 text-sm font-bold text-[#5a3139]">
                           <span>{item.storeId}</span>
-                          <span>{item.count}건</span>
+                          <span>{item.count} uses</span>
                         </div>
                       ))
                     )}
@@ -211,7 +211,7 @@ export default function AdminDashboardClient() {
               </section>
 
               <section className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">최근 로그</p>
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Recent Logs</p>
                 <div className="mt-4 space-y-3">
                   {stats.recentLogs.map((log) => (
                     <div key={log.id} className="rounded-2xl bg-[#fff9f4] p-4 text-sm font-semibold text-[#5e3940]">
@@ -221,7 +221,7 @@ export default function AdminDashboardClient() {
                       </div>
                       <p className="mt-1">{log.reason}</p>
                       <p className="mt-1 text-xs text-[#8f6871]">
-                        {log.store_id || "-"} · {log.staff_id || "-"} · {formatDateTime(log.created_at)}
+                        {log.store_id || "-"} / {log.staff_id || "-"} / {formatDateTime(log.created_at)}
                       </p>
                     </div>
                   ))}
@@ -230,7 +230,7 @@ export default function AdminDashboardClient() {
             </div>
 
             <section className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">최근 발급 쿠폰</p>
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Recently Issued Coupons</p>
               <div className="mt-4 overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead>
