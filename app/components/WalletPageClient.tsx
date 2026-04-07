@@ -19,6 +19,16 @@ type WalletResponse = {
 
 type WalletTab = "active" | "history";
 
+type RedeemLookupResponse = {
+  state?: "valid" | "already_redeemed" | "expired" | "invalid";
+  coupon?: {
+    status?: "active" | "redeemed" | "expired";
+    redeemedAt?: string | null;
+    redeemedStaffName?: string | null;
+    redeemedStoreName?: string | null;
+  } | null;
+};
+
 function readLocalWalletCoupons(): WalletCoupon[] {
   try {
     const raw = localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
@@ -36,6 +46,50 @@ function writeLocalWalletCoupons(coupons: WalletCoupon[]) {
   } catch {
     // Ignore storage write failures so wallet rendering still works.
   }
+}
+
+async function reconcileActiveCoupons(activeCoupons: WalletCoupon[]) {
+  if (activeCoupons.length === 0) {
+    return { activeCoupons, historyCoupons: [] as WalletCoupon[] };
+  }
+
+  const checked = await Promise.all(
+    activeCoupons.map(async (coupon) => {
+      try {
+        const res = await fetch(`/api/coupons/redeem/${coupon.redeemToken}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        const json = (await res.json().catch(() => ({}))) as RedeemLookupResponse;
+        const nextStatus =
+          json.coupon?.status === "redeemed" || json.state === "already_redeemed"
+            ? "redeemed"
+            : json.coupon?.status === "expired" || json.state === "expired"
+              ? "expired"
+              : "active";
+
+        if (nextStatus === "active") {
+          return coupon;
+        }
+
+        return {
+          ...coupon,
+          status: nextStatus,
+          state: nextStatus === "expired" ? "expired" : "already_redeemed",
+          redeemedAt: json.coupon?.redeemedAt || coupon.redeemedAt || null,
+          redeemedStaffName: json.coupon?.redeemedStaffName || coupon.redeemedStaffName || null,
+          redeemedStoreName: json.coupon?.redeemedStoreName || coupon.redeemedStoreName || null,
+        } satisfies WalletCoupon;
+      } catch {
+        return coupon;
+      }
+    })
+  );
+
+  return {
+    activeCoupons: checked.filter((coupon) => coupon.status === "active"),
+    historyCoupons: checked.filter((coupon) => coupon.status !== "active"),
+  };
 }
 
 function getDaysUntilExpiry(expiresAt: string) {
@@ -258,18 +312,26 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
           const localActive = localCoupons.filter((coupon) => coupon.status === "active");
           const localHistory = localCoupons.filter((coupon) => coupon.status !== "active");
           if (localCoupons.length > 0) {
+            const reconciled = await reconcileActiveCoupons(localActive);
+            const nextActive = reconciled.activeCoupons;
+            const nextHistory = [...localHistory, ...reconciled.historyCoupons].sort(
+              (a, b) =>
+                new Date(b.redeemedAt || b.expiresAt).getTime() -
+                new Date(a.redeemedAt || a.expiresAt).getTime()
+            );
             setNickname(nickname || "");
-            setActiveCoupons(localActive);
-            setHistoryCoupons(localHistory);
+            setActiveCoupons(nextActive);
+            setHistoryCoupons(nextHistory);
+            writeLocalWalletCoupons([...nextActive, ...nextHistory]);
             if (options?.initial) {
-              if (requestedTab === "history" && localHistory.length > 0) {
+              if (requestedTab === "history" && nextHistory.length > 0) {
                 setTab("history");
-              } else if (requestedTab === "active" && localActive.length > 0) {
+              } else if (requestedTab === "active" && nextActive.length > 0) {
                 setTab("active");
               } else {
-                setTab(localActive.length > 0 ? "active" : "history");
+                setTab(nextActive.length > 0 ? "active" : "history");
               }
-            } else if (tabRef.current === "active" && localActive.length === 0 && localHistory.length > 0) {
+            } else if (tabRef.current === "active" && nextActive.length === 0 && nextHistory.length > 0) {
               setTab("history");
             }
             setError(null);
@@ -289,8 +351,15 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
             !serverActive.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken) &&
             !serverHistory.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken)
         );
-        const nextActive = [...serverActive, ...mergedLocal.filter((coupon) => coupon.status === "active")];
-        const nextHistory = [...serverHistory, ...mergedLocal.filter((coupon) => coupon.status !== "active")];
+        const initialActive = [...serverActive, ...mergedLocal.filter((coupon) => coupon.status === "active")];
+        const initialHistory = [...serverHistory, ...mergedLocal.filter((coupon) => coupon.status !== "active")];
+        const reconciled = await reconcileActiveCoupons(initialActive);
+        const nextActive = reconciled.activeCoupons;
+        const nextHistory = [...initialHistory, ...reconciled.historyCoupons].sort(
+          (a, b) =>
+            new Date(b.redeemedAt || b.expiresAt).getTime() -
+            new Date(a.redeemedAt || a.expiresAt).getTime()
+        );
         const previousActiveTokens = new Set(activeCouponsRef.current.map((coupon) => coupon.redeemToken));
         const movedToHistory = nextHistory.some((coupon) => previousActiveTokens.has(coupon.redeemToken));
         const newlyRedeemedCoupon = nextHistory.find(
