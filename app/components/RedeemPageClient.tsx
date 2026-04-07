@@ -20,6 +20,8 @@ type RedeemResponse = {
   coupon?: RedeemCoupon;
 };
 
+const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
+
 function stateLabel(state: CouponState) {
   if (state === "valid") return "Valid";
   if (state === "already_redeemed") return "Already Redeemed";
@@ -80,11 +82,35 @@ export default function RedeemPageClient({
 
   useEffect(() => {
     if (!data.redeemedNow) return;
+
+    try {
+      const raw = window.localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const nextCoupons = parsed.map((coupon) => {
+            if (!coupon || coupon.redeemToken !== token) return coupon;
+            return {
+              ...coupon,
+              status: "redeemed",
+              state: "already_redeemed",
+              redeemedAt: data.coupon?.redeemedAt || new Date().toISOString(),
+              redeemedStaffName: data.coupon?.redeemedStaffName || null,
+              redeemedStoreName: data.coupon?.redeemedStoreName || null,
+            };
+          });
+          window.localStorage.setItem(LOCAL_WALLET_STORAGE_KEY, JSON.stringify(nextCoupons));
+        }
+      }
+    } catch {
+      // Ignore local wallet sync failures and continue to the wallet page.
+    }
+
     const timer = window.setTimeout(() => {
       window.location.href = "/wallet?tab=history";
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [data.redeemedNow]);
+  }, [data.coupon?.redeemedAt, data.coupon?.redeemedStaffName, data.coupon?.redeemedStoreName, data.redeemedNow, token]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
