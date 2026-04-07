@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { formatCouponExpiry, type WalletCoupon } from "../lib/coupons";
@@ -192,12 +193,14 @@ function CouponCard({
 }
 
 export default function WalletPageClient() {
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab") === "history" ? "history" : "active";
   const [loading, setLoading] = useState(true);
   const [nickname, setNickname] = useState("");
   const [activeCoupons, setActiveCoupons] = useState<WalletCoupon[]>([]);
   const [historyCoupons, setHistoryCoupons] = useState<WalletCoupon[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<WalletTab>("active");
+  const [tab, setTab] = useState<WalletTab>(requestedTab);
   const [redeemNotice, setRedeemNotice] = useState<string | null>(null);
   const [expandedCouponToken, setExpandedCouponToken] = useState<string | null>(null);
   const activeCouponsRef = useRef<WalletCoupon[]>([]);
@@ -211,6 +214,14 @@ export default function WalletPageClient() {
   useEffect(() => {
     tabRef.current = tab;
   }, [tab]);
+
+  useEffect(() => {
+    setTab((current) => {
+      if (requestedTab === "history" && historyCoupons.length > 0) return "history";
+      if (requestedTab === "active" && activeCoupons.length > 0) return "active";
+      return current;
+    });
+  }, [requestedTab, activeCoupons.length, historyCoupons.length]);
 
   useEffect(() => {
     if (tab !== "active") {
@@ -253,7 +264,13 @@ export default function WalletPageClient() {
             setActiveCoupons(localActive);
             setHistoryCoupons(localHistory);
             if (options?.initial) {
-              setTab(localActive.length > 0 ? "active" : "history");
+              if (requestedTab === "history" && localHistory.length > 0) {
+                setTab("history");
+              } else if (requestedTab === "active" && localActive.length > 0) {
+                setTab("active");
+              } else {
+                setTab(localActive.length > 0 ? "active" : "history");
+              }
             } else if (tabRef.current === "active" && localActive.length === 0 && localHistory.length > 0) {
               setTab("history");
             }
@@ -297,7 +314,13 @@ export default function WalletPageClient() {
           );
         }
         if (options?.initial) {
-          setTab(nextActive.length > 0 ? "active" : "history");
+          if (requestedTab === "history" && nextHistory.length > 0) {
+            setTab("history");
+          } else if (requestedTab === "active" && nextActive.length > 0) {
+            setTab("active");
+          } else {
+            setTab(nextActive.length > 0 ? "active" : "history");
+          }
         } else if (movedToHistory && tabRef.current === "active") {
           setTab("history");
         } else if (tabRef.current === "active" && nextActive.length === 0 && nextHistory.length > 0) {
@@ -339,7 +362,7 @@ export default function WalletPageClient() {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [requestedTab]);
 
   useEffect(() => {
     if (!redeemNotice) return;

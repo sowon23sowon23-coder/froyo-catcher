@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatCouponExpiry, type CouponState } from "../lib/coupons";
 
 type RedeemCoupon = {
@@ -78,6 +78,14 @@ export default function RedeemPageClient({
     }
   };
 
+  useEffect(() => {
+    if (!data.redeemedNow) return;
+    const timer = window.setTimeout(() => {
+      window.location.href = "/wallet?tab=history";
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [data.redeemedNow]);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
       <div className="mx-auto w-full max-w-md">
@@ -153,7 +161,9 @@ export default function RedeemPageClient({
 
           {error ? <p className="mt-3 text-sm font-bold text-[var(--yl-primary-soft)]">{error}</p> : null}
           {data.redeemedNow ? (
-            <p className="mt-3 text-sm font-bold text-[#3f6b13]">Coupon redeemed successfully.</p>
+            <p className="mt-3 text-sm font-bold text-[#3f6b13]">
+              Coupon redeemed successfully. Moving this reward to your history...
+            </p>
           ) : null}
         </section>
       </div>
