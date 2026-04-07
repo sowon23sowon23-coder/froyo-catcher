@@ -53,6 +53,17 @@ export default function PortalLoginClient({ nextPath }: { nextPath: string }) {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#fffaf2_0%,#ffe8ef_45%,#ffd8d8_100%)] px-4 py-8">
       <div className="mx-auto max-w-md">
         <div className="rounded-[2rem] border border-[#f4c7d7] bg-white/95 p-6 shadow-[0_24px_60px_rgba(167,71,95,0.18)]">
+          {adminOnly ? (
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              className="rounded-full border border-[#f0ccd6] px-4 py-2 text-sm font-black text-[#874c5c]"
+            >
+              Back
+            </button>
+          ) : null}
           <p className="text-xs font-black uppercase tracking-[0.24em] text-[#c05a71]">Yogurtland Portal</p>
           <h1 className="mt-2 text-4xl font-black leading-none text-[#5d2735]">
             {adminOnly ? "Admin Login" : "Coupon Operations Login"}
