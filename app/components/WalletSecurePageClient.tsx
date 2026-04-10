@@ -322,16 +322,33 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
         setNickname(String(json.nickname || "").trim());
         const serverActive = Array.isArray(json.activeCoupons) ? json.activeCoupons : [];
         const serverHistory = Array.isArray(json.historyCoupons) ? json.historyCoupons : [];
+
+        // Local "expired / redeemed" status takes priority over server "active".
+        // If the server expire call failed (network error, etc.) the coupon would
+        // still appear as active on the server, causing the wallet refresh to
+        // restore it. By filtering those tokens out here, we ensure a locally
+        // consumed coupon never comes back to the active tab.
+        const locallyUsedTokens = new Set(
+          localCoupons.filter((c) => c.status !== "active").map((c) => c.redeemToken)
+        );
+        const effectiveServerActive = serverActive.filter(
+          (c) => !locallyUsedTokens.has(c.redeemToken)
+        );
+
         const mergedLocal = localCoupons.filter(
           (coupon) =>
-            !serverActive.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken) &&
+            !effectiveServerActive.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken) &&
             !serverHistory.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken)
         );
         const reconciled = await reconcileActiveCoupons([
-          ...serverActive,
+          ...effectiveServerActive,
           ...mergedLocal.filter((coupon) => coupon.status === "active"),
         ]);
-        const nextHistory = [...serverHistory, ...mergedLocal.filter((coupon) => coupon.status !== "active"), ...reconciled.historyCoupons].sort(
+        const nextHistory = [
+          ...serverHistory,
+          ...mergedLocal.filter((coupon) => coupon.status !== "active"),
+          ...reconciled.historyCoupons,
+        ].sort(
           (a, b) => new Date(b.redeemedAt || b.expiresAt).getTime() - new Date(a.redeemedAt || a.expiresAt).getTime()
         );
 
