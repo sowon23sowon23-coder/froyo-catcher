@@ -206,6 +206,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
   const activeCouponsRef = useRef<WalletCoupon[]>([]);
   const historyCouponsRef = useRef<WalletCoupon[]>([]);
+  const activeCouponIdRef = useRef<number | null>(null);
   const generationTimeoutRef = useRef<number | null>(null);
   const countdownTimeoutRef = useRef<number | null>(null);
   const clockIntervalRef = useRef<number | null>(null);
@@ -217,6 +218,10 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   useEffect(() => {
     historyCouponsRef.current = historyCoupons;
   }, [historyCoupons]);
+
+  useEffect(() => {
+    activeCouponIdRef.current = activeCouponId;
+  }, [activeCouponId]);
 
   const clearQrTimers = () => {
     if (generationTimeoutRef.current) {
@@ -267,6 +272,12 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     let active = true;
 
     const loadWallet = async () => {
+      // While a coupon QR is actively displayed, skip the refresh.
+      // The server has already marked the coupon expired, so a refresh
+      // would pull it out of activeCoupons and clear the QR mid-display.
+      // expireCoupon() handles local cleanup once the countdown ends.
+      if (activeCouponIdRef.current !== null) return;
+
       try {
         const nickname = (localStorage.getItem("nickname") || "").trim();
         const contactType = (localStorage.getItem("entryContactType") || "").trim();
@@ -409,6 +420,15 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
       setWalletUiStates((prev) => ({ ...prev, [coupon.id]: "active" }));
       setCurrentTime(formatClock(new Date()));
       setSecondsLeft(QR_ACTIVE_MS / 1000);
+
+      // Mark the coupon as consumed on the server the instant the QR
+      // becomes visible. This prevents re-use even if the user closes
+      // the browser before the 15-second countdown finishes.
+      void fetch("/api/coupons/wallet/expire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ couponId: coupon.id }),
+      }).catch(() => undefined);
 
       clockIntervalRef.current = window.setInterval(() => {
         setCurrentTime(formatClock(new Date()));
