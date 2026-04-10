@@ -139,6 +139,12 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // PostgreSQL check-constraint violation code.
+  const PG_CHECK_VIOLATION = "23514";
+  // Fallback reward_type accepted by the old DB constraint (pre-migration).
+  // The actual tier is preserved in the title/description fields so inference still works.
+  const LEGACY_REWARD_TYPE = "dollar_off";
+
   try {
     const expiresAt = getCouponExpiryIso();
     const existingWallet = await supabase
@@ -199,19 +205,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const evaluation = await supabase
+    // Insert evaluation — if the DB check constraint rejects the new reward_type
+    // (migration not yet applied), retry with the legacy "dollar_off" value.
+    const evalPrimary = await supabase
       .from("coupon_reward_evaluations")
-      .insert([
-        {
-          entry_id: entry.id,
-          game_session_id: gameSessionId,
-          game_mode: mode,
-          score,
-          reward_type: reward.type,
-        },
-      ])
+      .insert([{ entry_id: entry.id, game_session_id: gameSessionId, game_mode: mode, score, reward_type: reward.type }])
       .select("id")
       .single();
+
+    const evaluation =
+      evalPrimary.error?.code === PG_CHECK_VIOLATION
+        ? await supabase
+            .from("coupon_reward_evaluations")
+            .insert([{ entry_id: entry.id, game_session_id: gameSessionId, game_mode: mode, score, reward_type: LEGACY_REWARD_TYPE }])
+            .select("id")
+            .single()
+        : evalPrimary;
 
     if (evaluation.error || !evaluation.data?.id) {
       console.error("Coupon evaluation failed", evaluation.error);
@@ -223,23 +232,42 @@ export async function POST(req: NextRequest) {
     }
 
     const redeemToken = await createUniqueRedeemToken(supabase);
-    const walletCoupon = await supabase
+
+    // Same constraint-aware fallback for the wallet coupon row.
+    const walletPrimary = await supabase
       .from("wallet_coupons")
-      .insert([
-        {
-          evaluation_id: Number(evaluation.data.id),
-          entry_id: entry.id,
-          game_session_id: gameSessionId,
-          reward_type: reward.type,
-          title: reward.title,
-          description: reward.description,
-          status: "active",
-          redeem_token: redeemToken,
-          expires_at: expiresAt,
-        },
-      ])
+      .insert([{
+        evaluation_id: Number(evaluation.data.id),
+        entry_id: entry.id,
+        game_session_id: gameSessionId,
+        reward_type: reward.type,
+        title: reward.title,
+        description: reward.description,
+        status: "active",
+        redeem_token: redeemToken,
+        expires_at: expiresAt,
+      }])
       .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
       .single();
+
+    const walletCoupon =
+      walletPrimary.error?.code === PG_CHECK_VIOLATION
+        ? await supabase
+            .from("wallet_coupons")
+            .insert([{
+              evaluation_id: Number(evaluation.data.id),
+              entry_id: entry.id,
+              game_session_id: gameSessionId,
+              reward_type: LEGACY_REWARD_TYPE,
+              title: reward.title,
+              description: reward.description,
+              status: "active",
+              redeem_token: redeemToken,
+              expires_at: expiresAt,
+            }])
+            .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
+            .single()
+        : walletPrimary;
 
     if (walletCoupon.error || !walletCoupon.data?.id) {
       console.error("Wallet coupon issue failed", walletCoupon.error);
