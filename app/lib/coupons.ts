@@ -76,6 +76,10 @@ export function getCouponRewardByType(rewardType: string | null | undefined) {
   return COUPON_REWARDS.find((reward) => reward.type === rewardType) ?? null;
 }
 
+export function getCouponRewardByPercent(discountPercent: number | null | undefined) {
+  return COUPON_REWARDS.find((reward) => reward.discountPercent === discountPercent) ?? null;
+}
+
 export function getCouponDiscountPercent(rewardType: string | null | undefined) {
   return getCouponRewardByType(rewardType)?.discountPercent ?? null;
 }

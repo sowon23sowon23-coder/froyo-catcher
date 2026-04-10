@@ -8,6 +8,7 @@ import {
   formatCouponExpiry,
   formatCouponLabel,
   getCouponFixedQrValue,
+  getCouponRewardByPercent,
   getWalletCouponStatus,
   type WalletCoupon,
 } from "../lib/coupons";
@@ -66,6 +67,37 @@ function formatClock(date: Date) {
   });
 }
 
+function inferDiscountPercent(coupon: WalletCoupon) {
+  const candidates = [coupon.title, coupon.description];
+  for (const text of candidates) {
+    const match = String(text || "").match(/\b(3|5|10|15)\s*%/);
+    if (match) {
+      return Number(match[1]);
+    }
+  }
+  return null;
+}
+
+function resolveCouponLabel(coupon: WalletCoupon) {
+  const directLabel = formatCouponLabel(coupon.rewardType);
+  if (directLabel !== "Coupon") return directLabel;
+
+  const inferredPercent = inferDiscountPercent(coupon);
+  if (inferredPercent) return `${inferredPercent}%`;
+
+  return coupon.title?.trim() || "Coupon";
+}
+
+function resolveCouponQrValue(coupon: WalletCoupon) {
+  const directQrValue = getCouponFixedQrValue(coupon.rewardType);
+  if (directQrValue) return directQrValue;
+
+  const inferredPercent = inferDiscountPercent(coupon);
+  if (!inferredPercent) return null;
+
+  return getCouponRewardByPercent(inferredPercent)?.fixedQrValue ?? null;
+}
+
 async function reconcileActiveCoupons(activeCoupons: WalletCoupon[]) {
   if (activeCoupons.length === 0) {
     return { activeCoupons, historyCoupons: [] as WalletCoupon[] };
@@ -121,7 +153,7 @@ function HistoryCard({ coupon }: { coupon: WalletCoupon }) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">Coupon History</p>
-            <h2 className="mt-2 text-xl font-black text-[var(--yl-ink-strong)]">{formatCouponLabel(coupon.rewardType)} Discount</h2>
+            <h2 className="mt-2 text-xl font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
           </div>
           <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${statusClass}`}>
             {statusLabel}
@@ -132,7 +164,7 @@ function HistoryCard({ coupon }: { coupon: WalletCoupon }) {
       <div className="grid gap-3 px-4 py-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
         <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3">
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Original Value</p>
-          <p className="mt-1 text-base font-black text-[var(--yl-ink-strong)]">{formatCouponLabel(coupon.rewardType)}</p>
+          <p className="mt-1 text-base font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)}</p>
         </div>
         <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3">
           {coupon.status === "redeemed" ? (
@@ -205,7 +237,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   );
 
   useEffect(() => {
-    const qrValue = activeSessionCoupon ? getCouponFixedQrValue(activeSessionCoupon.rewardType) : null;
+    const qrValue = activeSessionCoupon ? resolveCouponQrValue(activeSessionCoupon) : null;
     if (!activeSessionCoupon || !qrValue) {
       setQrDataUrl("");
       return;
@@ -353,7 +385,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   };
 
   const startCouponFlow = (coupon: WalletCoupon) => {
-    const qrValue = getCouponFixedQrValue(coupon.rewardType);
+    const qrValue = resolveCouponQrValue(coupon);
     if (!qrValue) return;
 
     clearQrTimers();
@@ -383,8 +415,8 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const activeCards = useMemo(
     () =>
       [...activeCoupons].sort((a, b) => {
-        const aValue = Number.parseInt(formatCouponLabel(a.rewardType), 10);
-        const bValue = Number.parseInt(formatCouponLabel(b.rewardType), 10);
+        const aValue = Number.parseInt(resolveCouponLabel(a), 10);
+        const bValue = Number.parseInt(resolveCouponLabel(b), 10);
         return bValue - aValue;
       }),
     [activeCoupons]
@@ -484,7 +516,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
               <div className="grid gap-4">
                 {activeCards.map((coupon) => {
                   const uiState = walletUiStates[coupon.id] ?? "idle";
-                  const qrValue = getCouponFixedQrValue(coupon.rewardType);
+                  const qrValue = resolveCouponQrValue(coupon);
                   const progress = uiState === "active" ? (secondsLeft / (QR_ACTIVE_MS / 1000)) * 100 : 0;
 
                   return (
@@ -496,7 +528,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">Available Coupon</p>
-                            <h2 className="mt-2 text-xl font-black text-[var(--yl-ink-strong)]">{formatCouponLabel(coupon.rewardType)} Discount</h2>
+                            <h2 className="mt-2 text-xl font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
                           </div>
                           <span className="rounded-full bg-[#eff9ea] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#2f6c1a]">
                             Available
@@ -563,7 +595,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                               {qrDataUrl ? (
                                 <img
                                   src={qrDataUrl}
-                                  alt={`${formatCouponLabel(coupon.rewardType)} coupon QR`}
+                                  alt={`${resolveCouponLabel(coupon)} coupon QR`}
                                   className="h-56 w-56 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
                                 />
                               ) : (
