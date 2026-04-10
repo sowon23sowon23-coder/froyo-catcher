@@ -6,7 +6,7 @@ import LoginScreen, { type LoginPayload } from "./components/LoginScreen";
 import HomeScreen from "./components/HomeScreen";
 import Game from "./components/Game";
 import LeaderboardModal, { LeaderMode, LeaderRow } from "./components/LeaderboardModal";
-import { type CouponGameMode, type WalletCoupon } from "./lib/coupons";
+import { formatCouponLabel, resolveCouponReward, type CouponGameMode, type WalletCoupon } from "./lib/coupons";
 import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
 
@@ -1336,7 +1336,19 @@ export default function Page() {
                       redeemToken: issuedCoupon.redeemToken,
                       createdAt: issuedCoupon.createdAt,
                     });
-                    setCouponNotice("Your coupon has been issued.");
+                    // Resolve the display label: prefer the resolved reward type, then
+                    // infer from title/description, then fall back to generic "Discount".
+                    const resolvedReward = resolveCouponReward(
+                      issuedCoupon.rewardType,
+                      issuedCoupon.title,
+                      issuedCoupon.description
+                    );
+                    const percentLabel = resolvedReward
+                      ? `${resolvedReward.discountPercent}%`
+                      : formatCouponLabel(issuedCoupon.rewardType) !== "Coupon"
+                        ? formatCouponLabel(issuedCoupon.rewardType)
+                        : "Discount";
+                    setCouponNotice(`${percentLabel} discount coupon is in My Wallet!`);
                   }
 
                   if (!isFreePlay) {

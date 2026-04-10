@@ -42,7 +42,7 @@ function serializeIssuedCoupon(row: {
     title: String(row.title || reward?.title || ""),
     couponName: String(row.title || reward?.title || ""),
     description: String(row.description || reward?.description || ""),
-    rewardType: String(row.reward_type || reward?.type || ""),
+    rewardType: String(reward?.type || row.reward_type || ""),
     expiresAt: String(row.expires_at || ""),
     issuedAt: String(row.created_at || ""),
     redeemToken: String(row.redeem_token || ""),
@@ -215,7 +215,11 @@ export async function POST(req: NextRequest) {
 
     if (evaluation.error || !evaluation.data?.id) {
       console.error("Coupon evaluation failed", evaluation.error);
-      return NextResponse.json({ error: "Failed to create coupon evaluation." }, { status: 500 });
+      return NextResponse.json({
+        error: "Failed to create coupon evaluation.",
+        detail: evaluation.error?.message ?? null,
+        hint: evaluation.error?.hint ?? null,
+      }, { status: 500 });
     }
 
     const redeemToken = await createUniqueRedeemToken(supabase);
@@ -239,7 +243,11 @@ export async function POST(req: NextRequest) {
 
     if (walletCoupon.error || !walletCoupon.data?.id) {
       console.error("Wallet coupon issue failed", walletCoupon.error);
-      return NextResponse.json({ error: "Failed to issue wallet coupon." }, { status: 500 });
+      return NextResponse.json({
+        error: "Failed to issue wallet coupon.",
+        detail: walletCoupon.error?.message ?? null,
+        hint: walletCoupon.error?.hint ?? null,
+      }, { status: 500 });
     }
 
     return NextResponse.json({

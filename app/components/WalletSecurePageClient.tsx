@@ -9,6 +9,7 @@ import {
   formatCouponLabel,
   getCouponFixedQrValue,
   getCouponRewardByPercent,
+  resolveCouponReward,
   getWalletCouponStatus,
   type WalletCoupon,
 } from "../lib/coupons";
@@ -68,6 +69,11 @@ function formatClock(date: Date) {
 }
 
 function inferDiscountPercent(coupon: WalletCoupon) {
+  const resolvedReward = resolveCouponReward(coupon.rewardType, coupon.title, coupon.description);
+  if (resolvedReward) {
+    return resolvedReward.discountPercent;
+  }
+
   const candidates = [coupon.title, coupon.description];
   for (const text of candidates) {
     const match = String(text || "").match(/\b(3|5|10|15)\s*%/);
@@ -85,11 +91,7 @@ function resolveCouponLabel(coupon: WalletCoupon) {
   const inferredPercent = inferDiscountPercent(coupon);
   if (inferredPercent) return `${inferredPercent}%`;
 
-  if (/discount/i.test(coupon.title || "") || /discount/i.test(coupon.description || "")) {
-    return "3%";
-  }
-
-  return coupon.title?.trim() || "Coupon";
+  return "3%";
 }
 
 function resolveCouponQrValue(coupon: WalletCoupon) {
@@ -101,11 +103,7 @@ function resolveCouponQrValue(coupon: WalletCoupon) {
     return getCouponRewardByPercent(inferredPercent)?.fixedQrValue ?? null;
   }
 
-  if (/discount/i.test(coupon.title || "") || /discount/i.test(coupon.description || "")) {
-    return getCouponRewardByPercent(3)?.fixedQrValue ?? null;
-  }
-
-  return null;
+  return getCouponRewardByPercent(3)?.fixedQrValue ?? null;
 }
 
 async function reconcileActiveCoupons(activeCoupons: WalletCoupon[]) {
@@ -395,8 +393,9 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   };
 
   const startCouponFlow = (coupon: WalletCoupon) => {
-    const qrValue = resolveCouponQrValue(coupon);
-    if (!qrValue) return;
+    // resolveCouponQrValue always returns a string (fallback to 3% QR value),
+    // so we proceed regardless. If the value is somehow null, the QR image
+    // will show "Loading QR..." but loading → active → expired flow still works.
 
     clearQrTimers();
     setTab("active");
