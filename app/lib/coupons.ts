@@ -132,9 +132,9 @@ export function isCouponExpired(expiresAt: string, now = Date.now()) {
 export function formatCouponExpiry(expiresAt: string) {
   const date = new Date(expiresAt);
   if (Number.isNaN(date.getTime())) return "Unknown";
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", {
     year: "numeric",
-    month: "short",
+    month: "long",
     day: "numeric",
   });
 }
