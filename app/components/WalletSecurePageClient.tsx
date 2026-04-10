@@ -154,42 +154,37 @@ function HistoryCard({ coupon }: { coupon: WalletCoupon }) {
   const statusLabel = coupon.status === "redeemed" ? "Redeemed" : "Expired";
   const statusClass =
     coupon.status === "redeemed" ? "bg-[#f3ecff] text-[#6b21a8]" : "bg-[#fff1e8] text-[#9a3412]";
-
-  return (
-    <article className="overflow-hidden rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white shadow-[0_14px_32px_rgba(150,9,83,0.14)]">
-      <div className="bg-[linear-gradient(135deg,#fff8fb,#ffe6f2)] px-4 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">Coupon History</p>
-            <h2 className="mt-2 text-xl font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
-          </div>
-          <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${statusClass}`}>
-            {statusLabel}
-          </span>
-        </div>
-      </div>
-
-      <div className="grid gap-3 px-4 py-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
-        <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Original Value</p>
-          <p className="mt-1 text-base font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)}</p>
-        </div>
-        <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3">
-          {coupon.status === "redeemed" ? (
-            <>
-              Redeemed on {coupon.redeemedAt ? new Date(coupon.redeemedAt).toLocaleDateString("en-US", {
+  const detailText =
+    coupon.status === "redeemed"
+      ? `Redeemed on ${
+          coupon.redeemedAt
+            ? new Date(coupon.redeemedAt).toLocaleDateString("en-US", {
                 year: "numeric",
                 month: "long",
                 day: "numeric",
-              }) : "Unknown date"}.
-              {coupon.redeemedStoreName ? ` Store: ${coupon.redeemedStoreName}.` : ""}
-              {coupon.redeemedStaffName ? ` Staff: ${coupon.redeemedStaffName}.` : ""}
-            </>
-          ) : (
-            <>Expired on {formatCouponExpiry(coupon.expiresAt)}.</>
-          )}
+              })
+            : "Unknown date"
+        }.`
+      : `Expired on ${formatCouponExpiry(coupon.expiresAt)}.`;
+
+  return (
+    <article className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-white px-4 py-4 shadow-[0_12px_24px_rgba(150,9,83,0.1)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
+          <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">{detailText}</p>
         </div>
+        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${statusClass}`}>
+          {statusLabel}
+        </span>
       </div>
+      {(coupon.redeemedStoreName || coupon.redeemedStaffName) && coupon.status === "redeemed" ? (
+        <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)]">
+          {coupon.redeemedStoreName ? `Store: ${coupon.redeemedStoreName}` : ""}
+          {coupon.redeemedStoreName && coupon.redeemedStaffName ? " · " : ""}
+          {coupon.redeemedStaffName ? `Staff: ${coupon.redeemedStaffName}` : ""}
+        </p>
+      ) : null}
     </article>
   );
 }
