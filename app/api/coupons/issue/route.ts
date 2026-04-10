@@ -3,7 +3,6 @@
 import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/couponData";
 import {
   getCouponExpiryIso,
-  getCouponRewardByType,
   getEligibleCouponReward,
   getWalletCouponStatus,
   resolveCouponReward,
@@ -161,20 +160,17 @@ export async function POST(req: NextRequest) {
       return status === "active";
     });
 
-    const bestActiveCoupon = activeCoupons
-      .map((walletCoupon) => ({
-        row: walletCoupon,
-        reward: resolveCouponReward(walletCoupon.reward_type, walletCoupon.title, walletCoupon.description),
-      }))
-      .filter((item): item is { row: (typeof activeCoupons)[number]; reward: NonNullable<ReturnType<typeof getCouponRewardByType>> } => Boolean(item.reward))
-      .sort((a, b) => b.reward.threshold - a.reward.threshold)[0];
+    const existingSameTierCoupon = activeCoupons.find((walletCoupon) => {
+      const activeReward = resolveCouponReward(walletCoupon.reward_type, walletCoupon.title, walletCoupon.description);
+      return activeReward && activeReward.threshold === reward.threshold;
+    });
 
-    if (bestActiveCoupon && bestActiveCoupon.reward.threshold >= reward.threshold) {
+    if (existingSameTierCoupon) {
       return NextResponse.json({
         eligible: true,
         issued: false,
-        coupon: serializeIssuedCoupon(bestActiveCoupon.row),
-        qrPayload: bestActiveCoupon.reward.fixedQrValue,
+        coupon: serializeIssuedCoupon(existingSameTierCoupon),
+        qrPayload: reward.fixedQrValue,
       });
     }
 
