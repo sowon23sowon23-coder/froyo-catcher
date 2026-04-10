@@ -1100,7 +1100,7 @@ export default function Page() {
         return {
           title: couponTitle,
           description: String(json.coupon?.description || ""),
-          rewardType: (json.coupon?.rewardType || "free_topping") as WalletCoupon["rewardType"],
+          rewardType: (json.coupon?.rewardType || "discount_3_percent") as WalletCoupon["rewardType"],
           expiresAt: json.coupon.expiresAt,
           redeemToken: String(json.coupon?.redeemToken || ""),
           createdAt: String(json.coupon?.issuedAt || new Date().toISOString()),

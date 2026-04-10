@@ -1,9 +1,9 @@
-import WalletPageClient from "../components/WalletPageClient";
+import WalletSecurePageClient from "../components/WalletSecurePageClient";
 
 export default function WalletPage({
   searchParams,
 }: {
   searchParams?: { tab?: string };
 }) {
-  return <WalletPageClient initialTab={searchParams?.tab} />;
+  return <WalletSecurePageClient initialTab={searchParams?.tab} />;
 }

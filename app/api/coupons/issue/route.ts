@@ -1,14 +1,15 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/couponData";
-import { getEligibleCouponReward, getCouponExpiryIso } from "../../../lib/coupons";
+import {
+  getCouponExpiryIso,
+  getCouponRewardByType,
+  getEligibleCouponReward,
+  getWalletCouponStatus,
+} from "../../../lib/coupons";
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
-import {
-  buildRedeemUrl,
-  COUPON_SCORE_THRESHOLD,
-  createCouponCode,
-} from "../../../lib/couponMvp";
+import { COUPON_SCORE_THRESHOLD, createCouponCode } from "../../../lib/couponMvp";
 
 async function createUniqueRedeemToken(supabase: any) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -22,6 +23,29 @@ async function createUniqueRedeemToken(supabase: any) {
 
 function normalizeContactValue(contactType: EntryContactType, value: string) {
   return contactType === "phone" ? normalizeUsPhone(value) : normalizeEmail(value);
+}
+
+function serializeIssuedCoupon(row: {
+  id?: number | null;
+  title?: string | null;
+  description?: string | null;
+  reward_type?: string | null;
+  expires_at?: string | null;
+  redeem_token?: string | null;
+  created_at?: string | null;
+}) {
+  const reward = getCouponRewardByType(row.reward_type);
+
+  return {
+    id: Number(row.id || 0),
+    title: String(row.title || reward?.title || ""),
+    couponName: String(row.title || reward?.title || ""),
+    description: String(row.description || reward?.description || ""),
+    rewardType: String(row.reward_type || reward?.type || ""),
+    expiresAt: String(row.expires_at || ""),
+    issuedAt: String(row.created_at || ""),
+    redeemToken: String(row.redeem_token || ""),
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -90,35 +114,60 @@ export async function POST(req: NextRequest) {
     const expiresAt = getCouponExpiryIso();
     const existingWallet = await supabase
       .from("wallet_coupons")
-      .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
-      .eq("game_session_id", gameSessionId)
-      .maybeSingle();
+      .select("id,title,description,reward_type,status,expires_at,redeem_token,created_at,redeemed_at")
+      .eq("entry_id", entry.id)
+      .order("created_at", { ascending: false });
 
     if (existingWallet.error) {
       console.error("Wallet coupon lookup failed", existingWallet.error);
       return NextResponse.json({ error: "Failed to look up wallet coupon." }, { status: 500 });
     }
 
-    if (existingWallet.data?.id) {
-      const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
-      const redeemUrl = buildRedeemUrl(origin, String(existingWallet.data.redeem_token));
+    const activeCoupons = (existingWallet.data ?? []).filter((walletCoupon) => {
+      const status = getWalletCouponStatus({
+        status: walletCoupon.status,
+        expiresAt: walletCoupon.expires_at,
+        redeemedAt: walletCoupon.redeemed_at,
+      });
+      return status === "active";
+    });
 
+    const bestActiveCoupon = activeCoupons
+      .map((walletCoupon) => ({
+        row: walletCoupon,
+        reward: getCouponRewardByType(walletCoupon.reward_type),
+      }))
+      .filter((item): item is { row: (typeof activeCoupons)[number]; reward: NonNullable<ReturnType<typeof getCouponRewardByType>> } => Boolean(item.reward))
+      .sort((a, b) => b.reward.threshold - a.reward.threshold)[0];
+
+    if (bestActiveCoupon && bestActiveCoupon.reward.threshold >= reward.threshold) {
       return NextResponse.json({
         eligible: true,
-        issued: true,
-        coupon: {
-          id: Number(existingWallet.data.id),
-          title: String(existingWallet.data.title || reward.title),
-          couponName: String(existingWallet.data.title || reward.title),
-          description: String(existingWallet.data.description || reward.description),
-          rewardType: String(existingWallet.data.reward_type || reward.type),
-          expiresAt: String(existingWallet.data.expires_at || expiresAt),
-          issuedAt: String(existingWallet.data.created_at || ""),
-          redeemToken: String(existingWallet.data.redeem_token),
-        },
-        qrPayload: redeemUrl,
-        redeemUrl,
+        issued: false,
+        coupon: serializeIssuedCoupon(bestActiveCoupon.row),
+        qrPayload: bestActiveCoupon.reward.fixedQrValue,
       });
+    }
+
+    const lowerTierCouponIds = activeCoupons
+      .filter((walletCoupon) => {
+        const activeReward = getCouponRewardByType(walletCoupon.reward_type);
+        return activeReward && activeReward.threshold < reward.threshold;
+      })
+      .map((walletCoupon) => Number(walletCoupon.id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    if (lowerTierCouponIds.length > 0) {
+      const expireResult = await supabase
+        .from("wallet_coupons")
+        .update({ status: "expired" })
+        .in("id", lowerTierCouponIds)
+        .eq("status", "active");
+
+      if (expireResult.error) {
+        console.error("Failed to retire lower-tier coupons", expireResult.error);
+        return NextResponse.json({ error: "Failed to replace lower-tier coupon." }, { status: 500 });
+      }
     }
 
     const evaluation = await supabase
@@ -156,7 +205,7 @@ export async function POST(req: NextRequest) {
           expires_at: expiresAt,
         },
       ])
-      .select("id,title,reward_type,expires_at,redeem_token,created_at")
+      .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
       .single();
 
     if (walletCoupon.error || !walletCoupon.data?.id) {
@@ -164,25 +213,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to issue wallet coupon." }, { status: 500 });
     }
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
-    const redeemUrl = buildRedeemUrl(origin, redeemToken);
-
     return NextResponse.json({
       eligible: true,
       issued: true,
-      coupon: {
-        id: Number(walletCoupon.data.id),
-        title: reward.title,
-        couponName: reward.title,
-        description: reward.description,
-        rewardType: reward.type,
-        status: "active",
-        issuedAt: String(walletCoupon.data.created_at || ""),
-        expiresAt,
-        redeemToken,
-      },
-      qrPayload: redeemUrl,
-      redeemUrl,
+      coupon: serializeIssuedCoupon(walletCoupon.data),
+      qrPayload: reward.fixedQrValue,
     });
   } catch (error) {
     console.error("Coupon issue route error", error);

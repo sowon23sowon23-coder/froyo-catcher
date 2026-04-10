@@ -1,10 +1,16 @@
-export type CouponRewardType = "free_topping" | "dollar_off" | "bogo";
+export type CouponRewardType =
+  | "discount_3_percent"
+  | "discount_5_percent"
+  | "discount_10_percent"
+  | "discount_15_percent";
 export type CouponGameMode = "free" | "mission" | "timeAttack";
 export type CouponState = "valid" | "already_redeemed" | "expired" | "invalid";
 
 export type CouponRewardDefinition = {
   type: CouponRewardType;
   threshold: number;
+  discountPercent: number;
+  fixedQrValue: string;
   title: string;
   description: string;
 };
@@ -13,22 +19,36 @@ export const COUPON_EXPIRY_DAYS = 14;
 
 export const COUPON_REWARDS: CouponRewardDefinition[] = [
   {
-    type: "bogo",
-    threshold: 250,
-    title: "BOGO",
-    description: "Buy one frozen yogurt and enjoy a second one free, up to the same value.",
+    type: "discount_15_percent",
+    threshold: 150,
+    discountPercent: 15,
+    fixedQrValue: "YL15-TR62-L440-D26",
+    title: "15% OFF",
+    description: "Score 150 or more to unlock a 15% discount coupon.",
   },
   {
-    type: "dollar_off",
-    threshold: 180,
-    title: "$1 Off",
-    description: "Take $1 off your next frozen yogurt order at the counter.",
+    type: "discount_10_percent",
+    threshold: 100,
+    discountPercent: 10,
+    fixedQrValue: "YL10-QZ88-P357-R26",
+    title: "10% OFF",
+    description: "Score 100 or more to unlock a 10% discount coupon.",
   },
   {
-    type: "free_topping",
-    threshold: 10,
-    title: "Free Topping",
-    description: "Treat yourself to one complimentary topping on your next cup.",
+    type: "discount_5_percent",
+    threshold: 50,
+    discountPercent: 5,
+    fixedQrValue: "YL05-BV24-M108-W26",
+    title: "5% OFF",
+    description: "Score 50 or more to unlock a 5% discount coupon.",
+  },
+  {
+    type: "discount_3_percent",
+    threshold: 30,
+    discountPercent: 3,
+    fixedQrValue: "YL03-AX79-K921-S26",
+    title: "3% OFF",
+    description: "Score 30 or more to unlock a 3% discount coupon.",
   },
 ] as const;
 
@@ -50,6 +70,24 @@ export type WalletCoupon = {
 export function getEligibleCouponReward(score: number) {
   const normalized = Number.isFinite(score) ? Math.max(0, Math.floor(score)) : 0;
   return COUPON_REWARDS.find((reward) => normalized >= reward.threshold) ?? null;
+}
+
+export function getCouponRewardByType(rewardType: string | null | undefined) {
+  return COUPON_REWARDS.find((reward) => reward.type === rewardType) ?? null;
+}
+
+export function getCouponDiscountPercent(rewardType: string | null | undefined) {
+  return getCouponRewardByType(rewardType)?.discountPercent ?? null;
+}
+
+export function getCouponFixedQrValue(rewardType: string | null | undefined) {
+  return getCouponRewardByType(rewardType)?.fixedQrValue ?? null;
+}
+
+export function formatCouponLabel(rewardType: string | null | undefined) {
+  const reward = getCouponRewardByType(rewardType);
+  if (!reward) return "Coupon";
+  return `${reward.discountPercent}%`;
 }
 
 export function getCouponExpiryIso(now = new Date()) {
