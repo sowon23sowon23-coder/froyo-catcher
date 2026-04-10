@@ -6,6 +6,7 @@ import {
   getCouponRewardByType,
   getEligibleCouponReward,
   getWalletCouponStatus,
+  resolveCouponReward,
 } from "../../../lib/coupons";
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
@@ -34,7 +35,7 @@ function serializeIssuedCoupon(row: {
   redeem_token?: string | null;
   created_at?: string | null;
 }) {
-  const reward = getCouponRewardByType(row.reward_type);
+  const reward = resolveCouponReward(row.reward_type, row.title, row.description);
 
   return {
     id: Number(row.id || 0),
@@ -76,26 +77,54 @@ export async function POST(req: NextRequest) {
     const normalizedContact =
       contactType && contactValue ? normalizeContactValue(contactType, contactValue) : null;
 
-    if (!nickname || !contactType || !normalizedContact) {
+    if (!nickname) {
       const failedAuth = auth as Extract<typeof auth, { ok: false }>;
       return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
     }
 
     supabase = getServiceSupabaseOrThrow();
-    const fallbackEntry = await supabase
-      .from("entries")
-      .select("id,nickname_display")
-      .eq("contact_type", contactType)
-      .eq("contact_value", normalizedContact)
-      .maybeSingle();
+    let resolvedEntry: { id?: number | null; nickname_display?: string | null } | null = null;
+    let fallbackError: { message?: string } | null = null;
 
-    if (fallbackEntry.error || !fallbackEntry.data?.id) {
+    if (contactType && normalizedContact) {
+      const fallbackEntry = await supabase
+        .from("entries")
+        .select("id,nickname_display")
+        .eq("contact_type", contactType)
+        .eq("contact_value", normalizedContact)
+        .maybeSingle();
+
+      if (fallbackEntry.error) {
+        fallbackError = fallbackEntry.error;
+      } else if (fallbackEntry.data?.id) {
+        resolvedEntry = fallbackEntry.data;
+      }
+    }
+
+    if (!resolvedEntry?.id) {
+      const nicknameEntry = await supabase
+        .from("entries")
+        .select("id,nickname_display")
+        .eq("nickname_key", nickname.toLowerCase())
+        .maybeSingle();
+
+      if (nicknameEntry.error) {
+        fallbackError = nicknameEntry.error;
+      } else if (nicknameEntry.data?.id) {
+        resolvedEntry = nicknameEntry.data;
+      }
+    }
+
+    if (!resolvedEntry?.id) {
+      if (fallbackError) {
+        console.error("Coupon issue fallback entry lookup failed", fallbackError);
+      }
       return NextResponse.json({ error: "Login session is required." }, { status: 401 });
     }
 
     entry = {
-      id: Number(fallbackEntry.data.id),
-      nickname: String(fallbackEntry.data.nickname_display || nickname).trim() || nickname,
+      id: Number(resolvedEntry.id),
+      nickname: String(resolvedEntry.nickname_display || nickname).trim() || nickname,
     };
   }
 
@@ -135,7 +164,7 @@ export async function POST(req: NextRequest) {
     const bestActiveCoupon = activeCoupons
       .map((walletCoupon) => ({
         row: walletCoupon,
-        reward: getCouponRewardByType(walletCoupon.reward_type),
+        reward: resolveCouponReward(walletCoupon.reward_type, walletCoupon.title, walletCoupon.description),
       }))
       .filter((item): item is { row: (typeof activeCoupons)[number]; reward: NonNullable<ReturnType<typeof getCouponRewardByType>> } => Boolean(item.reward))
       .sort((a, b) => b.reward.threshold - a.reward.threshold)[0];
@@ -151,7 +180,7 @@ export async function POST(req: NextRequest) {
 
     const lowerTierCouponIds = activeCoupons
       .filter((walletCoupon) => {
-        const activeReward = getCouponRewardByType(walletCoupon.reward_type);
+        const activeReward = resolveCouponReward(walletCoupon.reward_type, walletCoupon.title, walletCoupon.description);
         return activeReward && activeReward.threshold < reward.threshold;
       })
       .map((walletCoupon) => Number(walletCoupon.id))

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 
-import { COUPON_SCORE_THRESHOLD, formatCurrency, formatDateTime } from "../lib/couponMvp";
+import { COUPON_SCORE_THRESHOLD, formatDateTime } from "../lib/couponMvp";
+import { getEligibleCouponReward } from "../lib/coupons";
 
 type IssueResponse = {
   eligible?: boolean;
@@ -11,9 +12,9 @@ type IssueResponse = {
   redeemUrl?: string;
   qrPayload?: string;
   coupon?: {
-    code: string;
     couponName: string;
-    discountAmount: number;
+    rewardType?: string;
+    redeemToken?: string;
     expiresAt: string;
   };
   error?: string;
@@ -71,7 +72,7 @@ export default function CouponIssueClient() {
           <p className="text-xs font-black uppercase tracking-[0.24em] text-[#f1735d]">Game Reward</p>
           <h1 className="mt-2 text-4xl font-black leading-none text-[#5a2f39]">Coupon Reward Demo</h1>
           <p className="mt-3 text-sm font-semibold text-[#8b5b67]">
-            A 3,000 KRW off coupon is issued automatically when the score is {COUPON_SCORE_THRESHOLD} or higher.
+            Score 30, 50, 100, or 150 to issue the highest matching percentage coupon.
           </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -119,17 +120,21 @@ export default function CouponIssueClient() {
           {result?.coupon ? (
             <>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-[#f1735d]">Issued Coupon</p>
+              {(() => {
+                const reward = getEligibleCouponReward(Number(score));
+                return (
               <h2 className="mt-2 text-3xl font-black text-[#512733]">
-                Success! A {formatCurrency(result.coupon.discountAmount)} discount coupon has been issued.
+                Success! {reward ? reward.title : result.coupon.couponName} has been issued.
               </h2>
+                );
+              })()}
               <div className="mt-5 rounded-[1.75rem] border border-[#f7dfd6] bg-white p-5">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-2xl font-black text-[#4e2430]">{result.coupon.couponName}</p>
                     <p className="mt-3 text-sm font-semibold text-[#7a4e59]">Expires: {formatDateTime(result.coupon.expiresAt)}</p>
-                    <p className="mt-2 text-sm font-semibold text-[#7a4e59]">Code: <span className="font-black">{result.coupon.code}</span></p>
-                    {result.redeemUrl ? (
-                      <p className="mt-2 break-all text-xs font-bold text-[#b76172]">{result.redeemUrl}</p>
+                    {result.qrPayload ? (
+                      <p className="mt-2 break-all text-xs font-bold text-[#b76172]">QR Payload: {result.qrPayload}</p>
                     ) : null}
                   </div>
                   <div className="rounded-3xl bg-[#fff8f1] p-4">

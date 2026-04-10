@@ -80,6 +80,28 @@ export function getCouponRewardByPercent(discountPercent: number | null | undefi
   return COUPON_REWARDS.find((reward) => reward.discountPercent === discountPercent) ?? null;
 }
 
+export function inferCouponRewardFromText(...texts: Array<string | null | undefined>) {
+  for (const rawText of texts) {
+    const text = String(rawText || "");
+    const match = text.match(/\b(3|5|10|15)\s*%/i);
+    if (match) {
+      return getCouponRewardByPercent(Number(match[1]));
+    }
+    if (/discount/i.test(text)) {
+      return getCouponRewardByPercent(3);
+    }
+  }
+  return null;
+}
+
+export function resolveCouponReward(
+  rewardType: string | null | undefined,
+  title?: string | null,
+  description?: string | null
+) {
+  return getCouponRewardByType(rewardType) ?? inferCouponRewardFromText(title, description);
+}
+
 export function getCouponDiscountPercent(rewardType: string | null | undefined) {
   return getCouponRewardByType(rewardType)?.discountPercent ?? null;
 }

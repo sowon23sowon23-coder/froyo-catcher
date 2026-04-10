@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCouponState, getWalletCouponStatus } from "../../../lib/coupons";
+import { getCouponState, getWalletCouponStatus, resolveCouponReward } from "../../../lib/coupons";
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { getServerSupabase } from "../../../lib/serverSupabase";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
   }
 
   const coupons = (rows.data ?? []).map((row) => {
+    const resolvedReward = resolveCouponReward(row.reward_type, row.title, row.description);
     const state = getCouponState({
       status: row.status,
       expiresAt: row.expires_at,
@@ -82,9 +83,9 @@ export async function GET(req: NextRequest) {
     });
     return {
       id: Number(row.id),
-      rewardType: row.reward_type,
-      title: row.title,
-      description: row.description,
+      rewardType: resolvedReward?.type || row.reward_type,
+      title: row.title || resolvedReward?.title || "Coupon Discount",
+      description: row.description || resolvedReward?.description || "",
       status: getWalletCouponStatus({
         status: row.status,
         expiresAt: row.expires_at,

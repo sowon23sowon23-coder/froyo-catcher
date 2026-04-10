@@ -85,6 +85,10 @@ function resolveCouponLabel(coupon: WalletCoupon) {
   const inferredPercent = inferDiscountPercent(coupon);
   if (inferredPercent) return `${inferredPercent}%`;
 
+  if (/discount/i.test(coupon.title || "") || /discount/i.test(coupon.description || "")) {
+    return "3%";
+  }
+
   return coupon.title?.trim() || "Coupon";
 }
 
@@ -93,9 +97,15 @@ function resolveCouponQrValue(coupon: WalletCoupon) {
   if (directQrValue) return directQrValue;
 
   const inferredPercent = inferDiscountPercent(coupon);
-  if (!inferredPercent) return null;
+  if (inferredPercent) {
+    return getCouponRewardByPercent(inferredPercent)?.fixedQrValue ?? null;
+  }
 
-  return getCouponRewardByPercent(inferredPercent)?.fixedQrValue ?? null;
+  if (/discount/i.test(coupon.title || "") || /discount/i.test(coupon.description || "")) {
+    return getCouponRewardByPercent(3)?.fixedQrValue ?? null;
+  }
+
+  return null;
 }
 
 async function reconcileActiveCoupons(activeCoupons: WalletCoupon[]) {
@@ -540,7 +550,12 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                       </div>
 
                       <div className="grid gap-3 px-4 py-4">
-                        <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3">
+                        <button
+                          type="button"
+                          onClick={() => startCouponFlow(coupon)}
+                          disabled={uiState === "loading" || uiState === "active"}
+                          className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3 text-left disabled:cursor-not-allowed"
+                        >
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Store Use</p>
@@ -548,16 +563,15 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                                 Staff must tap Use before the QR appears.
                               </p>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => startCouponFlow(coupon)}
-                              disabled={!qrValue || uiState === "loading" || uiState === "active"}
-                              className="rounded-full bg-[var(--yl-primary)] px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            <span
+                              className={`rounded-full bg-[var(--yl-primary)] px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-white ${
+                                uiState === "loading" || uiState === "active" ? "opacity-50" : ""
+                              }`}
                             >
                               {uiState === "loading" ? "Generating" : uiState === "active" ? "Live" : "Use"}
-                            </button>
+                            </span>
                           </div>
-                        </div>
+                        </button>
 
                         {activeCouponId === coupon.id && uiState === "loading" ? (
                           <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-white px-4 py-4">
