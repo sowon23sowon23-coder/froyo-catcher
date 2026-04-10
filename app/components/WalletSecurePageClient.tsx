@@ -177,12 +177,16 @@ function HistoryCard({ coupon }: { coupon: WalletCoupon }) {
         <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3">
           {coupon.status === "redeemed" ? (
             <>
-              Redeemed {coupon.redeemedAt ? new Date(coupon.redeemedAt).toLocaleString() : ""}.
+              Redeemed on {coupon.redeemedAt ? new Date(coupon.redeemedAt).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              }) : "Unknown date"}.
               {coupon.redeemedStoreName ? ` Store: ${coupon.redeemedStoreName}.` : ""}
               {coupon.redeemedStaffName ? ` Staff: ${coupon.redeemedStaffName}.` : ""}
             </>
           ) : (
-            <>Expired after secure QR generation. Original wallet expiry: {formatCouponExpiry(coupon.expiresAt)}.</>
+            <>Expired on {formatCouponExpiry(coupon.expiresAt)}.</>
           )}
         </div>
       </div>
