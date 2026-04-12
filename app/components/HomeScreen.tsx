@@ -51,6 +51,8 @@ export default function HomeScreen({
 }) {
   const [character, setCharacter] = useState<CharId>("green");
   const [infoIndex, setInfoIndex] = useState<number | null>(null);
+  const [showStartRules, setShowStartRules] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
     const savedChar = localStorage.getItem("selectedCharacter") as CharId | null;
@@ -64,16 +66,29 @@ export default function HomeScreen({
     [character]
   );
 
+  const handleStartRulesClose = (launch: boolean) => {
+    if (dontShowAgain) {
+      localStorage.setItem("hideGameRules", "1");
+    }
+    setShowStartRules(false);
+    if (launch) {
+      localStorage.setItem("selectedCharacter", character);
+      trackEvent({ action: "home_start_click", category: "engagement", label: `${character}_free` });
+      onStart(character);
+    }
+  };
+
   const startGame = () => {
     localStorage.setItem("selectedCharacter", character);
+    trackEvent({ action: "home_start_click", category: "engagement", label: `${character}_free` });
 
-    trackEvent({
-      action: "home_start_click",
-      category: "engagement",
-      label: `${character}_free`,
-    });
-
-    onStart(character);
+    const skip = localStorage.getItem("hideGameRules") === "1";
+    if (skip) {
+      onStart(character);
+    } else {
+      setDontShowAgain(false);
+      setShowStartRules(true);
+    }
   };
 
   return (
@@ -84,6 +99,55 @@ export default function HomeScreen({
           initialIndex={infoIndex}
           onClose={() => setInfoIndex(null)}
         />
+      )}
+
+      {showStartRules && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
+          onClick={() => handleStartRulesClose(false)}
+        >
+          <div
+            className="relative flex w-full max-w-[280px] flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src="/game-rules.png"
+              alt="Game Rules"
+              className="w-full rounded-3xl shadow-2xl"
+              draggable={false}
+            />
+
+            <button
+              type="button"
+              onClick={() => handleStartRulesClose(false)}
+              className="absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white font-black text-[var(--yl-primary)] shadow-lg text-lg leading-none"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+
+            <div className="mt-4 w-full rounded-2xl bg-white/95 px-4 py-3 shadow-lg">
+              <label className="mb-3 flex cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={dontShowAgain}
+                  onChange={(e) => setDontShowAgain(e.target.checked)}
+                  className="h-4 w-4 cursor-pointer accent-[var(--yl-primary)]"
+                />
+                <span className="text-xs font-semibold text-[var(--yl-ink-muted)]">
+                  Don&apos;t show this again
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={() => handleStartRulesClose(true)}
+                className="w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] py-3 text-sm font-black uppercase tracking-[0.1em] text-white shadow-[0_8px_20px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5"
+              >
+                Let&apos;s Play!
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="pointer-events-none absolute -right-14 -top-14 h-56 w-56 rounded-full bg-white/70 blur-2xl" />

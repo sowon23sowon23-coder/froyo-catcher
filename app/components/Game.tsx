@@ -219,7 +219,6 @@ export default function Game({
 
   const [collectedToppings, setCollectedToppings] = useState<CaughtItem[]>([]);
   const [showRules, setShowRules] = useState(false);
-  const rulesAutoShownRef = useRef(false);
   const visibleLives = Math.min(lives, MAX_LIVES);
   const extraLives = Math.max(0, lives - MAX_LIVES);
 
@@ -244,13 +243,6 @@ export default function Game({
   const timeUpSfxPlayedRef = useRef(false);
 
   const isPaused = false;
-
-  useEffect(() => {
-    if (!rulesAutoShownRef.current) {
-      rulesAutoShownRef.current = true;
-      setShowRules(true);
-    }
-  }, []);
 
   useEffect(() => {
     playerXRef.current = playerX;
