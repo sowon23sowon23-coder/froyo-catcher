@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { trackEvent } from "../lib/gtag";
 import { InfoModal, ALL_INFO_CARDS, type InfoCard } from "./InfoModal";
-import { getWalletCouponStatus } from "../lib/coupons";
+import { isCouponExpired } from "../lib/coupons";
 
 type CharId = "green" | "berry" | "sprinkle";
 
@@ -65,7 +65,7 @@ export default function HomeScreen({
       const raw = localStorage.getItem("walletCouponsLocal");
       const coupons = raw ? (JSON.parse(raw) as Array<{ status?: string; expiresAt?: string; redeemedAt?: string | null }>) : [];
       const count = coupons.filter(
-        (c) => getWalletCouponStatus({ status: c.status, expiresAt: c.expiresAt, redeemedAt: c.redeemedAt }) === "active"
+        (c) => c.status === "active" && !isCouponExpired(String(c.expiresAt || ""))
       ).length;
       setActiveCouponCount(count);
     } catch {
