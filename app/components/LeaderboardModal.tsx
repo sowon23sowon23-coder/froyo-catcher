@@ -171,12 +171,14 @@ export default function LeaderboardModal({
                       </div>
                       <div className="flex items-center gap-1 text-xs font-bold text-[var(--yl-ink-muted)]">
                         {r.character ? (
-                          <img
-                            src={`/${r.character}.png`}
-                            alt={r.character}
-                            className="h-5 w-5 rounded-full bg-white"
-                            draggable={false}
-                          />
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white">
+                            <img
+                              src={`/${r.character}.png`}
+                              alt={r.character}
+                              className="h-4 w-4 object-contain"
+                              draggable={false}
+                            />
+                          </span>
                         ) : null}
                         <span className="truncate">{characterLabel(r.character)}</span>
                       </div>

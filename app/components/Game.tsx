@@ -1268,7 +1268,7 @@ export default function Game({
                 <img
                   src={`/${character}.png`}
                   alt={character}
-                  className="w-20 h-20 select-none pointer-events-none drop-shadow"
+                  className="h-20 w-20 select-none pointer-events-none object-contain drop-shadow"
                   draggable={false}
                 />
               </div>
@@ -1381,7 +1381,7 @@ export default function Game({
                 src={`/${character}.png`}
                 alt="character"
                 draggable={false}
-                className="w-24 select-none"
+                className="h-24 w-24 select-none object-contain"
               />
             </div>
           )}

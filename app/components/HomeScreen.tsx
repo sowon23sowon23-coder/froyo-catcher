@@ -264,7 +264,12 @@ export default function HomeScreen({
                     className="mx-auto mb-1 grid h-11 w-11 place-items-center rounded-2xl"
                     style={{ background: `${c.accent}22` }}
                   >
-                    <img src={`/${c.id}.png`} alt={c.label} className="h-10 w-10 select-none" draggable={false} />
+                    <img
+                      src={`/${c.id}.png`}
+                      alt={c.label}
+                      className="h-10 w-10 select-none object-contain"
+                      draggable={false}
+                    />
                   </div>
                   <p className="text-xs font-black text-[var(--yl-ink-strong)]">{c.label}</p>
                   <p className="text-xs font-bold text-[var(--yl-ink-muted)]">{c.flavor}</p>
