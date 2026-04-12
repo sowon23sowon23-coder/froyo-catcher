@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { trackEvent } from "../lib/gtag";
 import { InfoModal, ALL_INFO_CARDS, type InfoCard } from "./InfoModal";
+import { getWalletCouponStatus } from "../lib/coupons";
 
 type CharId = "green" | "berry" | "sprinkle";
 
@@ -53,12 +54,23 @@ export default function HomeScreen({
   const [infoIndex, setInfoIndex] = useState<number | null>(null);
   const [showStartRules, setShowStartRules] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [activeCouponCount, setActiveCouponCount] = useState(0);
 
   useEffect(() => {
     const savedChar = localStorage.getItem("selectedCharacter") as CharId | null;
-
     if (savedChar && CHARACTERS.some((c) => c.id === savedChar)) setCharacter(savedChar);
     localStorage.removeItem("selectedMode");
+
+    try {
+      const raw = localStorage.getItem("walletCouponsLocal");
+      const coupons = raw ? (JSON.parse(raw) as Array<{ status?: string; expiresAt?: string; redeemedAt?: string | null }>) : [];
+      const count = coupons.filter(
+        (c) => getWalletCouponStatus({ status: c.status, expiresAt: c.expiresAt, redeemedAt: c.redeemedAt }) === "active"
+      ).length;
+      setActiveCouponCount(count);
+    } catch {
+      // ignore parse errors
+    }
   }, []);
 
   const selectedCharacter = useMemo(
@@ -185,9 +197,14 @@ export default function HomeScreen({
             <div className="flex items-center gap-1.5">
               <a
                 href="/wallet"
-                className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+                className="relative rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
               >
                 My Wallet
+                {activeCouponCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--yl-primary)] text-[9px] font-black text-white">
+                    {activeCouponCount}
+                  </span>
+                )}
               </a>
               <button
                 type="button"
