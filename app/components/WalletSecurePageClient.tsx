@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { InfoModal, ALL_INFO_CARDS } from "./InfoModal";
 
 import {
   formatCouponExpiry,
@@ -247,6 +248,8 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const [walletUiStates, setWalletUiStates] = useState<Record<number, WalletUiState>>({});
   const [activeCouponId, setActiveCouponId] = useState<number | null>(null);
   const [canActivateToday, setCanActivateToday] = useState(true);
+  const [showCouponRules, setShowCouponRules] = useState(false);
+  const [dontShowCouponRules, setDontShowCouponRules] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(QR_ACTIVE_MS / 1000);
   const [currentTime, setCurrentTime] = useState(formatClock(new Date()));
   const [qrDataUrl, setQrDataUrl] = useState("");
@@ -289,6 +292,12 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     return () => {
       clearQrTimers();
     };
+  }, []);
+
+  useEffect(() => {
+    if (localStorage.getItem("hideCouponRules") !== "1") {
+      setShowCouponRules(true);
+    }
   }, []);
 
   const isQrVisible = useMemo(() => {
@@ -544,6 +553,61 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
+      {showCouponRules && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
+          onClick={() => setShowCouponRules(false)}
+        >
+          <div
+            className="relative flex w-full max-w-[280px] flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src="/coupon-rules.png"
+              alt="Coupon Rules"
+              className="w-full rounded-3xl shadow-2xl"
+              draggable={false}
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowCouponRules(false)}
+              className="absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white font-black text-[var(--yl-primary)] shadow-lg text-lg leading-none"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+
+            <div className="mt-4 w-full rounded-2xl bg-white/95 px-4 py-3 shadow-lg">
+              <label className="mb-3 flex cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={dontShowCouponRules}
+                  onChange={(e) => {
+                    setDontShowCouponRules(e.target.checked);
+                    if (e.target.checked) {
+                      localStorage.setItem("hideCouponRules", "1");
+                    } else {
+                      localStorage.removeItem("hideCouponRules");
+                    }
+                  }}
+                  className="h-4 w-4 cursor-pointer accent-[var(--yl-primary)]"
+                />
+                <span className="text-xs font-semibold text-[var(--yl-ink-muted)]">
+                  Don&apos;t show this again
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowCouponRules(false)}
+                className="w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] py-3 text-sm font-black uppercase tracking-[0.1em] text-white shadow-[0_8px_20px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
         <header className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white/90 px-5 py-5 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
           <div className="flex items-center justify-between gap-3">
