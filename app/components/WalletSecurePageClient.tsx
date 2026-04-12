@@ -522,6 +522,31 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     };
   }, []);
 
+  // Move expired coupons to history immediately when their countdown hits zero,
+  // without waiting for the next server refresh.
+  useEffect(() => {
+    if (activeCoupons.length === 0) return;
+
+    const checkId = window.setInterval(() => {
+      const now = Date.now();
+      const nowExpired = activeCouponsRef.current.filter(
+        (c) => new Date(c.expiresAt).getTime() <= now
+      );
+      if (nowExpired.length === 0) return;
+
+      const expiredIds = new Set(nowExpired.map((c) => c.id));
+      setActiveCoupons((prev) => prev.filter((c) => !expiredIds.has(c.id)));
+      setHistoryCoupons((prev) => {
+        const added = nowExpired.map((c) => ({ ...c, status: "expired" as const, state: "expired" as const }));
+        return [...added, ...prev.filter((c) => !expiredIds.has(c.id))].sort(
+          (a, b) => new Date(b.redeemedAt || b.expiresAt).getTime() - new Date(a.redeemedAt || a.expiresAt).getTime()
+        );
+      });
+    }, 1000);
+
+    return () => window.clearInterval(checkId);
+  }, [activeCoupons]);
+
 
   const expireCoupon = async (coupon: WalletCoupon) => {
     clearQrTimers();
