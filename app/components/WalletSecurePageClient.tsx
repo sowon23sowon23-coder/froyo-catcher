@@ -453,14 +453,6 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     };
   }, []);
 
-  const walletSummary = useMemo(
-    () => ({
-      available: activeCoupons.length,
-      redeemed: historyCoupons.filter((coupon) => coupon.status === "redeemed").length,
-      expired: historyCoupons.filter((coupon) => coupon.status === "expired").length,
-    }),
-    [activeCoupons, historyCoupons]
-  );
 
   const expireCoupon = async (coupon: WalletCoupon) => {
     clearQrTimers();
@@ -640,21 +632,6 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
           </section>
         ) : (
           <>
-            <section className="grid grid-cols-3 gap-3">
-              <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Available</p>
-                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.available}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Redeemed</p>
-                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.redeemed}</p>
-              </div>
-              <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Expired</p>
-                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.expired}</p>
-              </div>
-            </section>
-
             <div className="grid grid-cols-2 gap-2 rounded-[1.6rem] border border-[var(--yl-card-border)] bg-white/90 p-2 shadow-[0_18px_44px_rgba(150,9,83,0.12)]">
               <button
                 type="button"
