@@ -61,14 +61,6 @@ function writeLocalWalletCoupons(coupons: WalletCoupon[]) {
   }
 }
 
-function formatClock(date: Date) {
-  return date.toLocaleTimeString("en-GB", {
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
 
 function inferDiscountPercent(coupon: WalletCoupon) {
   const resolvedReward = resolveCouponReward(coupon.rewardType, coupon.title, coupon.description);
@@ -320,7 +312,6 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const [showCouponRules, setShowCouponRules] = useState(false);
   const [dontShowCouponRules, setDontShowCouponRules] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(QR_ACTIVE_MS / 1000);
-  const [currentTime, setCurrentTime] = useState(formatClock(new Date()));
   const [qrDataUrl, setQrDataUrl] = useState("");
 
   const activeCouponsRef = useRef<WalletCoupon[]>([]);
@@ -589,14 +580,12 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     clearQrTimers();
     setTab("active");
     setQrDataUrl("");
-    setCurrentTime(formatClock(new Date()));
     setSecondsLeft(QR_ACTIVE_MS / 1000);
     setActiveCouponId(coupon.id);
     setWalletUiStates((prev) => ({ ...prev, [coupon.id]: "loading" }));
 
     generationTimeoutRef.current = window.setTimeout(() => {
       setWalletUiStates((prev) => ({ ...prev, [coupon.id]: "active" }));
-      setCurrentTime(formatClock(new Date()));
       setSecondsLeft(QR_ACTIVE_MS / 1000);
 
       // Mark the coupon as consumed on the server the instant the QR
@@ -609,7 +598,6 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
       }).catch(() => undefined);
 
       clockIntervalRef.current = window.setInterval(() => {
-        setCurrentTime(formatClock(new Date()));
         setSecondsLeft((prev) => Math.max(prev - 1, 0));
       }, 1000);
 
@@ -765,7 +753,6 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
               <div className="grid gap-4">
                 {activeCards.map((coupon) => {
                   const uiState = walletUiStates[coupon.id] ?? "idle";
-                  const qrValue = resolveCouponQrValue(coupon);
                   const progress = uiState === "active" ? (secondsLeft / (QR_ACTIVE_MS / 1000)) * 100 : 0;
 
                   return (
@@ -858,16 +845,6 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                               )}
                             </div>
 
-                            <div className="mt-4 grid grid-cols-2 gap-3">
-                              <div className="rounded-[1rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3">
-                                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Current Time</p>
-                                <p className="mt-1 text-base font-black text-[var(--yl-ink-strong)]">{currentTime}</p>
-                              </div>
-                              <div className="rounded-[1rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3">
-                                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">QR Payload</p>
-                                <p className="mt-1 break-all font-mono text-xs font-black text-[var(--yl-ink-strong)]">{qrValue}</p>
-                              </div>
-                            </div>
 
                             <div className="mt-4">
                               <div className="mb-2 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">
