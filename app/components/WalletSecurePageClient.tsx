@@ -191,6 +191,75 @@ function HistoryCard({ coupon }: { coupon: WalletCoupon }) {
   );
 }
 
+function useCountdown(expiresAt: string) {
+  const calc = () => {
+    const diff = new Date(expiresAt).getTime() - Date.now();
+    if (!Number.isFinite(diff) || diff <= 0) return null;
+    const totalSec = Math.floor(diff / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return { h, m, s, totalSec };
+  };
+
+  const [remaining, setRemaining] = useState(calc);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setRemaining(calc()), 1000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expiresAt]);
+
+  return remaining;
+}
+
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function formatExpiryDatetime(expiresAt: string) {
+  const d = new Date(expiresAt);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function CouponExpiryCountdown({ expiresAt }: { expiresAt: string }) {
+  const remaining = useCountdown(expiresAt);
+
+  if (!remaining) {
+    return (
+      <p className="mt-2 text-xs font-semibold text-red-500">Expired</p>
+    );
+  }
+
+  const urgent = remaining.totalSec < 3600; // less than 1 hour
+
+  return (
+    <div className="mt-2 flex items-center justify-between gap-2">
+      <p className="text-xs font-semibold text-[var(--yl-ink-muted)]">
+        Expires {formatExpiryDatetime(expiresAt)}
+      </p>
+      <span
+        className={`rounded-full px-2.5 py-0.5 font-black tabular-nums text-[11px] ${
+          urgent
+            ? "bg-red-100 text-red-600"
+            : remaining.totalSec < 7200
+            ? "bg-orange-100 text-orange-600"
+            : "bg-[#f0faea] text-[#2f6c1a]"
+        }`}
+      >
+        {remaining.h > 0 && `${pad(remaining.h)}:`}{pad(remaining.m)}:{pad(remaining.s)}
+      </span>
+    </div>
+  );
+}
+
 function CouponPolicyCard() {
   const [open, setOpen] = useState(false);
 
@@ -689,9 +758,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                             Available
                           </span>
                         </div>
-                        <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)]">
-                          Wallet expiry: {formatCouponExpiry(coupon.expiresAt)}
-                        </p>
+                        <CouponExpiryCountdown expiresAt={coupon.expiresAt} />
                       </div>
 
                       <div className="grid gap-3 px-4 py-4">
