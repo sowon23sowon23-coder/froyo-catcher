@@ -64,6 +64,9 @@ export async function GET(req: NextRequest) {
     };
   }
 
+  const todayMidnightUtc = new Date();
+  todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+
   const rows = await supabase
     .from("wallet_coupons")
     .select("id,reward_type,title,description,status,expires_at,redeem_token,created_at,redeemed_at,redeemed_staff_name,redeemed_store_name")
@@ -101,10 +104,18 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  // canActivateToday: false if a coupon issued today has already been explicitly expired
+  // (i.e., the customer activated the QR today). status='expired' in DB means the expire
+  // endpoint was called (customer activation), not a natural time expiry.
+  const activatedTodayCount = (rows.data ?? []).filter(
+    (row) => row.status === "expired" && row.created_at >= todayMidnightUtc.toISOString()
+  ).length;
+
   return NextResponse.json({
     nickname: entry.nickname,
     coupons,
     activeCoupons: coupons.filter((coupon) => coupon.status === "active"),
     historyCoupons: coupons.filter((coupon) => coupon.status !== "active"),
+    canActivateToday: activatedTodayCount < 1,
   });
 }

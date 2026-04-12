@@ -15,7 +15,7 @@ export type CouponRewardDefinition = {
   description: string;
 };
 
-export const COUPON_EXPIRY_DAYS = 14;
+export const COUPON_EXPIRY_HOURS = 48;
 
 export const COUPON_REWARDS: CouponRewardDefinition[] = [
   {
@@ -117,9 +117,7 @@ export function formatCouponLabel(rewardType: string | null | undefined) {
 }
 
 export function getCouponExpiryIso(now = new Date()) {
-  const expires = new Date(now);
-  expires.setDate(expires.getDate() + COUPON_EXPIRY_DAYS);
-  expires.setHours(23, 59, 59, 999);
+  const expires = new Date(now.getTime() + COUPON_EXPIRY_HOURS * 60 * 60 * 1000);
   return expires.toISOString();
 }
 

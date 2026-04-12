@@ -4,7 +4,6 @@ import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/coupo
 import {
   getCouponExpiryIso,
   getEligibleCouponReward,
-  getWalletCouponStatus,
   resolveCouponReward,
 } from "../../../lib/coupons";
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
@@ -140,81 +139,29 @@ export async function POST(req: NextRequest) {
 
   try {
     const expiresAt = getCouponExpiryIso();
-    const existingWallet = await supabase
+
+    // Policy: max 2 coupons issued per account per calendar day (UTC)
+    const todayMidnightUtc = new Date();
+    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+
+    const issuedTodayResult = await supabase
       .from("wallet_coupons")
-      .select("id,title,description,reward_type,status,expires_at,redeem_token,created_at,redeemed_at")
+      .select("id", { count: "exact", head: true })
       .eq("entry_id", entry.id)
-      .order("created_at", { ascending: false });
+      .gte("created_at", todayMidnightUtc.toISOString());
 
-    if (existingWallet.error) {
-      console.error("Wallet coupon lookup failed", existingWallet.error);
-      return NextResponse.json({ error: "Failed to look up wallet coupon." }, { status: 500 });
+    if (issuedTodayResult.error) {
+      console.error("Daily issue count lookup failed", issuedTodayResult.error);
+      return NextResponse.json({ error: "Failed to check daily issue limit." }, { status: 500 });
     }
 
-    const activeCoupons = (existingWallet.data ?? []).filter((walletCoupon) => {
-      const status = getWalletCouponStatus({
-        status: walletCoupon.status,
-        expiresAt: walletCoupon.expires_at,
-        redeemedAt: walletCoupon.redeemed_at,
-      });
-      return status === "active";
-    });
-
-    // Rule 1: Same tier already active → no new coupon
-    const existingSameTierCoupon = activeCoupons.find((walletCoupon) => {
-      const activeReward = resolveCouponReward(walletCoupon.reward_type, walletCoupon.title, walletCoupon.description);
-      return activeReward && activeReward.threshold === reward.threshold;
-    });
-
-    if (existingSameTierCoupon) {
+    const issuedTodayCount = issuedTodayResult.count ?? 0;
+    if (issuedTodayCount >= 2) {
       return NextResponse.json({
         eligible: true,
         issued: false,
-        coupon: serializeIssuedCoupon(existingSameTierCoupon),
-        qrPayload: reward.fixedQrValue,
+        reason: "Daily issuance limit reached. You can receive up to 2 coupons per day.",
       });
-    }
-
-    // Rule 2: A higher-tier coupon already active → no new coupon
-    const hasHigherTierCoupon = activeCoupons.some((walletCoupon) => {
-      const activeReward = resolveCouponReward(walletCoupon.reward_type, walletCoupon.title, walletCoupon.description);
-      return activeReward && activeReward.threshold > reward.threshold;
-    });
-
-    if (hasHigherTierCoupon) {
-      return NextResponse.json({
-        eligible: true,
-        issued: false,
-        reason: "A higher-tier coupon is already active.",
-      });
-    }
-
-    // Rule 4 (max 3): If issuing would exceed 3 active coupons, remove the lowest-tier one first
-    const MAX_ACTIVE_COUPONS = 3;
-    if (activeCoupons.length >= MAX_ACTIVE_COUPONS) {
-      const sortedAsc = [...activeCoupons]
-        .map((walletCoupon) => ({
-          id: Number(walletCoupon.id),
-          reward: resolveCouponReward(walletCoupon.reward_type, walletCoupon.title, walletCoupon.description),
-        }))
-        .filter((item): item is { id: number; reward: NonNullable<ReturnType<typeof resolveCouponReward>> } =>
-          Boolean(item.reward) && Number.isFinite(item.id) && item.id > 0
-        )
-        .sort((a, b) => a.reward.threshold - b.reward.threshold);
-
-      const lowestId = sortedAsc[0]?.id;
-      if (lowestId) {
-        const expireResult = await supabase
-          .from("wallet_coupons")
-          .update({ status: "expired" })
-          .eq("id", lowestId)
-          .eq("status", "active");
-
-        if (expireResult.error) {
-          console.error("Failed to remove lowest-tier coupon", expireResult.error);
-          return NextResponse.json({ error: "Failed to make room for new coupon." }, { status: 500 });
-        }
-      }
     }
 
     const evaluation = await supabase

@@ -24,6 +24,7 @@ type WalletResponse = {
   coupons?: WalletCoupon[];
   activeCoupons?: WalletCoupon[];
   historyCoupons?: WalletCoupon[];
+  canActivateToday?: boolean;
   error?: string;
 };
 
@@ -189,6 +190,52 @@ function HistoryCard({ coupon }: { coupon: WalletCoupon }) {
   );
 }
 
+function CouponPolicyCard() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white/90 shadow-[0_10px_28px_rgba(150,9,83,0.10)]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-5 py-4 text-left"
+      >
+        <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">
+          How to Use Your Coupons
+        </span>
+        <span className="text-xs font-black text-[var(--yl-primary)]">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-[var(--yl-card-border)] px-5 pb-5 pt-4 text-xs font-semibold text-[var(--yl-ink-muted)]">
+          <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Daily Limits</p>
+          <ul className="mb-4 list-inside list-disc space-y-1">
+            <li>You can earn up to <span className="font-black text-[var(--yl-ink-strong)]">2 coupons</span> per day.</li>
+            <li>You can activate (use) <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> per day.</li>
+            <li>Each coupon expires <span className="font-black text-[var(--yl-ink-strong)]">48 hours</span> after it is issued.</li>
+          </ul>
+
+          <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Redeeming at the Store</p>
+          <ul className="mb-4 list-inside list-disc space-y-1">
+            <li>At checkout, open this wallet and show your coupon to a staff member.</li>
+            <li>Ask them to tap <span className="font-black text-[var(--yl-ink-strong)]">Use</span> — a live QR code will appear.</li>
+            <li>The QR is valid for <span className="font-black text-[var(--yl-ink-strong)]">15 seconds</span>. The staff member scans it to apply your discount.</li>
+            <li>Once activated, the coupon is consumed and cannot be used again.</li>
+          </ul>
+
+          <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Coupon Tiers</p>
+          <div className="grid grid-cols-2 gap-1">
+            <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">30+ pts → 3% OFF</span>
+            <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">50+ pts → 5% OFF</span>
+            <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">100+ pts → 10% OFF</span>
+            <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">150+ pts → 15% OFF</span>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function WalletSecurePageClient({ initialTab }: { initialTab?: string }) {
   const requestedTab: WalletTab = initialTab === "history" ? "history" : "active";
   const [loading, setLoading] = useState(true);
@@ -199,6 +246,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const [tab, setTab] = useState<WalletTab>(requestedTab);
   const [walletUiStates, setWalletUiStates] = useState<Record<number, WalletUiState>>({});
   const [activeCouponId, setActiveCouponId] = useState<number | null>(null);
+  const [canActivateToday, setCanActivateToday] = useState(true);
   const [secondsLeft, setSecondsLeft] = useState(QR_ACTIVE_MS / 1000);
   const [currentTime, setCurrentTime] = useState(formatClock(new Date()));
   const [qrDataUrl, setQrDataUrl] = useState("");
@@ -242,6 +290,24 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
       clearQrTimers();
     };
   }, []);
+
+  const isQrVisible = useMemo(() => {
+    if (activeCouponId === null) return false;
+    const uiState = walletUiStates[activeCouponId];
+    return uiState === "loading" || uiState === "active";
+  }, [activeCouponId, walletUiStates]);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    if (isQrVisible) {
+      html.style.filter = "brightness(2)";
+    } else {
+      html.style.filter = "";
+    }
+    return () => {
+      html.style.filter = "";
+    };
+  }, [isQrVisible]);
 
   const activeSessionCoupon = useMemo(
     () => activeCoupons.find((coupon) => coupon.id === activeCouponId) ?? null,
@@ -319,6 +385,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
         }
 
         setNickname(String(json.nickname || "").trim());
+        if (typeof json.canActivateToday === "boolean") setCanActivateToday(json.canActivateToday);
         const serverActive = Array.isArray(json.activeCoupons) ? json.activeCoupons : [];
         const serverHistory = Array.isArray(json.historyCoupons) ? json.historyCoupons : [];
 
@@ -496,6 +563,8 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
           </p>
         </header>
 
+        <CouponPolicyCard />
+
         {loading ? (
           <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-10 text-center text-sm font-bold text-[var(--yl-ink-muted)] shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
             Loading wallet...
@@ -588,19 +657,21 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                         <button
                           type="button"
                           onClick={() => startCouponFlow(coupon)}
-                          disabled={uiState === "loading" || uiState === "active"}
+                          disabled={uiState === "loading" || uiState === "active" || !canActivateToday}
                           className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3 text-left disabled:cursor-not-allowed"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Store Use</p>
                               <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                                Staff must tap Use before the QR appears.
+                                {!canActivateToday
+                                  ? "Daily use limit reached. Come back tomorrow."
+                                  : "Staff must tap Use before the QR appears."}
                               </p>
                             </div>
                             <span
                               className={`rounded-full bg-[var(--yl-primary)] px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-white ${
-                                uiState === "loading" || uiState === "active" ? "opacity-50" : ""
+                                uiState === "loading" || uiState === "active" || !canActivateToday ? "opacity-50" : ""
                               }`}
                             >
                               {uiState === "loading" ? "Generating" : uiState === "active" ? "Live" : "Use"}
