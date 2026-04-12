@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { trackEvent } from "../lib/gtag";
+import { InfoModal, ALL_INFO_CARDS, type InfoCard } from "./InfoModal";
 
 type CharId = "green" | "berry" | "sprinkle";
 
@@ -16,6 +17,19 @@ const CHARACTERS: CharacterOption[] = [
   { id: "green", label: "Pistachio", flavor: "Smooth and steady", accent: "var(--yl-green)" },
   { id: "berry", label: "Berry Burst", flavor: "Fast and lively", accent: "var(--yl-berry)" },
   { id: "sprinkle", label: "Sprinkle Pop", flavor: "Playful and bright", accent: "var(--yl-yellow)" },
+];
+
+type InfoButton = {
+  label: string;
+  emoji: string;
+  index: number;
+};
+
+const INFO_BUTTONS: InfoButton[] = [
+  { label: "Game Rules", emoji: "🎮", index: 0 },
+  { label: "How to Redeem", emoji: "🎁", index: 1 },
+  { label: "Coupon Rules", emoji: "📋", index: 2 },
+  { label: "Coupon Tiers", emoji: "⭐", index: 3 },
 ];
 
 export default function HomeScreen({
@@ -36,7 +50,7 @@ export default function HomeScreen({
   onLogout: () => void;
 }) {
   const [character, setCharacter] = useState<CharId>("green");
-  const [showInfo, setShowInfo] = useState(false);
+  const [infoIndex, setInfoIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const savedChar = localStorage.getItem("selectedCharacter") as CharId | null;
@@ -64,6 +78,14 @@ export default function HomeScreen({
 
   return (
     <main className="relative h-full overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-5">
+      {infoIndex !== null && (
+        <InfoModal
+          cards={ALL_INFO_CARDS}
+          initialIndex={infoIndex}
+          onClose={() => setInfoIndex(null)}
+        />
+      )}
+
       <div className="pointer-events-none absolute -right-14 -top-14 h-56 w-56 rounded-full bg-white/70 blur-2xl" />
       <div className="pointer-events-none absolute -left-14 bottom-10 h-44 w-44 rounded-full bg-[#9ee86b]/30 blur-2xl" />
 
@@ -171,52 +193,22 @@ export default function HomeScreen({
           </div>
         </section>
 
-        <section className="rounded-2xl border border-[var(--yl-card-border)] bg-white/85 shadow-[0_8px_22px_rgba(150,9,83,0.10)]">
-          <button
-            type="button"
-            onClick={() => setShowInfo((v) => !v)}
-            className="flex w-full items-center justify-between px-4 py-3 text-left"
-          >
-            <span className="text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
-              How to Play &amp; Earn Rewards
-            </span>
-            <span className="text-xs font-black text-[var(--yl-primary)]">{showInfo ? "▲" : "▼"}</span>
-          </button>
-
-          {showInfo && (
-            <div className="border-t border-[var(--yl-card-border)] px-4 pb-4 pt-3 text-xs font-semibold text-[var(--yl-ink-muted)]">
-              <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Game Rules</p>
-              <ul className="mb-3 list-inside list-disc space-y-1">
-                <li>Tilt or tap to move your cup left and right.</li>
-                <li>Catch falling froyo scoops — each one adds to your score.</li>
-                <li>Miss 3 scoops and the game ends.</li>
-                <li>Higher score = bigger discount coupon.</li>
-              </ul>
-
-              <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Coupon Tiers</p>
-              <div className="mb-3 grid grid-cols-2 gap-1">
-                <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">30+ pts → 3% OFF</span>
-                <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">50+ pts → 5% OFF</span>
-                <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">100+ pts → 10% OFF</span>
-                <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">150+ pts → 15% OFF</span>
-              </div>
-
-              <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Coupon Rules</p>
-              <ul className="mb-3 list-inside list-disc space-y-1">
-                <li>Up to <span className="font-black text-[var(--yl-ink-strong)]">2 coupons</span> earned per account per day.</li>
-                <li>Only <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> can be used per day.</li>
-                <li>Coupons expire <span className="font-black text-[var(--yl-ink-strong)]">48 hours</span> after they are issued.</li>
-              </ul>
-
-              <p className="mb-2 font-black text-[var(--yl-ink-strong)]">How to Redeem</p>
-              <ul className="list-inside list-disc space-y-1">
-                <li>Go to <span className="font-black text-[var(--yl-ink-strong)]">My Wallet</span> to see your coupons.</li>
-                <li>At checkout, ask a staff member to tap <span className="font-black text-[var(--yl-ink-strong)]">Use</span> on your coupon.</li>
-                <li>A live QR code will appear — the staff member scans it to apply your discount.</li>
-                <li>The QR is valid for <span className="font-black text-[var(--yl-ink-strong)]">15 seconds</span> after it appears.</li>
-              </ul>
-            </div>
-          )}
+        {/* Info buttons */}
+        <section className="mb-3">
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Game Info</p>
+          <div className="grid grid-cols-2 gap-2">
+            {INFO_BUTTONS.map((btn) => (
+              <button
+                key={btn.index}
+                type="button"
+                onClick={() => setInfoIndex(btn.index)}
+                className="flex items-center gap-2 rounded-2xl border border-[var(--yl-card-border)] bg-white/90 px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-0.5"
+              >
+                <span className="text-xl leading-none">{btn.emoji}</span>
+                <span className="text-xs font-black text-[var(--yl-ink-strong)]">{btn.label}</span>
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="mt-auto rounded-2xl border border-[var(--yl-card-border)] bg-white/85 p-3 shadow-[0_8px_22px_rgba(150,9,83,0.14)]">
