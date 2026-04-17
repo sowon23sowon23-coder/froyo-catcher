@@ -35,9 +35,9 @@ insert into public.coupons (
   order_number
 )
 values
-  ('YG7A92K3', 'user_123', '3,000원 할인 쿠폰', 'score_discount', 3000, 'unused', now() - interval '1 day', now() + interval '13 days', null, null, null, null),
-  ('YG8B45M2', 'user_456', '3,000원 할인 쿠폰', 'score_discount', 3000, 'used', now() - interval '3 days', now() + interval '10 days', now() - interval '2 hours', 'pohang_01', 'staff_02', 'A1024'),
-  ('YG3X71P9', 'user_789', '3,000원 할인 쿠폰', 'score_discount', 3000, 'expired', now() - interval '20 days', now() - interval '1 day', null, null, null, null)
+  ('YG7A92K3', 'user_123', '3,000 KRW Off Coupon', 'score_discount', 3000, 'unused', now() - interval '1 day', now() + interval '13 days', null, null, null, null),
+  ('YG8B45M2', 'user_456', '3,000 KRW Off Coupon', 'score_discount', 3000, 'used', now() - interval '3 days', now() + interval '10 days', now() - interval '2 hours', 'pohang_01', 'staff_02', 'A1024'),
+  ('YG3X71P9', 'user_789', '3,000 KRW Off Coupon', 'score_discount', 3000, 'expired', now() - interval '20 days', now() - interval '1 day', null, null, null, null)
 on conflict (code) do nothing;
 
 insert into public.redeem_logs (coupon_id, code, action_type, reason, store_id, staff_id, order_number, created_at)

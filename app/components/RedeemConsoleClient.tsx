@@ -15,6 +15,7 @@ type CouponSummary = {
   id: number;
   code: string;
   couponName: string;
+  rewardType?: string;
   discountAmount: number;
   status: "unused" | "used" | "expired" | "invalid";
   reason: string;
@@ -45,6 +46,13 @@ function statusStyle(status?: CouponSummary["status"]) {
   if (status === "used") return "border-[#d9d9df] bg-[#f3f4f6] text-[#55586b]";
   if (status === "expired") return "border-[#ffd29d] bg-[#fff5e8] text-[#a45707]";
   return "border-[#f6b7bf] bg-[#fff1f2] text-[#b62b45]";
+}
+
+function formatCouponValue(amount: number, rewardType?: string) {
+  if (rewardType === "manual_discount") {
+    return `${amount}%`;
+  }
+  return formatCurrency(amount);
 }
 
 export default function RedeemConsoleClient({
@@ -199,8 +207,8 @@ export default function RedeemConsoleClient({
                   <p className="mt-1 text-2xl font-black text-[#4d262f]">{validateResult.coupon.couponName}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">Discount Amount</p>
-                  <p className="mt-1 text-2xl font-black text-[#4d262f]">{formatCurrency(validateResult.coupon.discountAmount)}</p>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">Discount</p>
+                  <p className="mt-1 text-2xl font-black text-[#4d262f]">{formatCouponValue(validateResult.coupon.discountAmount, validateResult.coupon.rewardType)}</p>
                 </div>
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c5656b]">Expires</p>

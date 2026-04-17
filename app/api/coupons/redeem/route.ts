@@ -45,13 +45,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Could not verify the redeem result." }, { status: 500 });
     }
 
+    let rewardType = "score_discount";
+    if (row.coupon_id) {
+      const couponLookup = await supabase
+        .from("coupons")
+        .select("reward_type")
+        .eq("id", row.coupon_id)
+        .maybeSingle();
+
+      if (couponLookup.error) {
+        console.error("Coupon reward type lookup failed", couponLookup.error);
+      } else if (couponLookup.data?.reward_type) {
+        rewardType = String(couponLookup.data.reward_type);
+      }
+    }
+
     const coupon = row.coupon_id
       ? serializeCouponSummary(
           {
             id: row.coupon_id,
             code: row.coupon_code,
             coupon_name: row.coupon_name,
-            reward_type: "score_discount",
+            reward_type: rewardType,
             discount_amount: row.discount_amount,
             status: row.status,
             issued_at: null,

@@ -69,10 +69,10 @@ export async function GET(req: NextRequest) {
 
     // Funnel (last 14 days, approximated)
     const funnel = [
-      { label: "게임 시작", value: totalSessions },
-      { label: "게임 완료", value: completedSessions },
-      { label: "쿠폰 발급", value: couponIssuedFromGame },
-      { label: "쿠폰 사용", value: redeemed },
+      { label: "Game Started", value: totalSessions },
+      { label: "Game Completed", value: completedSessions },
+      { label: "Coupon Issued", value: couponIssuedFromGame },
+      { label: "Coupon Redeemed", value: redeemed },
     ];
 
     return NextResponse.json({
