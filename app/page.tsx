@@ -1324,6 +1324,8 @@ export default function Page() {
                   const normalizedStore = "__ALL__";
                   const leaderboardMode: LeaderMode = "today";
                   const isFreePlay = true;
+                  const previousBest = readSyncedLocalAllTimeBest(nick || "guest", normalizedStore) ?? 0;
+                  const isNewPersonalBest = finalScore > previousBest;
                   const issuedCoupon = await issueCouponReward(finalScore, activeGameSessionId, "free");
 
                   // Fire-and-forget: record the game session for analytics
@@ -1378,14 +1380,18 @@ export default function Page() {
 
                   const todayBestLocal = writeLocalTodayBest(nick || "guest", normalizedStore, finalScore);
                   setTodayBestScore((prev) => Math.max(prev ?? 0, todayBestLocal));
+                  writeLocalAllTimeBest(nick || "guest", normalizedStore, finalScore);
+
+                  if (!isNewPersonalBest) {
+                    return;
+                  }
+
                   setLbRows([]);
                   setLbOpen(true);
                   setLbLoading(true);
                   setMode(leaderboardMode);
                   setLastNick(nick || "YOU");
                   setLastScore(todayBestLocal);
-
-                  writeLocalAllTimeBest(nick || "guest", normalizedStore, finalScore);
 
                   if (nick.length >= 2 && nick.length <= 12) {
                     await upsertBestScore(nick, finalScore, character, normalizedStore, false, false);
