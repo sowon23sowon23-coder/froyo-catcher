@@ -37,7 +37,6 @@ export function InfoModal({
           draggable={false}
         />
 
-        {/* Prev / Next arrows */}
         {hasPrev && (
           <button
             type="button"
@@ -59,7 +58,6 @@ export function InfoModal({
           </button>
         )}
 
-        {/* Close */}
         <button
           type="button"
           onClick={onClose}
@@ -69,7 +67,6 @@ export function InfoModal({
           ✕
         </button>
 
-        {/* Dot indicators */}
         {cards.length > 1 && (
           <div className="mt-4 flex gap-2">
             {cards.map((_, i) => (

@@ -280,7 +280,7 @@ function CouponPolicyCard() {
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Redeeming at the Store</p>
           <ul className="mb-4 list-inside list-disc space-y-1">
             <li>At checkout, open this wallet and show your coupon to a staff member.</li>
-            <li>Ask them to tap <span className="font-black text-[var(--yl-ink-strong)]">Use</span> — a live QR code will appear.</li>
+            <li>Ask them to tap <span className="font-black text-[var(--yl-ink-strong)]">Use</span> and a live QR code will appear.</li>
             <li>The QR is valid for <span className="font-black text-[var(--yl-ink-strong)]">15 seconds</span>. The staff member scans it to apply your discount.</li>
             <li>Once activated, the coupon is consumed and cannot be used again.</li>
           </ul>
@@ -540,7 +540,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
 
   // Send a single expire request; if it fails, retry once after 3 seconds.
-  // The coupon is already locked in local state — this is only DB sync.
+  // The coupon is already locked in local state; this is only DB sync.
   const syncExpireToServer = (couponId: number) => {
     const body = JSON.stringify({ couponId });
     const doFetch = () =>
@@ -583,7 +583,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const startCouponFlow = (coupon: WalletCoupon) => {
     // resolveCouponQrValue always returns a string (fallback to 3% QR value),
     // so we proceed regardless. If the value is somehow null, the QR image
-    // will show "Loading QR..." but loading → active → expired flow still works.
+    // will show "Loading QR..." but the loading/active/expired flow still works.
 
     clearQrTimers();
     setTab("active");
@@ -737,7 +737,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
             {tab === "active" && activeCards.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
-                <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet 🍦</p>
+                <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet</p>
                 <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
                   Play the game and catch some froyo to earn your reward!
                 </p>
@@ -884,3 +884,4 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     </main>
   );
 }
+

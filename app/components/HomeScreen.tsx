@@ -279,7 +279,6 @@ export default function HomeScreen({
           </div>
         </section>
 
-        {/* Info buttons */}
         <section className="mb-3">
           <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Game Info</p>
           <div className="grid grid-cols-2 gap-2">
