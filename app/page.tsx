@@ -394,6 +394,7 @@ export default function Page() {
   const [switchSourceContactType, setSwitchSourceContactType] = useState<EntryContactType>("phone");
   const [switchSourceContactValue, setSwitchSourceContactValue] = useState<string>("");
   const [activeGameSessionId, setActiveGameSessionId] = useState<string>("");
+  const gameStartTimeRef = useRef<number>(0);
 
   const clearClientAuthState = () => {
     localStorage.clear();
@@ -1293,6 +1294,7 @@ export default function Page() {
                   setCharacter(char);
                   setCouponNotice(null);
                   setActiveGameSessionId(createGameSessionId());
+                  gameStartTimeRef.current = Date.now();
                   setLastNick(authNick ?? localStorage.getItem("nickname") ?? undefined);
                   setPhase("game");
                   setStartSignal((n) => n + 1);
@@ -1323,6 +1325,25 @@ export default function Page() {
                   const leaderboardMode: LeaderMode = "today";
                   const isFreePlay = true;
                   const issuedCoupon = await issueCouponReward(finalScore, activeGameSessionId, "free");
+
+                  // Fire-and-forget: record the game session for analytics
+                  const playTimeSec = gameStartTimeRef.current > 0
+                    ? Math.round((Date.now() - gameStartTimeRef.current) / 1000)
+                    : undefined;
+                  fetch("/api/game-sessions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      sessionId: activeGameSessionId,
+                      mode: "free",
+                      score: finalScore,
+                      playTimeSec,
+                      completed: true,
+                      couponIssued: !!issuedCoupon,
+                      couponRewardType: issuedCoupon?.rewardType ?? null,
+                      nicknameKey: nick.length >= 2 ? nick.toLowerCase() : null,
+                    }),
+                  }).catch(() => undefined);
 
                   if (issuedCoupon) {
                     upsertLocalWalletCoupon({
