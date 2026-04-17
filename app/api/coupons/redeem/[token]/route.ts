@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCouponState, getWalletCouponStatus, type CouponState, isCouponExpired } from "../../../../lib/coupons";
+import { getCouponState, getWalletCouponStatus, type CouponState } from "../../../../lib/coupons";
 import { getServerSupabase } from "../../../../lib/serverSupabase";
+import { requirePortalRole } from "../../../../lib/portalAuth";
 
 function buildInvalidResponse(status = 404) {
   return NextResponse.json({ state: "invalid" satisfies CouponState }, { status });
@@ -75,6 +76,11 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
 }
 
 export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
+  const portalSession = requirePortalRole(req, ["staff", "admin"]);
+  if (!portalSession) {
+    return NextResponse.json({ error: "Staff login required." }, { status: 401 });
+  }
+
   const token = String(params.token || "").trim();
   if (!token) {
     return buildInvalidResponse();

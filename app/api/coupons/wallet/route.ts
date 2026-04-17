@@ -13,19 +13,28 @@ export async function GET(req: NextRequest) {
     supabase = auth.supabase;
     entry = auth.entry;
   } else {
+    // Fallback: the kiosk client may send contact credentials from localStorage
+    // when a session cookie is absent (e.g. page reload after session expiry).
+    // Both nickname AND a valid normalized contact value are required; a match
+    // must exist in the entries table. This prevents unauthenticated enumeration
+    // by nickname or contact alone.
     const nickname = String(req.nextUrl.searchParams.get("nickname") || "").trim();
     const contactType = String(req.nextUrl.searchParams.get("contactType") || "").trim() as EntryContactType;
     const contactValue = String(req.nextUrl.searchParams.get("contactValue") || "").trim();
+
+    // Reject fallback if basic required fields are missing or contactType is invalid.
+    if (!nickname || !contactValue || (contactType !== "phone" && contactType !== "email")) {
+      const failedAuth = auth as Extract<typeof auth, { ok: false }>;
+      return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
+    }
+
     const normalizedContact =
       contactType === "phone"
         ? normalizeUsPhone(contactValue)
-        : contactType === "email"
-          ? normalizeEmail(contactValue)
-          : null;
+        : normalizeEmail(contactValue);
 
-    if (!nickname || !normalizedContact) {
-      const failedAuth = auth as Extract<typeof auth, { ok: false }>;
-      return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
+    if (!normalizedContact) {
+      return NextResponse.json({ error: "Login session is required." }, { status: 401 });
     }
 
     supabase = getServerSupabase();
@@ -33,34 +42,29 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Server is not configured for entries." }, { status: 500 });
     }
 
+    // Must match BOTH contact_value AND nickname to prevent cross-account access.
     const fallbackEntry = await supabase
       .from("entries")
-      .select("id,nickname_display")
+      .select("id,nickname_display,nickname_key")
       .eq("contact_type", contactType)
       .eq("contact_value", normalizedContact)
       .maybeSingle();
 
-    let resolvedEntry = fallbackEntry.data;
-
-    if (!resolvedEntry?.id && nickname) {
-      const nicknameEntry = await supabase
-        .from("entries")
-        .select("id,nickname_display")
-        .eq("nickname_key", nickname.trim().toLowerCase())
-        .maybeSingle();
-
-      if (!nicknameEntry.error && nicknameEntry.data?.id) {
-        resolvedEntry = nicknameEntry.data;
-      }
+    if (fallbackEntry.error || !fallbackEntry.data?.id) {
+      return NextResponse.json({ error: "Login session is required." }, { status: 401 });
     }
 
-    if (fallbackEntry.error || !resolvedEntry?.id) {
+    // Verify nickname matches the entry — prevents a known contact value from
+    // being used to access a different account.
+    const storedNicknameKey = String(fallbackEntry.data.nickname_key || "").toLowerCase();
+    const providedNicknameKey = nickname.toLowerCase();
+    if (storedNicknameKey !== providedNicknameKey) {
       return NextResponse.json({ error: "Login session is required." }, { status: 401 });
     }
 
     entry = {
-      id: Number(resolvedEntry.id),
-      nickname: String(resolvedEntry.nickname_display || nickname).trim() || nickname,
+      id: Number(fallbackEntry.data.id),
+      nickname: String(fallbackEntry.data.nickname_display || nickname).trim() || nickname,
     };
   }
 

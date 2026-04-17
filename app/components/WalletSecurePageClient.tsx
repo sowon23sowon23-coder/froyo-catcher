@@ -539,6 +539,22 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   }, [activeCoupons]);
 
 
+  // Send a single expire request; if it fails, retry once after 3 seconds.
+  // The coupon is already locked in local state — this is only DB sync.
+  const syncExpireToServer = (couponId: number) => {
+    const body = JSON.stringify({ couponId });
+    const doFetch = () =>
+      fetch("/api/coupons/wallet/expire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+
+    void doFetch().catch(() => {
+      window.setTimeout(() => void doFetch().catch(() => undefined), 3000);
+    });
+  };
+
   const expireCoupon = async (coupon: WalletCoupon) => {
     clearQrTimers();
     setWalletUiStates((prev) => ({ ...prev, [coupon.id]: "expired" }));
@@ -561,15 +577,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     setHistoryCoupons(nextHistory);
     writeLocalWalletCoupons([...nextActive, ...nextHistory]);
 
-    try {
-      await fetch("/api/coupons/wallet/expire", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ couponId: coupon.id }),
-      });
-    } catch {
-      // Keep the coupon locked locally even if the sync call fails.
-    }
+    syncExpireToServer(coupon.id);
   };
 
   const startCouponFlow = (coupon: WalletCoupon) => {
@@ -589,13 +597,9 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
       setSecondsLeft(QR_ACTIVE_MS / 1000);
 
       // Mark the coupon as consumed on the server the instant the QR
-      // becomes visible. This prevents re-use even if the user closes
-      // the browser before the 15-second countdown finishes.
-      void fetch("/api/coupons/wallet/expire", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ couponId: coupon.id }),
-      }).catch(() => undefined);
+      // becomes visible. Retries once on failure so a brief network hiccup
+      // doesn't leave the coupon re-usable after a page reload.
+      syncExpireToServer(coupon.id);
 
       clockIntervalRef.current = window.setInterval(() => {
         setSecondsLeft((prev) => Math.max(prev - 1, 0));
