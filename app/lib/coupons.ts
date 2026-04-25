@@ -2,7 +2,8 @@ export type CouponRewardType =
   | "discount_3_percent"
   | "discount_5_percent"
   | "discount_10_percent"
-  | "discount_15_percent";
+  | "discount_15_percent"
+  | "discount_20_percent";
 export type CouponGameMode = "free" | "mission" | "timeAttack";
 export type CouponState = "valid" | "already_redeemed" | "expired" | "invalid";
 
@@ -18,6 +19,14 @@ export type CouponRewardDefinition = {
 export const COUPON_EXPIRY_HOURS = 48;
 
 export const COUPON_REWARDS: CouponRewardDefinition[] = [
+  {
+    type: "discount_20_percent",
+    threshold: 200,
+    discountPercent: 20,
+    fixedQrValue: "YL20MN56P734Q26",
+    title: "20% OFF",
+    description: "Score 200 or more to unlock a 20% discount coupon.",
+  },
   {
     type: "discount_15_percent",
     threshold: 150,
@@ -83,7 +92,7 @@ export function getCouponRewardByPercent(discountPercent: number | null | undefi
 export function inferCouponRewardFromText(...texts: Array<string | null | undefined>) {
   for (const rawText of texts) {
     const text = String(rawText || "");
-    const match = text.match(/\b(3|5|10|15)\s*%/i);
+    const match = text.match(/\b(3|5|10|15|20)\s*%/i);
     if (match) {
       return getCouponRewardByPercent(Number(match[1]));
     }

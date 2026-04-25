@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { trackEvent } from "../lib/gtag";
 import { InfoModal, ALL_INFO_CARDS } from "./InfoModal";
+import { COUPON_REWARDS, getEligibleCouponReward } from "../lib/coupons";
 
 type CharId = "green" | "berry" | "sprinkle";
 type GameMode = "free" | "mission" | "timeAttack";
@@ -1099,6 +1100,31 @@ export default function Game({
           </button>
         </div>
 
+        {/* Coupon progress bar — free play only */}
+        {mode === "free" && phase === "play" && (() => {
+          const earned = getEligibleCouponReward(score);
+          const next = COUPON_REWARDS.slice().reverse().find((r) => score < r.threshold) ?? null;
+          if (earned) return null;
+          if (!next) return null;
+          const prev = COUPON_REWARDS.slice().reverse().find((r) => score >= r.threshold) ?? null;
+          const from = prev?.threshold ?? 0;
+          const pct = Math.min(100, ((score - from) / (next.threshold - from)) * 100);
+          return (
+            <div className="mb-2 rounded-xl border border-[var(--yl-card-border)] bg-white/80 px-3 py-1.5">
+              <div className="mb-1 flex items-center justify-between text-[10px] font-black">
+                <span className="text-[var(--yl-primary)]">{next.discountPercent}% 쿠폰까지</span>
+                <span className="text-[var(--yl-ink-muted)]">{score}/{next.threshold}</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--yl-card-border)]">
+                <div
+                  className="h-full rounded-full bg-[var(--yl-primary)] transition-all duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Time Attack progress bar */}
         {mode === "timeAttack" && (
           <div className="mb-3 h-3 w-full overflow-hidden rounded-full bg-white/40 shadow-inner">
@@ -1278,6 +1304,26 @@ export default function Game({
                   <div className="mb-3 text-base font-bold text-[var(--yl-ink-muted)]">
                     Your Score: <span className="font-black text-[var(--yl-primary)]">{score}</span>
                   </div>
+
+                  {mode === "free" && (() => {
+                    const earned = getEligibleCouponReward(score);
+                    const next = COUPON_REWARDS.slice().reverse().find((r) => score < r.threshold) ?? null;
+                    if (earned) {
+                      return (
+                        <div className="mb-3 rounded-2xl border border-[#cfe7c4] bg-[#f4ffef] px-4 py-2 text-center text-sm font-black text-[#2f6c1a]">
+                          🎉 {earned.discountPercent}% 할인 쿠폰 획득!
+                        </div>
+                      );
+                    }
+                    if (next) {
+                      return (
+                        <div className="mb-3 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-2 text-center text-xs font-bold text-[var(--yl-ink-muted)]">
+                          {next.discountPercent}% 쿠폰까지 {next.threshold - score}점 남았어요!
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   {mode === "free" && (
                     <button

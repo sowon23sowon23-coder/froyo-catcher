@@ -582,11 +582,15 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
                     : "Redeemed and expired rewards will appear here after use."}
                 </p>
                 <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                  Score 10+: Free Topping
+                  Score 30+: 3% Off
                   <br />
-                  Score 180+: $1 Off
+                  Score 50+: 5% Off
                   <br />
-                  Score 250+: BOGO
+                  Score 100+: 10% Off
+                  <br />
+                  Score 150+: 15% Off
+                  <br />
+                  Score 200+: 20% Off
                 </div>
                 {tab === "active" ? (
                   <Link
