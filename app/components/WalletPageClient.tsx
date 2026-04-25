@@ -27,11 +27,15 @@ function statusClasses(status: WalletCoupon["status"]) {
   return "bg-[#eff9ea] text-[#2f6c1a]";
 }
 
+const QR_DISPLAY_SECONDS = 20;
+
 function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean }) {
   const [qrSrc, setQrSrc] = useState<string>("");
+  const [qrOpen, setQrOpen] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
 
   useEffect(() => {
-    if (!showQr) {
+    if (!showQr || !qrOpen) {
       setQrSrc("");
       return;
     }
@@ -56,7 +60,23 @@ function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean 
     return () => {
       active = false;
     };
-  }, [coupon.redeemToken, showQr]);
+  }, [coupon.redeemToken, showQr, qrOpen]);
+
+  useEffect(() => {
+    if (!qrOpen) return;
+    setSecondsLeft(QR_DISPLAY_SECONDS);
+    const interval = window.setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(interval);
+          setQrOpen(false);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [qrOpen]);
 
   return (
     <article className="animate-card-entrance overflow-hidden rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
@@ -80,22 +100,35 @@ function CouponCard({ coupon, showQr }: { coupon: WalletCoupon; showQr: boolean 
         </div>
 
         {showQr ? (
-          <div className="rounded-[1.5rem] border border-dashed border-[var(--yl-card-border)] bg-white px-4 py-4 text-center">
-            {qrSrc ? (
-              <img
-                src={qrSrc}
-                alt={`${coupon.title} QR code`}
-                className="mx-auto h-52 w-52 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
-              />
-            ) : (
-              <div className="mx-auto grid h-52 w-52 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
-                Loading QR...
-              </div>
-            )}
-            <p className="mt-3 text-xs font-semibold text-[var(--yl-ink-muted)]">
-              Scan in store to validate and redeem this reward.
-            </p>
-          </div>
+          qrOpen ? (
+            <div className="rounded-[1.5rem] border border-dashed border-[var(--yl-card-border)] bg-white px-4 py-4 text-center">
+              {qrSrc ? (
+                <img
+                  src={qrSrc}
+                  alt={`${coupon.title} QR code`}
+                  className="mx-auto h-52 w-52 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
+                />
+              ) : (
+                <div className="mx-auto grid h-52 w-52 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
+                  Loading QR...
+                </div>
+              )}
+              <p className="mt-3 text-xs font-semibold text-[var(--yl-ink-muted)]">
+                Scan in store to validate and redeem this reward.
+              </p>
+              <p className="mt-1 text-xs font-black text-[var(--yl-primary)]">
+                {secondsLeft}초 후 닫힘
+              </p>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setQrOpen(true)}
+              className="w-full rounded-[1.5rem] border border-dashed border-[var(--yl-card-border)] bg-[#fff8fb] px-4 py-6 text-center text-sm font-black text-[var(--yl-primary)] transition hover:bg-[#fff0f7]"
+            >
+              탭하여 QR 코드 보기
+            </button>
+          )
         ) : (
           <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-4 py-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
             {coupon.status === "redeemed" ? (
