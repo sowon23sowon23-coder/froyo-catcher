@@ -6,7 +6,7 @@ import LoginScreen, { type LoginPayload } from "./components/LoginScreen";
 import HomeScreen from "./components/HomeScreen";
 import Game from "./components/Game";
 import LeaderboardModal, { LeaderMode, LeaderRow } from "./components/LeaderboardModal";
-import { type CouponGameMode } from "./lib/coupons";
+import { formatCouponLabel, resolveCouponReward, type CouponGameMode, type WalletCoupon } from "./lib/coupons";
 import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
 
@@ -45,8 +45,14 @@ type SessionAuthSnapshot = {
 
 type IssuedCoupon = {
   title: string;
+  description: string;
+  rewardType: WalletCoupon["rewardType"];
   expiresAt: string;
+  redeemToken: string;
+  createdAt: string;
 };
+
+const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 
 function normalizeNick(raw: string) {
   return raw.trim().toLowerCase();
@@ -99,6 +105,27 @@ function readSessionAuthSnapshot(): SessionAuthSnapshot | null {
   } catch {
     return null;
   }
+}
+
+function readLocalWalletCoupons(): WalletCoupon[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as WalletCoupon[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalWalletCoupons(coupons: WalletCoupon[]) {
+  localStorage.setItem(LOCAL_WALLET_STORAGE_KEY, JSON.stringify(coupons));
+}
+
+function upsertLocalWalletCoupon(coupon: WalletCoupon) {
+  const prev = readLocalWalletCoupons();
+  const next = [coupon, ...prev.filter((item) => item.redeemToken !== coupon.redeemToken)];
+  writeLocalWalletCoupons(next);
 }
 
 async function fetchMyBestScore(nicknameDisplay: string, selectedStore: string) {
@@ -367,6 +394,7 @@ export default function Page() {
   const [switchSourceContactType, setSwitchSourceContactType] = useState<EntryContactType>("phone");
   const [switchSourceContactValue, setSwitchSourceContactValue] = useState<string>("");
   const [activeGameSessionId, setActiveGameSessionId] = useState<string>("");
+  const gameStartTimeRef = useRef<number>(0);
 
   const clearClientAuthState = () => {
     localStorage.clear();
@@ -1042,6 +1070,9 @@ export default function Page() {
           score,
           gameSessionId,
           mode,
+          nickname: (authNick ?? localStorage.getItem("nickname") ?? "").trim() || undefined,
+          contactType: authContactType,
+          contactValue: (authContactValue ?? localStorage.getItem("entryContactValue") ?? "").trim() || undefined,
         }),
       });
 
@@ -1050,19 +1081,30 @@ export default function Page() {
         eligible?: boolean;
         issued?: boolean;
         coupon?: {
+          couponName?: string;
           title?: string;
+          description?: string;
+          rewardType?: WalletCoupon["rewardType"];
           expiresAt?: string;
+          redeemToken?: string;
+          issuedAt?: string;
         } | null;
+        qrPayload?: string;
       };
 
       if (!res.ok) {
         throw new Error(json.error || "Failed to evaluate coupon reward.");
       }
 
-      if (json.eligible && json.issued && json.coupon?.title && json.coupon?.expiresAt) {
+      const couponTitle = json.coupon?.couponName || json.coupon?.title;
+      if (json.eligible && couponTitle && json.coupon?.expiresAt) {
         return {
-          title: json.coupon.title,
+          title: couponTitle,
+          description: String(json.coupon?.description || ""),
+          rewardType: (json.coupon?.rewardType || "discount_3_percent") as WalletCoupon["rewardType"],
           expiresAt: json.coupon.expiresAt,
+          redeemToken: String(json.coupon?.redeemToken || ""),
+          createdAt: String(json.coupon?.issuedAt || new Date().toISOString()),
         };
       }
 
@@ -1252,6 +1294,7 @@ export default function Page() {
                   setCharacter(char);
                   setCouponNotice(null);
                   setActiveGameSessionId(createGameSessionId());
+                  gameStartTimeRef.current = Date.now();
                   setLastNick(authNick ?? localStorage.getItem("nickname") ?? undefined);
                   setPhase("game");
                   setStartSignal((n) => n + 1);
@@ -1281,10 +1324,54 @@ export default function Page() {
                   const normalizedStore = "__ALL__";
                   const leaderboardMode: LeaderMode = "today";
                   const isFreePlay = true;
+                  const previousBest = readSyncedLocalAllTimeBest(nick || "guest", normalizedStore) ?? 0;
+                  const isNewPersonalBest = finalScore > previousBest;
                   const issuedCoupon = await issueCouponReward(finalScore, activeGameSessionId, "free");
 
+                  // Fire-and-forget: record the game session for analytics
+                  const playTimeSec = gameStartTimeRef.current > 0
+                    ? Math.round((Date.now() - gameStartTimeRef.current) / 1000)
+                    : undefined;
+                  fetch("/api/game-sessions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      sessionId: activeGameSessionId,
+                      mode: "free",
+                      score: finalScore,
+                      playTimeSec,
+                      completed: true,
+                      couponIssued: !!issuedCoupon,
+                      couponRewardType: issuedCoupon?.rewardType ?? null,
+                      nicknameKey: nick.length >= 2 ? nick.toLowerCase() : null,
+                    }),
+                  }).catch(() => undefined);
+
                   if (issuedCoupon) {
-                    setCouponNotice(`${issuedCoupon.title} added to My Wallet.`);
+                    upsertLocalWalletCoupon({
+                      id: Date.now(),
+                      rewardType: issuedCoupon.rewardType,
+                      title: issuedCoupon.title,
+                      description: issuedCoupon.description || "Your new reward is ready to use.",
+                      status: "active",
+                      state: "valid",
+                      expiresAt: issuedCoupon.expiresAt,
+                      redeemToken: issuedCoupon.redeemToken,
+                      createdAt: issuedCoupon.createdAt,
+                    });
+                    // Resolve the display label: prefer the resolved reward type, then
+                    // infer from title/description, then fall back to generic "Discount".
+                    const resolvedReward = resolveCouponReward(
+                      issuedCoupon.rewardType,
+                      issuedCoupon.title,
+                      issuedCoupon.description
+                    );
+                    const percentLabel = resolvedReward
+                      ? `${resolvedReward.discountPercent}%`
+                      : formatCouponLabel(issuedCoupon.rewardType) !== "Coupon"
+                        ? formatCouponLabel(issuedCoupon.rewardType)
+                        : "Discount";
+                    setCouponNotice(`${percentLabel} discount coupon is in My Wallet!`);
                   }
 
                   if (!isFreePlay) {
@@ -1293,14 +1380,18 @@ export default function Page() {
 
                   const todayBestLocal = writeLocalTodayBest(nick || "guest", normalizedStore, finalScore);
                   setTodayBestScore((prev) => Math.max(prev ?? 0, todayBestLocal));
+                  writeLocalAllTimeBest(nick || "guest", normalizedStore, finalScore);
+
+                  if (!isNewPersonalBest) {
+                    return;
+                  }
+
                   setLbRows([]);
                   setLbOpen(true);
                   setLbLoading(true);
                   setMode(leaderboardMode);
                   setLastNick(nick || "YOU");
                   setLastScore(todayBestLocal);
-
-                  writeLocalAllTimeBest(nick || "guest", normalizedStore, finalScore);
 
                   if (nick.length >= 2 && nick.length <= 12) {
                     await upsertBestScore(nick, finalScore, character, normalizedStore, false, false);
@@ -1337,14 +1428,14 @@ export default function Page() {
         <div className="fixed left-1/2 top-4 z-[140] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-[var(--yl-card-border)] bg-white/95 px-4 py-3 shadow-[0_18px_36px_rgba(150,9,83,0.2)] backdrop-blur-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Wallet Updated</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Issued</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
             <a
               href="/wallet"
               className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
             >
-              Open
+              My Wallet
             </a>
           </div>
         </div>

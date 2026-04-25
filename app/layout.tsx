@@ -8,7 +8,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
+    <html lang="en">
       <head>
         <Script
           id="gtm-script"
@@ -52,3 +52,4 @@ export default function RootLayout({
     </html>
   );
 }
+

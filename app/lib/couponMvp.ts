@@ -1,9 +1,9 @@
-import { randomBytes } from "crypto";
+﻿import { randomBytes } from "crypto";
 
-export const COUPON_SCORE_THRESHOLD = 80;
+export const COUPON_SCORE_THRESHOLD = 30;
 export const DEFAULT_DISCOUNT_AMOUNT = 3000;
 export const DEFAULT_EXPIRY_DAYS = 14;
-export const COUPON_NAME = "3,000원 할인 쿠폰";
+export const COUPON_NAME = "3,000 KRW Off Coupon";
 export const COUPON_REWARD_TYPE = "score_discount";
 export const COUPON_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const COUPON_CODE_LENGTH = 8;
@@ -69,14 +69,14 @@ export function getCouponStatus(row: {
 }
 
 export function getCouponReason(status: CouponLookupStatus) {
-  if (status === "unused") return "사용 가능한 쿠폰입니다.";
-  if (status === "used") return "이미 사용된 쿠폰입니다.";
-  if (status === "expired") return "만료된 쿠폰입니다.";
-  return "존재하지 않는 쿠폰입니다.";
+  if (status === "unused") return "This coupon is valid.";
+  if (status === "used") return "This coupon has already been used.";
+  if (status === "expired") return "This coupon has expired.";
+  return "This coupon does not exist.";
 }
 
 export function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("ko-KR", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "KRW",
     maximumFractionDigits: 0,
@@ -87,7 +87,7 @@ export function formatDateTime(value: string | null | undefined) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);

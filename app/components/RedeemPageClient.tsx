@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatCouponExpiry, type CouponState } from "../lib/coupons";
 
 type RedeemCoupon = {
@@ -19,6 +19,8 @@ type RedeemResponse = {
   redeemedNow?: boolean;
   coupon?: RedeemCoupon;
 };
+
+const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 
 function stateLabel(state: CouponState) {
   if (state === "valid") return "Valid";
@@ -77,6 +79,54 @@ export default function RedeemPageClient({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const couponStatus = data.coupon?.status;
+    const shouldSyncHistory =
+      Boolean(data.coupon) &&
+      (couponStatus === "redeemed" || couponStatus === "expired" || data.state === "already_redeemed" || data.state === "expired");
+
+    if (!shouldSyncHistory) return;
+
+    try {
+      const raw = window.localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const nextCoupons = parsed.map((coupon) => {
+            if (!coupon || coupon.redeemToken !== token) return coupon;
+            return {
+              ...coupon,
+              status: couponStatus === "expired" || data.state === "expired" ? "expired" : "redeemed",
+              state: data.state === "expired" ? "expired" : "already_redeemed",
+              redeemedAt: data.coupon?.redeemedAt || new Date().toISOString(),
+              redeemedStaffName: data.coupon?.redeemedStaffName || null,
+              redeemedStoreName: data.coupon?.redeemedStoreName || null,
+            };
+          });
+          window.localStorage.setItem(LOCAL_WALLET_STORAGE_KEY, JSON.stringify(nextCoupons));
+        }
+      }
+    } catch {
+      // Ignore local wallet sync failures and continue to the wallet page.
+    }
+
+    if (!data.redeemedNow) return;
+
+    const timer = window.setTimeout(() => {
+      window.location.href = "/wallet?tab=history";
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [
+    data.coupon,
+    data.coupon?.redeemedAt,
+    data.coupon?.redeemedStaffName,
+    data.coupon?.redeemedStoreName,
+    data.coupon?.status,
+    data.redeemedNow,
+    data.state,
+    token,
+  ]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
@@ -153,10 +203,13 @@ export default function RedeemPageClient({
 
           {error ? <p className="mt-3 text-sm font-bold text-[var(--yl-primary-soft)]">{error}</p> : null}
           {data.redeemedNow ? (
-            <p className="mt-3 text-sm font-bold text-[#3f6b13]">Coupon redeemed successfully.</p>
+            <p className="mt-3 text-sm font-bold text-[#3f6b13]">
+              Coupon redeemed successfully. Moving this reward to your history...
+            </p>
           ) : null}
         </section>
       </div>
     </main>
   );
 }
+

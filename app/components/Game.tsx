@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { trackEvent } from "../lib/gtag";
+import { InfoModal, ALL_INFO_CARDS } from "./InfoModal";
 
 type CharId = "green" | "berry" | "sprinkle";
 type GameMode = "free" | "mission" | "timeAttack";
@@ -217,6 +218,7 @@ export default function Game({
   const [finalCupLoadFailed, setFinalCupLoadFailed] = useState(false);
 
   const [collectedToppings, setCollectedToppings] = useState<CaughtItem[]>([]);
+  const [showRules, setShowRules] = useState(false);
   const visibleLives = Math.min(lives, MAX_LIVES);
   const extraLives = Math.max(0, lives - MAX_LIVES);
 
@@ -437,6 +439,7 @@ export default function Game({
 
   useEffect(() => {
     if (!startSignal) return;
+    setShowRules(false);
     start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startSignal]);
@@ -922,6 +925,12 @@ export default function Game({
 
   return (
     <main className="h-full min-h-full bg-gradient-to-b from-pink-100 to-blue-100 flex items-start sm:items-center justify-center overflow-y-auto p-2 sm:p-4">
+      {showRules && (
+        <InfoModal
+          cards={ALL_INFO_CARDS}
+          onClose={() => setShowRules(false)}
+        />
+      )}
       <style jsx global>{`
         @keyframes shake {
           0% {
@@ -1014,7 +1023,8 @@ export default function Game({
       `}</style>
 
       <div className="w-full max-w-[430px] py-1 sm:py-0">
-        <div className="mb-3 flex gap-2">
+        <div className="mb-3 flex items-start gap-2">
+          <div className="flex flex-1 gap-2">
           {/* Score */}
           <div className={`flex flex-col items-center rounded-2xl py-2 shadow ${mode === "timeAttack" ? "flex-[2] bg-[var(--yl-primary)]" : "flex-1 bg-white/90 ring-1 ring-[var(--yl-card-border)]"}`}>
             <span className={`text-xs font-black uppercase tracking-[0.14em] ${mode === "timeAttack" ? "text-white/85" : "text-[var(--yl-primary)]"}`}>
@@ -1077,6 +1087,16 @@ export default function Game({
               </span>
             </div>
           )}
+          </div>
+          {/* Rules button */}
+          <button
+            type="button"
+            onClick={() => setShowRules(true)}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white/90 font-black text-[var(--yl-primary)] shadow ring-1 ring-[var(--yl-card-border)] text-lg"
+            aria-label="Game rules"
+          >
+            ?
+          </button>
         </div>
 
         {/* Time Attack progress bar */}
@@ -1248,7 +1268,7 @@ export default function Game({
                 <img
                   src={`/${character}.png`}
                   alt={character}
-                  className="w-20 h-20 select-none pointer-events-none drop-shadow"
+                  className="h-20 w-20 select-none pointer-events-none object-contain drop-shadow"
                   draggable={false}
                 />
               </div>
@@ -1361,7 +1381,7 @@ export default function Game({
                 src={`/${character}.png`}
                 alt="character"
                 draggable={false}
-                className="w-24 select-none"
+                className="h-24 w-24 select-none object-contain"
               />
             </div>
           )}

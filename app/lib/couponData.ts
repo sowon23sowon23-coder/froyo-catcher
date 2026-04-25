@@ -4,7 +4,6 @@ import { getServerSupabase } from "./serverSupabase";
 import {
   COUPON_NAME,
   COUPON_REWARD_TYPE,
-  DEFAULT_DISCOUNT_AMOUNT,
   getCouponReason,
   getCouponStatus,
   normalizeCouponCode,
@@ -12,8 +11,12 @@ import {
 } from "./couponMvp";
 
 export const issueCouponSchema = z.object({
-  userId: z.string().trim().min(1).max(120).nullable().optional(),
   score: z.number().int().nonnegative(),
+  gameSessionId: z.string().uuid(),
+  mode: z.enum(["free", "mission", "timeAttack"]).default("free"),
+  nickname: z.string().trim().min(2).max(12).optional(),
+  contactType: z.enum(["phone", "email"]).optional(),
+  contactValue: z.string().trim().min(3).max(160).optional(),
 });
 
 export const validateCouponSchema = z.object({
@@ -43,7 +46,7 @@ export const loginSchema = z.discriminatedUnion("role", [
 export const adminCreateCouponSchema = z.object({
   userId: z.string().trim().max(120).optional().or(z.literal("")),
   couponName: z.string().trim().min(2).max(120).default(COUPON_NAME),
-  discountAmount: z.number().int().positive().default(DEFAULT_DISCOUNT_AMOUNT),
+  discountAmount: z.number().int().min(1).max(100).default(3),
   expiresAt: z.string().datetime().optional(),
 });
 

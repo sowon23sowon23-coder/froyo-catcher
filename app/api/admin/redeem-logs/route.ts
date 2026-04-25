@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow } from "../../../lib/couponData";
 import { requirePortalRole } from "../../../lib/portalAuth";
@@ -14,7 +14,7 @@ function escapeCsv(value: string | number | null | undefined) {
 export async function GET(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) {
-    return NextResponse.json({ error: "관리자 로그인이 필요합니다." }, { status: 401 });
+    return NextResponse.json({ error: "Admin login is required." }, { status: 401 });
   }
 
   const page = Math.max(1, Number(req.nextUrl.searchParams.get("page") || 1));
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     if (result.error) {
       console.error("Failed to load redeem logs", result.error);
-      return NextResponse.json({ error: "리딤 로그를 불러오지 못했습니다." }, { status: 500 });
+      return NextResponse.json({ error: "Failed to load redeem logs." }, { status: 500 });
     }
 
     const rows = result.data ?? [];
@@ -71,6 +71,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("Admin redeem logs route error", error);
-    return NextResponse.json({ error: "리딤 로그 조회 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "An error occurred while loading redeem logs." }, { status: 500 });
   }
 }

@@ -1,14 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCouponState, getWalletCouponStatus } from "../../../lib/coupons";
+import { getCouponState, getWalletCouponStatus, resolveCouponReward } from "../../../lib/coupons";
+import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
+import { getServerSupabase } from "../../../lib/serverSupabase";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuthenticatedEntry(req);
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  let supabase: any;
+  let entry: { id: number; nickname: string };
+
+  if (auth.ok) {
+    supabase = auth.supabase;
+    entry = auth.entry;
+  } else {
+    // Fallback: the kiosk client may send contact credentials from localStorage
+    // when a session cookie is absent (e.g. page reload after session expiry).
+    // Both nickname AND a valid normalized contact value are required; a match
+    // must exist in the entries table. This prevents unauthenticated enumeration
+    // by nickname or contact alone.
+    const nickname = String(req.nextUrl.searchParams.get("nickname") || "").trim();
+    const contactType = String(req.nextUrl.searchParams.get("contactType") || "").trim() as EntryContactType;
+    const contactValue = String(req.nextUrl.searchParams.get("contactValue") || "").trim();
+
+    // Reject fallback if basic required fields are missing or contactType is invalid.
+    if (!nickname || !contactValue || (contactType !== "phone" && contactType !== "email")) {
+      const failedAuth = auth as Extract<typeof auth, { ok: false }>;
+      return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
+    }
+
+    const normalizedContact =
+      contactType === "phone"
+        ? normalizeUsPhone(contactValue)
+        : normalizeEmail(contactValue);
+
+    if (!normalizedContact) {
+      return NextResponse.json({ error: "Login session is required." }, { status: 401 });
+    }
+
+    supabase = getServerSupabase();
+    if (!supabase) {
+      return NextResponse.json({ error: "Server is not configured for entries." }, { status: 500 });
+    }
+
+    // Must match BOTH contact_value AND nickname to prevent cross-account access.
+    const fallbackEntry = await supabase
+      .from("entries")
+      .select("id,nickname_display,nickname_key")
+      .eq("contact_type", contactType)
+      .eq("contact_value", normalizedContact)
+      .maybeSingle();
+
+    if (fallbackEntry.error || !fallbackEntry.data?.id) {
+      return NextResponse.json({ error: "Login session is required." }, { status: 401 });
+    }
+
+    // Verify nickname matches the entry — prevents a known contact value from
+    // being used to access a different account.
+    const storedNicknameKey = String(fallbackEntry.data.nickname_key || "").toLowerCase();
+    const providedNicknameKey = nickname.toLowerCase();
+    if (storedNicknameKey !== providedNicknameKey) {
+      return NextResponse.json({ error: "Login session is required." }, { status: 401 });
+    }
+
+    entry = {
+      id: Number(fallbackEntry.data.id),
+      nickname: String(fallbackEntry.data.nickname_display || nickname).trim() || nickname,
+    };
   }
 
-  const { supabase, entry } = auth;
+  const todayMidnightUtc = new Date();
+  todayMidnightUtc.setUTCHours(0, 0, 0, 0);
 
   const rows = await supabase
     .from("wallet_coupons")
@@ -21,6 +82,7 @@ export async function GET(req: NextRequest) {
   }
 
   const coupons = (rows.data ?? []).map((row) => {
+    const resolvedReward = resolveCouponReward(row.reward_type, row.title, row.description);
     const state = getCouponState({
       status: row.status,
       expiresAt: row.expires_at,
@@ -28,9 +90,9 @@ export async function GET(req: NextRequest) {
     });
     return {
       id: Number(row.id),
-      rewardType: row.reward_type,
-      title: row.title,
-      description: row.description,
+      rewardType: resolvedReward?.type || row.reward_type,
+      title: row.title || resolvedReward?.title || "Coupon Discount",
+      description: row.description || resolvedReward?.description || "",
       status: getWalletCouponStatus({
         status: row.status,
         expiresAt: row.expires_at,
@@ -46,10 +108,18 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  // canActivateToday: false if a coupon issued today has already been explicitly expired
+  // (i.e., the customer activated the QR today). status='expired' in DB means the expire
+  // endpoint was called (customer activation), not a natural time expiry.
+  const activatedTodayCount = (rows.data ?? []).filter(
+    (row) => row.status === "expired" && row.created_at >= todayMidnightUtc.toISOString()
+  ).length;
+
   return NextResponse.json({
     nickname: entry.nickname,
     coupons,
     activeCoupons: coupons.filter((coupon) => coupon.status === "active"),
     historyCoupons: coupons.filter((coupon) => coupon.status !== "active"),
+    canActivateToday: activatedTodayCount < 1,
   });
 }

@@ -1,26 +1,50 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/couponData";
 import {
-  buildRedeemUrl,
-  COUPON_NAME,
-  COUPON_REWARD_TYPE,
-  COUPON_SCORE_THRESHOLD,
-  createCouponCode,
-  DEFAULT_DISCOUNT_AMOUNT,
   getCouponExpiryIso,
-} from "../../../lib/couponMvp";
+  getEligibleCouponReward,
+  resolveCouponReward,
+} from "../../../lib/coupons";
+import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
+import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
+import { COUPON_SCORE_THRESHOLD, createCouponCode } from "../../../lib/couponMvp";
 
-async function createUniqueCouponCode() {
-  const supabase = getServiceSupabaseOrThrow();
-
+async function createUniqueRedeemToken(supabase: any) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const code = createCouponCode();
-    const existing = await supabase.from("coupons").select("id").eq("code", code).maybeSingle();
-    if (!existing.data?.id) return code;
+    const token = createCouponCode();
+    const existing = await supabase.from("wallet_coupons").select("id").eq("redeem_token", token).maybeSingle();
+    if (!existing.data?.id) return token;
   }
 
-  throw new Error("Failed to create a unique coupon code.");
+  throw new Error("Failed to create a unique redeem token.");
+}
+
+function normalizeContactValue(contactType: EntryContactType, value: string) {
+  return contactType === "phone" ? normalizeUsPhone(value) : normalizeEmail(value);
+}
+
+function serializeIssuedCoupon(row: {
+  id?: number | null;
+  title?: string | null;
+  description?: string | null;
+  reward_type?: string | null;
+  expires_at?: string | null;
+  redeem_token?: string | null;
+  created_at?: string | null;
+}) {
+  const reward = resolveCouponReward(row.reward_type, row.title, row.description);
+
+  return {
+    id: Number(row.id || 0),
+    title: String(row.title || reward?.title || ""),
+    couponName: String(row.title || reward?.title || ""),
+    description: String(row.description || reward?.description || ""),
+    rewardType: String(reward?.type || row.reward_type || ""),
+    expiresAt: String(row.expires_at || ""),
+    issuedAt: String(row.created_at || ""),
+    redeemToken: String(row.redeem_token || ""),
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -29,69 +53,166 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청 본문입니다." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
   const parsed = issueCouponSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "userId와 score를 다시 확인해 주세요." }, { status: 400 });
+    return NextResponse.json({ error: "Please check the userId and score." }, { status: 400 });
   }
 
-  const { score, userId } = parsed.data;
-  if (score < COUPON_SCORE_THRESHOLD) {
+  const auth = await requireAuthenticatedEntry(req);
+  let supabase: any;
+  let entry: { id: number; nickname: string };
+
+  if (auth.ok) {
+    supabase = auth.supabase;
+    entry = auth.entry;
+  } else {
+    const nickname = String(parsed.data.nickname || "").trim();
+    const contactType = parsed.data.contactType;
+    const contactValue = String(parsed.data.contactValue || "").trim();
+    const normalizedContact =
+      contactType && contactValue ? normalizeContactValue(contactType, contactValue) : null;
+
+    if (!nickname) {
+      const failedAuth = auth as Extract<typeof auth, { ok: false }>;
+      return NextResponse.json({ error: failedAuth.error }, { status: failedAuth.status });
+    }
+
+    supabase = getServiceSupabaseOrThrow();
+    let resolvedEntry: { id?: number | null; nickname_display?: string | null } | null = null;
+    let fallbackError: { message?: string } | null = null;
+
+    if (contactType && normalizedContact) {
+      const fallbackEntry = await supabase
+        .from("entries")
+        .select("id,nickname_display")
+        .eq("contact_type", contactType)
+        .eq("contact_value", normalizedContact)
+        .maybeSingle();
+
+      if (fallbackEntry.error) {
+        fallbackError = fallbackEntry.error;
+      } else if (fallbackEntry.data?.id) {
+        resolvedEntry = fallbackEntry.data;
+      }
+    }
+
+    if (!resolvedEntry?.id) {
+      const nicknameEntry = await supabase
+        .from("entries")
+        .select("id,nickname_display")
+        .eq("nickname_key", nickname.toLowerCase())
+        .maybeSingle();
+
+      if (nicknameEntry.error) {
+        fallbackError = nicknameEntry.error;
+      } else if (nicknameEntry.data?.id) {
+        resolvedEntry = nicknameEntry.data;
+      }
+    }
+
+    if (!resolvedEntry?.id) {
+      if (fallbackError) {
+        console.error("Coupon issue fallback entry lookup failed", fallbackError);
+      }
+      return NextResponse.json({ error: "Login session is required." }, { status: 401 });
+    }
+
+    entry = {
+      id: Number(resolvedEntry.id),
+      nickname: String(resolvedEntry.nickname_display || nickname).trim() || nickname,
+    };
+  }
+
+  const { score, gameSessionId, mode } = parsed.data;
+  const reward = getEligibleCouponReward(score);
+
+  if (!reward || score < COUPON_SCORE_THRESHOLD) {
     return NextResponse.json({
       eligible: false,
-      reason: `점수 ${COUPON_SCORE_THRESHOLD}점 이상일 때 쿠폰이 발급됩니다.`,
+      issued: false,
+      reason: `Coupons are issued only when the score is ${COUPON_SCORE_THRESHOLD} or higher.`,
     });
   }
 
   try {
-    const supabase = getServiceSupabaseOrThrow();
-    const code = await createUniqueCouponCode();
     const expiresAt = getCouponExpiryIso();
-    const inserted = await supabase
-      .from("coupons")
-      .insert([
-        {
-          code,
-          user_id: userId || null,
-          coupon_name: COUPON_NAME,
-          reward_type: COUPON_REWARD_TYPE,
-          discount_amount: DEFAULT_DISCOUNT_AMOUNT,
-          status: "unused",
-          issued_at: new Date().toISOString(),
-          expires_at: expiresAt,
-        },
-      ])
-      .select("*")
-      .single();
 
-    if (inserted.error) {
-      console.error("Coupon issue failed", inserted.error);
-      return NextResponse.json({ error: "쿠폰 발급에 실패했습니다." }, { status: 500 });
+    // Policy: max 2 coupons issued per account per calendar day (UTC)
+    const todayMidnightUtc = new Date();
+    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+
+    const issuedTodayResult = await supabase
+      .from("wallet_coupons")
+      .select("id", { count: "exact", head: true })
+      .eq("entry_id", entry.id)
+      .gte("created_at", todayMidnightUtc.toISOString());
+
+    if (issuedTodayResult.error) {
+      console.error("Daily issue count lookup failed", issuedTodayResult.error);
+      return NextResponse.json({ error: "Failed to check daily issue limit." }, { status: 500 });
     }
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
-    const redeemUrl = buildRedeemUrl(origin, code);
+    const issuedTodayCount = issuedTodayResult.count ?? 0;
+    if (issuedTodayCount >= 2) {
+      return NextResponse.json({
+        eligible: true,
+        issued: false,
+        reason: "Daily issuance limit reached. You can receive up to 2 coupons per day.",
+      });
+    }
+
+    const evaluation = await supabase
+      .from("coupon_reward_evaluations")
+      .insert([{ entry_id: entry.id, game_session_id: gameSessionId, game_mode: mode, score, reward_type: reward.type }])
+      .select("id")
+      .single();
+
+    if (evaluation.error || !evaluation.data?.id) {
+      console.error("Coupon evaluation failed", evaluation.error);
+      return NextResponse.json({
+        error: "Failed to create coupon evaluation.",
+        detail: evaluation.error?.message ?? null,
+        hint: evaluation.error?.hint ?? null,
+      }, { status: 500 });
+    }
+
+    const redeemToken = await createUniqueRedeemToken(supabase);
+    const walletCoupon = await supabase
+      .from("wallet_coupons")
+      .insert([{
+        evaluation_id: Number(evaluation.data.id),
+        entry_id: entry.id,
+        game_session_id: gameSessionId,
+        reward_type: reward.type,
+        title: reward.title,
+        description: reward.description,
+        status: "active",
+        redeem_token: redeemToken,
+        expires_at: expiresAt,
+      }])
+      .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
+      .single();
+
+    if (walletCoupon.error || !walletCoupon.data?.id) {
+      console.error("Wallet coupon issue failed", walletCoupon.error);
+      return NextResponse.json({
+        error: "Failed to issue wallet coupon.",
+        detail: walletCoupon.error?.message ?? null,
+        hint: walletCoupon.error?.hint ?? null,
+      }, { status: 500 });
+    }
 
     return NextResponse.json({
       eligible: true,
-      coupon: {
-        id: inserted.data.id,
-        code,
-        couponName: COUPON_NAME,
-        rewardType: COUPON_REWARD_TYPE,
-        discountAmount: DEFAULT_DISCOUNT_AMOUNT,
-        status: "unused",
-        issuedAt: inserted.data.issued_at,
-        expiresAt,
-        userId: userId || null,
-      },
-      qrPayload: redeemUrl,
-      redeemUrl,
+      issued: true,
+      coupon: serializeIssuedCoupon(walletCoupon.data),
+      qrPayload: reward.fixedQrValue,
     });
   } catch (error) {
     console.error("Coupon issue route error", error);
-    return NextResponse.json({ error: "쿠폰 발급 중 오류가 발생했습니다." }, { status: 500 });
+    return NextResponse.json({ error: "An error occurred while issuing the coupon." }, { status: 500 });
   }
 }

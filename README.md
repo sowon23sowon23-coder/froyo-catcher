@@ -245,9 +245,9 @@ Set the same environment variables in the Vercel project.
 1. Go to `/coupon`, enter `user_123` and `92`, issue a coupon, confirm QR and code are shown.
 2. Log in at `/login` as staff with `pohang_01 / staff_02`, validate the issued code on `/redeem`.
 3. Redeem the coupon once and confirm the page shows redeem time, store ID, staff ID, and optional order number.
-4. Validate the same code again and confirm it shows `이미 사용됨`.
-5. Validate seeded code `YG3X71P9` and confirm it shows `만료됨`.
-6. Validate a random code and confirm it shows `존재하지 않음`.
+4. Validate the same code again and confirm it shows `already used`.
+5. Validate seeded code `YG3X71P9` and confirm it shows `expired`.
+6. Validate a random code and confirm it shows `does not exist`.
 7. Log in as admin and confirm `/admin` shows totals, status counts, recent logs, charts, store usage, and recent coupons.
 8. Download CSV from `/api/admin/redeem-logs?format=csv`.
 

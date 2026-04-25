@@ -2,6 +2,25 @@
 
 import { useEffect } from "react";
 
+function SkeletonRow() {
+  return (
+    <div className="grid grid-cols-[52px_1fr_70px_84px] border-t border-[#f9d7e8] px-4 py-3">
+      <div className="flex items-center">
+        <div className="h-3.5 w-5 animate-pulse rounded bg-[#f0d6e8]" />
+      </div>
+      <div className="flex items-center">
+        <div className="h-3.5 w-28 animate-pulse rounded bg-[#f0d6e8]" />
+      </div>
+      <div className="flex items-center">
+        <div className="h-3.5 w-10 animate-pulse rounded bg-[#f0d6e8]" />
+      </div>
+      <div className="flex items-center justify-end">
+        <div className="h-3.5 w-9 animate-pulse rounded bg-[#f0d6e8]" />
+      </div>
+    </div>
+  );
+}
+
 type CharId = "green" | "berry" | "sprinkle";
 
 export type LeaderRow = {
@@ -141,7 +160,11 @@ export default function LeaderboardModal({
             </div>
 
             {loading && mergedRows.length === 0 ? (
-              <div className="px-4 py-6 text-sm font-semibold text-[#8b6178]">Loading...</div>
+              <div className="bg-white">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonRow key={i} />
+                ))}
+              </div>
             ) : mergedRows.length === 0 ? (
               <div className="px-4 py-6 text-sm font-semibold text-[#8b6178]">No scores yet.</div>
             ) : (
@@ -171,12 +194,14 @@ export default function LeaderboardModal({
                       </div>
                       <div className="flex items-center gap-1 text-xs font-bold text-[var(--yl-ink-muted)]">
                         {r.character ? (
-                          <img
-                            src={`/${r.character}.png`}
-                            alt={r.character}
-                            className="h-5 w-5 rounded-full bg-white"
-                            draggable={false}
-                          />
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white">
+                            <img
+                              src={`/${r.character}.png`}
+                              alt={r.character}
+                              className="h-4 w-4 object-contain"
+                              draggable={false}
+                            />
+                          </span>
                         ) : null}
                         <span className="truncate">{characterLabel(r.character)}</span>
                       </div>
@@ -186,14 +211,6 @@ export default function LeaderboardModal({
                 })}
               </div>
             )}
-
-            {loading ? (
-              <div className="absolute inset-x-0 bottom-0 top-[45px] z-10 flex items-center justify-center bg-white/72 backdrop-blur-[2px]">
-                <div className="rounded-full border border-[var(--yl-card-border)] bg-white px-4 py-2 text-sm font-black text-[var(--yl-primary)] shadow-sm">
-                  Updating leaderboard...
-                </div>
-              </div>
-            ) : null}
           </div>
 
           <button
