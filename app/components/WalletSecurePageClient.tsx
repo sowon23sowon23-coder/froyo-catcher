@@ -273,16 +273,16 @@ function CouponPolicyCard() {
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Daily Limits</p>
           <ul className="mb-4 list-inside list-disc space-y-1">
             <li>You can earn up to <span className="font-black text-[var(--yl-ink-strong)]">2 coupons</span> per day.</li>
-            <li>You can activate (use) <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> per day.</li>
+            <li>You can use <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> per day.</li>
             <li>Each coupon expires <span className="font-black text-[var(--yl-ink-strong)]">24 hours</span> after it is issued.</li>
           </ul>
 
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Redeeming at the Store</p>
           <ul className="mb-4 list-inside list-disc space-y-1">
             <li>At checkout, open this wallet and show your coupon to a staff member.</li>
-            <li>Ask them to tap <span className="font-black text-[var(--yl-ink-strong)]">Use</span> and a live QR code will appear.</li>
-            <li>The QR is valid for <span className="font-black text-[var(--yl-ink-strong)]">15 seconds</span>. The staff member scans it to apply your discount.</li>
-            <li>Once activated, the coupon is consumed and cannot be used again.</li>
+            <li>Ask the staff to tap <span className="font-black text-[var(--yl-ink-strong)]">Use</span> — a live QR code will appear.</li>
+            <li>The QR is valid for <span className="font-black text-[var(--yl-ink-strong)]">15 seconds</span> for the staff to scan and apply your discount.</li>
+            <li>Once used, the coupon cannot be reused.</li>
           </ul>
 
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Coupon Tiers</p>
