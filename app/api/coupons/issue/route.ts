@@ -156,11 +156,11 @@ export async function POST(req: NextRequest) {
     }
 
     const issuedTodayCount = issuedTodayResult.count ?? 0;
-    if (issuedTodayCount >= 2) {
+    if (issuedTodayCount >= 1) {
       return NextResponse.json({
         eligible: true,
         issued: false,
-        reason: "Daily issuance limit reached. You can receive up to 2 coupons per day.",
+        reason: "Daily issuance limit reached. You can receive 1 coupon per day.",
       });
     }
 

@@ -272,7 +272,7 @@ function CouponPolicyCard() {
         <div className="border-t border-[var(--yl-card-border)] px-5 pb-5 pt-4 text-xs font-semibold text-[var(--yl-ink-muted)]">
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Daily Limits</p>
           <ul className="mb-4 list-inside list-disc space-y-1">
-            <li>You can earn up to <span className="font-black text-[var(--yl-ink-strong)]">2 coupons</span> per day.</li>
+            <li>You can earn <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> per day.</li>
             <li>You can use <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> per day.</li>
             <li>Each coupon expires <span className="font-black text-[var(--yl-ink-strong)]">24 hours</span> after it is issued.</li>
           </ul>
