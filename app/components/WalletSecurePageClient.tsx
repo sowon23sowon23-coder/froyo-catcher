@@ -70,7 +70,7 @@ function inferDiscountPercent(coupon: WalletCoupon) {
 
   const candidates = [coupon.title, coupon.description];
   for (const text of candidates) {
-    const match = String(text || "").match(/\b(3|5|10|15)\s*%/);
+    const match = String(text || "").match(/\b(3|5|10|15|20)\s*%/);
     if (match) {
       return Number(match[1]);
     }
@@ -291,6 +291,7 @@ function CouponPolicyCard() {
             <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">50+ pts → 5% OFF</span>
             <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">100+ pts → 10% OFF</span>
             <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">150+ pts → 15% OFF</span>
+            <span className="col-span-2 rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">200+ pts → 20% OFF</span>
           </div>
         </div>
       )}
