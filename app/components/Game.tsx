@@ -202,6 +202,8 @@ export default function Game({
   const [difficultyLevel, setDifficultyLevel] = useState(0);
   const [difficultyNotice, setDifficultyNotice] = useState<string | null>(null);
   const [levelUpPraise, setLevelUpPraise] = useState<string | null>(null);
+  const [couponMilestoneNotice, setCouponMilestoneNotice] = useState<string | null>(null);
+  const [couponMilestonePraise, setCouponMilestonePraise] = useState<string | null>(null);
   const [levelUpFlash, setLevelUpFlash] = useState(false);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [playerX, setPlayerX] = useState(50);
@@ -233,12 +235,15 @@ export default function Game({
   const loopRef = useRef<number | null>(null);
   const noticeTimeoutRef = useRef<number | null>(null);
   const levelCelebrateTimeoutRef = useRef<number | null>(null);
+  const couponNoticeTimeoutRef = useRef<number | null>(null);
+  const couponPraiseTimeoutRef = useRef<number | null>(null);
   const playerXRef = useRef(50);
   const gameOverFiredRef = useRef(false);
   const difficultyLevelRef = useRef(0);
   const scoreRef = useRef(0);
   const collectedRef = useRef<CaughtItem[]>([]);
   const leaderboardOpenedRef = useRef(false);
+  const reachedCouponThresholdsRef = useRef<Set<number>>(new Set());
   const lastWarningVibrateRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const catchStreakRef = useRef(0);
@@ -265,6 +270,12 @@ export default function Game({
       }
       if (levelCelebrateTimeoutRef.current !== null) {
         clearTimeout(levelCelebrateTimeoutRef.current);
+      }
+      if (couponNoticeTimeoutRef.current !== null) {
+        clearTimeout(couponNoticeTimeoutRef.current);
+      }
+      if (couponPraiseTimeoutRef.current !== null) {
+        clearTimeout(couponPraiseTimeoutRef.current);
       }
     },
     []
@@ -388,6 +399,8 @@ export default function Game({
     setDifficultyLevel(0);
     setDifficultyNotice(null);
     setLevelUpPraise(null);
+    setCouponMilestoneNotice(null);
+    setCouponMilestonePraise(null);
     setShareNotice(null);
     setPlayerX(50);
     setItems([]);
@@ -399,6 +412,8 @@ export default function Game({
     catchStreakRef.current = 0;
     timeUpSfxPlayedRef.current = false;
     difficultyLevelRef.current = 0;
+    scoreRef.current = 0;
+    reachedCouponThresholdsRef.current = new Set();
     if (noticeTimeoutRef.current !== null) {
       clearTimeout(noticeTimeoutRef.current);
       noticeTimeoutRef.current = null;
@@ -406,6 +421,14 @@ export default function Game({
     if (levelCelebrateTimeoutRef.current !== null) {
       clearTimeout(levelCelebrateTimeoutRef.current);
       levelCelebrateTimeoutRef.current = null;
+    }
+    if (couponNoticeTimeoutRef.current !== null) {
+      clearTimeout(couponNoticeTimeoutRef.current);
+      couponNoticeTimeoutRef.current = null;
+    }
+    if (couponPraiseTimeoutRef.current !== null) {
+      clearTimeout(couponPraiseTimeoutRef.current);
+      couponPraiseTimeoutRef.current = null;
     }
 
     trackEvent({ action: "game_start", category: "game", label: mode, value: 0 });
@@ -473,6 +496,47 @@ export default function Game({
       setLevelUpPraise(null);
       levelCelebrateTimeoutRef.current = null;
     }, 1800);
+  }, [mode, phase, score]);
+
+  useEffect(() => {
+    if (mode !== "free" || phase !== "play") return;
+
+    const newlyReachedRewards = [...COUPON_REWARDS]
+      .sort((a, b) => a.threshold - b.threshold)
+      .filter(
+        (reward) =>
+          score >= reward.threshold && !reachedCouponThresholdsRef.current.has(reward.threshold)
+      );
+
+    if (newlyReachedRewards.length === 0) return;
+
+    for (const reward of newlyReachedRewards) {
+      reachedCouponThresholdsRef.current.add(reward.threshold);
+    }
+
+    const latestReward = newlyReachedRewards[newlyReachedRewards.length - 1];
+    setCouponMilestoneNotice(
+      `${latestReward.threshold} points reached -> ${latestReward.discountPercent}% coupon unlocked!`
+    );
+    setCouponMilestonePraise("Keep going for the next reward.");
+    setLevelUpFlash(true);
+    window.setTimeout(() => setLevelUpFlash(false), 320);
+
+    if (couponNoticeTimeoutRef.current !== null) {
+      clearTimeout(couponNoticeTimeoutRef.current);
+    }
+    couponNoticeTimeoutRef.current = window.setTimeout(() => {
+      setCouponMilestoneNotice(null);
+      couponNoticeTimeoutRef.current = null;
+    }, 1800);
+
+    if (couponPraiseTimeoutRef.current !== null) {
+      clearTimeout(couponPraiseTimeoutRef.current);
+    }
+    couponPraiseTimeoutRef.current = window.setTimeout(() => {
+      setCouponMilestonePraise(null);
+      couponPraiseTimeoutRef.current = null;
+    }, 2200);
   }, [mode, phase, score]);
 
   const PLAYER_W = 80;
@@ -1240,16 +1304,20 @@ export default function Game({
             />
           )}
 
-          {mode === "free" && phase === "play" && difficultyNotice && (
+          {mode === "free" && phase === "play" && (couponMilestoneNotice || difficultyNotice) && (
             <div className="level-toast absolute top-4 left-1/2 z-30 w-[min(88%,320px)] -translate-x-1/2 rounded-[1.4rem] border border-white/65 bg-[linear-gradient(135deg,rgba(176,27,101,0.95),rgba(255,132,76,0.92))] px-4 py-3 text-white shadow-[0_18px_38px_rgba(113,15,68,0.28)]">
               <div className="flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-white/75">
                 <span>*</span>
-                <span>Momentum Boost</span>
+                <span>{couponMilestoneNotice ? "Coupon Milestone" : "Momentum Boost"}</span>
                 <span>*</span>
               </div>
-              <div className="mt-1 text-center text-base font-black leading-tight">{difficultyNotice}</div>
-              {levelUpPraise ? (
-                <div className="mt-1 text-center text-xs font-bold text-white/88">{levelUpPraise}</div>
+              <div className="mt-1 text-center text-base font-black leading-tight">
+                {couponMilestoneNotice ?? difficultyNotice}
+              </div>
+              {(couponMilestonePraise || levelUpPraise) ? (
+                <div className="mt-1 text-center text-xs font-bold text-white/88">
+                  {couponMilestonePraise ?? levelUpPraise}
+                </div>
               ) : null}
             </div>
           )}
