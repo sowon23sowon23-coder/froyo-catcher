@@ -202,6 +202,7 @@ export default function Game({
   const [difficultyLevel, setDifficultyLevel] = useState(0);
   const [difficultyNotice, setDifficultyNotice] = useState<string | null>(null);
   const [levelUpPraise, setLevelUpPraise] = useState<string | null>(null);
+  const [levelUpFlash, setLevelUpFlash] = useState(false);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [playerX, setPlayerX] = useState(50);
   const [missionTargets, setMissionTargets] = useState<MissionItemImage[]>([]);
@@ -454,6 +455,8 @@ export default function Game({
     setDifficultyLevel(nextLevel);
     setDifficultyNotice(`Level Up! Lv.${nextLevel}`);
     setLevelUpPraise(LEVEL_UP_PRAISES[(nextLevel - 1) % LEVEL_UP_PRAISES.length]);
+    setLevelUpFlash(true);
+    window.setTimeout(() => setLevelUpFlash(false), 320);
 
     if (noticeTimeoutRef.current !== null) {
       clearTimeout(noticeTimeoutRef.current);
@@ -1225,6 +1228,10 @@ export default function Game({
             <div className="pointer-events-none absolute inset-0 z-20 bg-red-500/14" />
           )}
 
+          {levelUpFlash && (
+            <div className="pointer-events-none absolute inset-0 z-25 rounded-3xl bg-white/50 transition-opacity duration-300" />
+          )}
+
           {mode === "timeAttack" && phase === "play" && timeLeft <= 10 && timeLeft > 0 && (
             <div
               className={`pointer-events-none absolute inset-0 z-10 ${
@@ -1308,22 +1315,47 @@ export default function Game({
                   {mode === "free" && (() => {
                     const earned = getEligibleCouponReward(score);
                     const next = COUPON_REWARDS.slice().reverse().find((r) => score < r.threshold) ?? null;
-                    if (earned) {
-                      return (
-                        <div className="mb-3 rounded-2xl border border-[#cfe7c4] bg-[#f4ffef] px-4 py-2 text-center text-sm font-black text-[#2f6c1a]">
-                          🎉 {earned.discountPercent}% 할인 쿠폰 획득!
+                    return (
+                      <div className="mb-3 w-full rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-3">
+                        <p className="mb-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+                          Coupon Progress
+                        </p>
+                        <div className="flex items-center justify-between gap-1">
+                          {COUPON_REWARDS.slice().reverse().map((r) => {
+                            const unlocked = score >= r.threshold;
+                            return (
+                              <div key={r.type} className="flex flex-1 flex-col items-center gap-0.5">
+                                <span className={`text-[9px] font-black ${unlocked ? "text-[#2f6c1a]" : "text-[var(--yl-ink-muted)]"}`}>
+                                  {r.discountPercent}%
+                                </span>
+                                <div className={`h-1.5 w-full rounded-full ${unlocked ? "bg-[#4caf50]" : "bg-[var(--yl-card-border)]"}`} />
+                                <span className={`text-[8px] font-bold ${unlocked ? "text-[#2f6c1a]" : "text-[var(--yl-ink-muted)]"}`}>
+                                  {r.threshold}pt
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    }
-                    if (next) {
-                      return (
-                        <div className="mb-3 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-2 text-center text-xs font-bold text-[var(--yl-ink-muted)]">
-                          {next.discountPercent}% 쿠폰까지 {next.threshold - score}점 남았어요!
-                        </div>
-                      );
-                    }
-                    return null;
+                        {earned ? (
+                          <p className="mt-2 text-center text-xs font-black text-[#2f6c1a]">
+                            🎉 {earned.discountPercent}% coupon earned!
+                          </p>
+                        ) : next ? (
+                          <p className="mt-2 text-center text-[11px] font-bold text-[var(--yl-ink-muted)]">
+                            {next.threshold - score} more pts for {next.discountPercent}% OFF
+                          </p>
+                        ) : null}
+                      </div>
+                    );
                   })()}
+
+                  <button
+                    type="button"
+                    onClick={start}
+                    className="w-full px-10 py-4 rounded-full bg-[var(--yl-primary)] text-white font-extrabold shadow-lg transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+                  >
+                    Retry
+                  </button>
 
                   {mode === "free" && (
                     <button
@@ -1332,7 +1364,7 @@ export default function Game({
                         leaderboardOpenedRef.current = true;
                         onGameOver?.(score);
                       }}
-                      className="px-10 py-4 rounded-full bg-[var(--yl-primary)] text-white font-extrabold shadow-lg transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+                      className="mt-3 w-full px-10 py-3 rounded-full border border-[var(--yl-primary)] bg-white text-[var(--yl-primary)] font-extrabold shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
                     >
                       Leaderboard
                     </button>
@@ -1340,16 +1372,8 @@ export default function Game({
 
                   <button
                     type="button"
-                    onClick={start}
-                    className="mt-3 px-10 py-4 rounded-full border border-[var(--yl-primary)] bg-white text-[var(--yl-primary)] font-extrabold shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
-                  >
-                    Retry
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={handleShare}
-                    className="mt-3 px-8 py-3 rounded-full border border-[var(--yl-card-border)] bg-white/85 text-[var(--yl-ink-muted)] font-bold transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+                    className="mt-3 w-full px-8 py-3 rounded-full border border-[var(--yl-card-border)] bg-white/85 text-[var(--yl-ink-muted)] font-bold transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
                   >
                     Share With Friends
                   </button>
@@ -1524,7 +1548,7 @@ export default function Game({
               <button
                 type="button"
                 onClick={start}
-                className="px-10 py-4 rounded-full border border-[var(--yl-primary)] bg-white text-[var(--yl-primary)] font-extrabold shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+                className="px-10 py-4 rounded-full bg-[var(--yl-primary)] text-white font-extrabold shadow-lg transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
               >
                 Retry
               </button>
