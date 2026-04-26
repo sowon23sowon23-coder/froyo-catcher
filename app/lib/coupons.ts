@@ -16,7 +16,7 @@ export type CouponRewardDefinition = {
   description: string;
 };
 
-export const COUPON_EXPIRY_HOURS = 48;
+export const COUPON_EXPIRY_HOURS = 24;
 
 export const COUPON_REWARDS: CouponRewardDefinition[] = [
   {

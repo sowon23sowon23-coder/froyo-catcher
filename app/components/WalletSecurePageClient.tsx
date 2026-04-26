@@ -274,7 +274,7 @@ function CouponPolicyCard() {
           <ul className="mb-4 list-inside list-disc space-y-1">
             <li>You can earn up to <span className="font-black text-[var(--yl-ink-strong)]">2 coupons</span> per day.</li>
             <li>You can activate (use) <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> per day.</li>
-            <li>Each coupon expires <span className="font-black text-[var(--yl-ink-strong)]">48 hours</span> after it is issued.</li>
+            <li>Each coupon expires <span className="font-black text-[var(--yl-ink-strong)]">24 hours</span> after it is issued.</li>
           </ul>
 
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Redeeming at the Store</p>

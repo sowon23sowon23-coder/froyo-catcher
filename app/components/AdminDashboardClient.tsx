@@ -413,7 +413,7 @@ function CouponSection({ coupons, loading, creating, userId, discountPercent, on
                   <span className="font-bold text-[#9a6f75]">{r.reward}</span>
                 </div>
               ))}
-              <p className="pt-1 text-xs text-[#c4a0ae]">Maximum 2 per day · Valid for 48 hours</p>
+              <p className="pt-1 text-xs text-[#c4a0ae]">Maximum 2 per day · Valid for 24 hours</p>
             </div>
           </div>
         </div>
