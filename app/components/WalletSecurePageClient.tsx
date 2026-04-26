@@ -145,35 +145,45 @@ async function reconcileActiveCoupons(activeCoupons: WalletCoupon[]) {
 }
 
 function HistoryCard({ coupon }: { coupon: WalletCoupon }) {
-  const statusLabel = coupon.status === "redeemed" ? "Redeemed" : "Expired";
-  const statusClass =
-    coupon.status === "redeemed" ? "bg-[#f3ecff] text-[#6b21a8]" : "bg-[#fff1e8] text-[#9a3412]";
-  const detailText =
-    coupon.status === "redeemed"
-      ? `Redeemed on ${
-          coupon.redeemedAt
-            ? new Date(coupon.redeemedAt).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })
-            : "Unknown date"
-        }.`
-      : `Expired on ${formatCouponExpiry(coupon.expiresAt)}.`;
+  const isRedeemed = coupon.status === "redeemed";
+  const detailText = isRedeemed
+    ? `Redeemed on ${
+        coupon.redeemedAt
+          ? new Date(coupon.redeemedAt).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })
+          : "Unknown date"
+      }.`
+    : `Expired on ${formatCouponExpiry(coupon.expiresAt)}.`;
 
   return (
-    <article className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-white px-4 py-4 shadow-[0_12px_24px_rgba(150,9,83,0.1)]">
+    <article
+      className={`rounded-[1.25rem] border-2 bg-white px-4 py-4 shadow-[0_12px_24px_rgba(150,9,83,0.08)] ${
+        isRedeemed ? "border-[#c4f0c8]" : "border-[#ffe0b2]"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
-          <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">{detailText}</p>
+        <div className="flex items-center gap-2">
+          <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-base ${
+            isRedeemed ? "bg-[#e8f5e9] text-[#2e7d32]" : "bg-[#fff3e0] text-[#e65100]"
+          }`}>
+            {isRedeemed ? "✓" : "⏰"}
+          </span>
+          <div>
+            <h2 className="text-base font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
+            <p className="mt-0.5 text-xs font-semibold text-[var(--yl-ink-muted)]">{detailText}</p>
+          </div>
         </div>
-        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${statusClass}`}>
-          {statusLabel}
+        <span className={`flex-shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
+          isRedeemed ? "bg-[#e8f5e9] text-[#2e7d32]" : "bg-[#fff3e0] text-[#e65100]"
+        }`}>
+          {isRedeemed ? "Used" : "Expired"}
         </span>
       </div>
-      {(coupon.redeemedStoreName || coupon.redeemedStaffName) && coupon.status === "redeemed" ? (
-        <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)]">
+      {(coupon.redeemedStoreName || coupon.redeemedStaffName) && isRedeemed ? (
+        <p className="mt-2 text-xs font-semibold text-[var(--yl-ink-muted)] pl-10">
           {coupon.redeemedStoreName ? `Store: ${coupon.redeemedStoreName}` : ""}
           {coupon.redeemedStoreName && coupon.redeemedStaffName ? " · " : ""}
           {coupon.redeemedStaffName ? `Staff: ${coupon.redeemedStaffName}` : ""}
@@ -181,6 +191,20 @@ function HistoryCard({ coupon }: { coupon: WalletCoupon }) {
       ) : null}
     </article>
   );
+}
+
+function useIsUrgent(expiresAt: string) {
+  const remaining = useCountdown(expiresAt);
+  const didVibrateRef = useRef(false);
+
+  useEffect(() => {
+    if (remaining && remaining.totalSec < 3600 && !didVibrateRef.current) {
+      didVibrateRef.current = true;
+      if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+    }
+  }, [remaining]);
+
+  return remaining ? remaining.totalSec < 3600 : false;
 }
 
 function useCountdown(expiresAt: string) {
@@ -252,6 +276,150 @@ function CouponExpiryCountdown({ expiresAt }: { expiresAt: string }) {
   );
 }
 
+function ActiveCouponCard({
+  coupon,
+  uiState,
+  progress,
+  activeCouponId,
+  secondsLeft,
+  qrDataUrl,
+  canActivateToday,
+  onStart,
+  onCancel,
+}: {
+  coupon: WalletCoupon;
+  uiState: WalletUiState;
+  progress: number;
+  activeCouponId: number | null;
+  secondsLeft: number;
+  qrDataUrl: string;
+  canActivateToday: boolean;
+  onStart: () => void;
+  onCancel: () => void;
+}) {
+  const isUrgent = useIsUrgent(coupon.expiresAt);
+
+  return (
+    <article
+      className={`overflow-hidden rounded-[1.5rem] border-2 bg-white shadow-[0_14px_32px_rgba(150,9,83,0.14)] transition-colors ${
+        isUrgent ? "border-red-400" : "border-[var(--yl-card-border)]"
+      }`}
+    >
+      <div className={`px-4 py-4 ${isUrgent ? "bg-[linear-gradient(135deg,#fff5f5,#ffe0e0)]" : "bg-[linear-gradient(135deg,#fff8fb,#ffe6f2)]"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className={`text-[11px] font-black uppercase tracking-[0.16em] ${isUrgent ? "text-red-500" : "text-[var(--yl-primary)]"}`}>
+              {isUrgent ? "⚠️ Expiring Soon" : "Available Coupon"}
+            </p>
+            <h2 className="mt-2 text-xl font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${
+            isUrgent ? "bg-red-100 text-red-600" : "bg-[#eff9ea] text-[#2f6c1a]"
+          }`}>
+            {isUrgent ? "Urgent" : "Available"}
+          </span>
+        </div>
+        <CouponExpiryCountdown expiresAt={coupon.expiresAt} />
+      </div>
+
+      <div className="grid gap-3 px-4 py-4">
+        <button
+          type="button"
+          onClick={onStart}
+          disabled={uiState === "loading" || uiState === "active" || !canActivateToday}
+          className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3 text-left disabled:cursor-not-allowed"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Store Use</p>
+              <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                {!canActivateToday
+                  ? "Daily use limit reached. Come back tomorrow."
+                  : "Staff must tap Use before the QR appears."}
+              </p>
+            </div>
+            <span
+              className={`rounded-full bg-[var(--yl-primary)] px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-white ${
+                uiState === "loading" || uiState === "active" || !canActivateToday ? "opacity-50" : ""
+              }`}
+            >
+              {uiState === "loading" ? "Generating" : uiState === "active" ? "Live" : "Use"}
+            </span>
+          </div>
+        </button>
+
+        {activeCouponId === coupon.id && uiState === "loading" ? (
+          <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-white px-4 py-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full border-4 border-[var(--yl-primary)] border-t-transparent animate-spin" />
+              <div className="flex-1">
+                <p className="text-sm font-black text-[var(--yl-ink-strong)]">Generating secure coupon...</p>
+                <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
+                  The QR appears after a short secure loading animation.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-shrink-0 rounded-full border border-[var(--yl-card-border)] px-3 py-1.5 text-xs font-black text-[var(--yl-ink-muted)] hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#f6dde8]">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--yl-primary)]" />
+            </div>
+          </div>
+        ) : null}
+
+        {activeCouponId === coupon.id && uiState === "active" ? (
+          <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-white px-4 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Live QR</p>
+                <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                  Fixed payload for POS scanning only.
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Time Left</p>
+                <p className="mt-1 text-3xl font-black text-[var(--yl-ink-strong)]">{secondsLeft}s</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-center">
+              {qrDataUrl ? (
+                <img
+                  src={qrDataUrl}
+                  alt={`${resolveCouponLabel(coupon)} coupon QR`}
+                  className="h-56 w-56 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
+                />
+              ) : (
+                <div className="grid h-56 w-56 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
+                  Loading QR...
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">
+                <span>Countdown</span>
+                <span>{secondsLeft}s remaining</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-[#f6dde8]">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(135deg,#960953,#c54b86)] transition-[width] duration-1000"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function CouponPolicyCard() {
   const [open, setOpen] = useState(false);
 
@@ -314,6 +482,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const [dontShowCouponRules, setDontShowCouponRules] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(QR_ACTIVE_MS / 1000);
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [networkErrorToast, setNetworkErrorToast] = useState(false);
 
   const activeCouponsRef = useRef<WalletCoupon[]>([]);
   const historyCouponsRef = useRef<WalletCoupon[]>([]);
@@ -497,6 +666,8 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
         setError("Failed to load wallet.");
         setActiveCoupons([]);
         setHistoryCoupons([]);
+        setNetworkErrorToast(true);
+        window.setTimeout(() => setNetworkErrorToast(false), 4000);
       } finally {
         if (active) setLoading(false);
       }
@@ -554,6 +725,14 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     void doFetch().catch(() => {
       window.setTimeout(() => void doFetch().catch(() => undefined), 3000);
     });
+  };
+
+  const cancelCouponFlow = (couponId: number) => {
+    clearQrTimers();
+    setWalletUiStates((prev) => ({ ...prev, [couponId]: "idle" }));
+    setActiveCouponId(null);
+    setQrDataUrl("");
+    setSecondsLeft(QR_ACTIVE_MS / 1000);
   };
 
   const expireCoupon = async (coupon: WalletCoupon) => {
@@ -761,112 +940,18 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                   const progress = uiState === "active" ? (secondsLeft / (QR_ACTIVE_MS / 1000)) * 100 : 0;
 
                   return (
-                    <article
+                    <ActiveCouponCard
                       key={coupon.id}
-                      className="overflow-hidden rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white shadow-[0_14px_32px_rgba(150,9,83,0.14)]"
-                    >
-                      <div className="bg-[linear-gradient(135deg,#fff8fb,#ffe6f2)] px-4 py-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">Available Coupon</p>
-                            <h2 className="mt-2 text-xl font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
-                          </div>
-                          <span className="rounded-full bg-[#eff9ea] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#2f6c1a]">
-                            Available
-                          </span>
-                        </div>
-                        <CouponExpiryCountdown expiresAt={coupon.expiresAt} />
-                      </div>
-
-                      <div className="grid gap-3 px-4 py-4">
-                        <button
-                          type="button"
-                          onClick={() => startCouponFlow(coupon)}
-                          disabled={uiState === "loading" || uiState === "active" || !canActivateToday}
-                          className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3 text-left disabled:cursor-not-allowed"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Store Use</p>
-                              <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                                {!canActivateToday
-                                  ? "Daily use limit reached. Come back tomorrow."
-                                  : "Staff must tap Use before the QR appears."}
-                              </p>
-                            </div>
-                            <span
-                              className={`rounded-full bg-[var(--yl-primary)] px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-white ${
-                                uiState === "loading" || uiState === "active" || !canActivateToday ? "opacity-50" : ""
-                              }`}
-                            >
-                              {uiState === "loading" ? "Generating" : uiState === "active" ? "Live" : "Use"}
-                            </span>
-                          </div>
-                        </button>
-
-                        {activeCouponId === coupon.id && uiState === "loading" ? (
-                          <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-white px-4 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-full border-4 border-[var(--yl-primary)] border-t-transparent animate-spin" />
-                              <div>
-                                <p className="text-sm font-black text-[var(--yl-ink-strong)]">Generating secure coupon...</p>
-                                <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
-                                  The QR appears after a short secure loading animation.
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#f6dde8]">
-                              <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--yl-primary)]" />
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {activeCouponId === coupon.id && uiState === "active" ? (
-                          <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-white px-4 py-4">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Live QR</p>
-                                <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                                  Fixed payload for POS scanning only.
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Time Left</p>
-                                <p className="mt-1 text-3xl font-black text-[var(--yl-ink-strong)]">{secondsLeft}s</p>
-                              </div>
-                            </div>
-
-                            <div className="mt-4 flex justify-center">
-                              {qrDataUrl ? (
-                                <img
-                                  src={qrDataUrl}
-                                  alt={`${resolveCouponLabel(coupon)} coupon QR`}
-                                  className="h-56 w-56 rounded-2xl border border-[var(--yl-card-border)] bg-white p-3"
-                                />
-                              ) : (
-                                <div className="grid h-56 w-56 place-items-center rounded-2xl border border-[var(--yl-card-border)] bg-[#fff8fb] text-sm font-bold text-[var(--yl-ink-muted)]">
-                                  Loading QR...
-                                </div>
-                              )}
-                            </div>
-
-
-                            <div className="mt-4">
-                              <div className="mb-2 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">
-                                <span>Countdown</span>
-                                <span>{secondsLeft}s remaining</span>
-                              </div>
-                              <div className="h-3 overflow-hidden rounded-full bg-[#f6dde8]">
-                                <div
-                                  className="h-full rounded-full bg-[linear-gradient(135deg,#960953,#c54b86)] transition-[width] duration-1000"
-                                  style={{ width: `${progress}%` }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    </article>
+                      coupon={coupon}
+                      uiState={uiState}
+                      progress={progress}
+                      activeCouponId={activeCouponId}
+                      secondsLeft={secondsLeft}
+                      qrDataUrl={qrDataUrl}
+                      canActivateToday={canActivateToday}
+                      onStart={() => startCouponFlow(coupon)}
+                      onCancel={() => cancelCouponFlow(coupon.id)}
+                    />
                   );
                 })}
               </div>
@@ -882,6 +967,18 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
           </>
         )}
       </div>
+
+      {networkErrorToast && (
+        <div className="fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl bg-[#1c1c1e] px-4 py-3 shadow-xl">
+          <div className="flex items-center gap-3">
+            <span className="text-lg">📶</span>
+            <div>
+              <p className="text-sm font-black text-white">Connection Error</p>
+              <p className="text-xs font-semibold text-white/70">Please check your internet connection.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
