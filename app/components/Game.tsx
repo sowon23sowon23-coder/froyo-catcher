@@ -191,7 +191,7 @@ export default function Game({
   startSignal: number;
   onExitToHome: () => void;
   onBestScore: (best: number) => void;
-  onGameOver?: (finalScore: number) => void;
+  onGameOver?: (finalScore: number, options?: { openLeaderboard?: boolean }) => void;
 }) {
   const [phase, setPhase] = useState<"idle" | "play" | "over">("idle");
   const [countdown, setCountdown] = useState<"mission" | "ready" | "go" | null>(null);
@@ -1362,7 +1362,7 @@ export default function Game({
                       type="button"
                       onClick={() => {
                         leaderboardOpenedRef.current = true;
-                        onGameOver?.(score);
+                        onGameOver?.(score, { openLeaderboard: true });
                       }}
                       className="mt-3 w-full px-10 py-3 rounded-full border border-[var(--yl-primary)] bg-white text-[var(--yl-primary)] font-extrabold shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
                     >
