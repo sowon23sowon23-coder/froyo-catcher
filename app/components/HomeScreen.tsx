@@ -40,7 +40,6 @@ export default function HomeScreen({
   onOpenLeaderboard,
   onOpenAdmin,
   onSwitchAccount,
-  onLogout,
 }: {
   nickname?: string;
   todayBestScore?: number;
@@ -48,7 +47,6 @@ export default function HomeScreen({
   onOpenLeaderboard: () => void;
   onOpenAdmin: () => void;
   onSwitchAccount: () => void;
-  onLogout: () => void;
 }) {
   const [character, setCharacter] = useState<CharId>("green");
   const [infoIndex, setInfoIndex] = useState<number | null>(null);
@@ -206,13 +204,7 @@ export default function HomeScreen({
                   </span>
                 )}
               </a>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.04em] text-[var(--yl-primary-soft)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
-              >
-                Log Out
-              </button>
+
             </div>
           </div>
         ) : null}

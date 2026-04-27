@@ -1305,7 +1305,6 @@ export default function Page() {
                   setToolsOpen(true);
                 }}
                 onSwitchAccount={switchAccount}
-                onLogout={logout}
               />
             )}
 

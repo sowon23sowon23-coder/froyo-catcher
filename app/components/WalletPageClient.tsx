@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { formatCouponExpiry, type WalletCoupon } from "../lib/coupons";
+import { type WalletCoupon } from "../lib/coupons";
 
 const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 const WALLET_REFRESH_INTERVAL_MS = 10000;
-const EXPIRING_SOON_DAYS = 3;
+const EXPIRING_SOON_MS = 2 * 60 * 60 * 1000;
+const QR_DISPLAY_SECONDS = 20;
 
 type WalletResponse = {
   nickname?: string;
@@ -68,9 +69,7 @@ async function reconcileActiveCoupons(activeCoupons: WalletCoupon[]) {
               ? "expired"
               : "active";
 
-        if (nextStatus === "active") {
-          return coupon;
-        }
+        if (nextStatus === "active") return coupon;
 
         return {
           ...coupon,
@@ -87,33 +86,54 @@ async function reconcileActiveCoupons(activeCoupons: WalletCoupon[]) {
   );
 
   return {
-    activeCoupons: checked.filter((coupon) => coupon.status === "active"),
-    historyCoupons: checked.filter((coupon) => coupon.status !== "active"),
+    activeCoupons: checked.filter((c) => c.status === "active"),
+    historyCoupons: checked.filter((c) => c.status !== "active"),
   };
 }
 
-function getDaysUntilExpiry(expiresAt: string) {
-  const diffMs = new Date(expiresAt).getTime() - Date.now();
-  return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+function getRemainingMs(expiresAt: string): number {
+  return Math.max(0, new Date(expiresAt).getTime() - Date.now());
 }
 
-function isExpiringSoon(expiresAt: string) {
-  return getDaysUntilExpiry(expiresAt) <= EXPIRING_SOON_DAYS;
+function formatCountdown(ms: number): string {
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function statusCopy(status: WalletCoupon["status"]) {
-  if (status === "redeemed") return "Redeemed";
-  if (status === "expired") return "Expired";
-  return "Ready to Use";
+function formatExpiryTime(expiresAt: string): string {
+  const date = new Date(expiresAt);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  if (date.toDateString() === now.toDateString()) return `Expires today at ${timeStr}`;
+  if (date.toDateString() === tomorrow.toDateString()) return `Expires tomorrow at ${timeStr}`;
+  return `Expires ${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${timeStr}`;
 }
 
-function statusClasses(status: WalletCoupon["status"]) {
-  if (status === "redeemed") return "bg-[#f3ecff] text-[#6b21a8]";
-  if (status === "expired") return "bg-[#fff1e8] text-[#9a3412]";
-  return "bg-[#eff9ea] text-[#2f6c1a]";
+function isExpiringSoon(expiresAt: string): boolean {
+  return getRemainingMs(expiresAt) <= EXPIRING_SOON_MS;
 }
 
-const QR_DISPLAY_SECONDS = 20;
+function countdownColorClass(ms: number): string {
+  if (ms > 4 * 3600 * 1000) return "text-[#2f6c1a]";
+  if (ms > 1 * 3600 * 1000) return "text-[#9a5a00]";
+  return "text-[#9a3412] animate-pulse";
+}
+
+function countdownBgClass(ms: number): string {
+  if (ms > 4 * 3600 * 1000) return "bg-[#eff9ea]";
+  if (ms > 1 * 3600 * 1000) return "bg-[#fff7ed]";
+  return "bg-[#fff1e8]";
+}
+
+function isUsedToday(coupon: WalletCoupon): boolean {
+  if (coupon.status !== "redeemed" || !coupon.redeemedAt) return false;
+  return new Date(coupon.redeemedAt).toDateString() === new Date().toDateString();
+}
 
 function CouponCard({
   coupon,
@@ -128,9 +148,13 @@ function CouponCard({
 }) {
   const [qrSrc, setQrSrc] = useState<string>("");
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const daysUntilExpiry = getDaysUntilExpiry(coupon.expiresAt);
-  const expiresSoon = coupon.status === "active" && isExpiringSoon(coupon.expiresAt);
-  const activeSummary = `${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"} left`;
+  const [remainingMs, setRemainingMs] = useState(() => getRemainingMs(coupon.expiresAt));
+
+  useEffect(() => {
+    if (coupon.status !== "active") return;
+    const id = window.setInterval(() => setRemainingMs(getRemainingMs(coupon.expiresAt)), 1000);
+    return () => clearInterval(id);
+  }, [coupon.expiresAt, coupon.status]);
 
   useEffect(() => {
     if (!showQr || !expanded) {
@@ -139,25 +163,14 @@ function CouponCard({
     }
     let active = true;
     const redeemUrl = `${window.location.origin}/redeem/${coupon.redeemToken}`;
-
     void QRCode.toDataURL(redeemUrl, {
       margin: 1,
       width: 220,
-      color: {
-        dark: "#4b0b31",
-        light: "#ffffff",
-      },
+      color: { dark: "#4b0b31", light: "#ffffff" },
     })
-      .then((dataUrl) => {
-        if (active) setQrSrc(dataUrl);
-      })
-      .catch(() => {
-        if (active) setQrSrc("");
-      });
-
-    return () => {
-      active = false;
-    };
+      .then((dataUrl) => { if (active) setQrSrc(dataUrl); })
+      .catch(() => { if (active) setQrSrc(""); });
+    return () => { active = false; };
   }, [coupon.redeemToken, expanded, showQr]);
 
   useEffect(() => {
@@ -165,53 +178,134 @@ function CouponCard({
     setSecondsLeft(QR_DISPLAY_SECONDS);
     const interval = window.setInterval(() => {
       setSecondsLeft((s) => {
-        if (s <= 1) {
-          clearInterval(interval);
-          onToggle?.();
-          return 0;
-        }
+        if (s <= 1) { clearInterval(interval); onToggle?.(); return 0; }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
   }, [expanded, onToggle]);
 
+  if (coupon.status !== "active") {
+    const isRedeemed = coupon.status === "redeemed";
+    return (
+      <article
+        className={[
+          "overflow-hidden rounded-[1.5rem] border shadow-sm",
+          isRedeemed ? "border-[#cfe7c4] bg-[#f4ffef]" : "border-[#e2e2e2] bg-[#f5f5f5]",
+        ].join(" ")}
+      >
+        <div className="px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <p
+              className={[
+                "text-[11px] font-black uppercase tracking-[0.16em]",
+                isRedeemed ? "text-[#4d7e32]" : "text-[#888]",
+              ].join(" ")}
+            >
+              {isRedeemed ? "Used" : "Expired"}
+            </p>
+            <span
+              className={[
+                "rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em]",
+                isRedeemed ? "bg-[#dcf5d0] text-[#2f6c1a]" : "bg-[#e2e2e2] text-[#888]",
+              ].join(" ")}
+            >
+              {isRedeemed ? "Redeemed" : "Expired"}
+            </span>
+          </div>
+          <h2
+            className={[
+              "mt-2 text-xl font-black",
+              isRedeemed ? "text-[var(--yl-ink-strong)]" : "text-[#aaa] line-through",
+            ].join(" ")}
+          >
+            {coupon.title}
+          </h2>
+          <div
+            className={[
+              "mt-3 rounded-[1rem] border bg-white px-3 py-2.5 text-xs font-semibold text-[var(--yl-ink-muted)]",
+              isRedeemed ? "border-[#cfe7c4]" : "border-[#e2e2e2]",
+            ].join(" ")}
+          >
+            {isRedeemed ? (
+              <>
+                Used{" "}
+                {coupon.redeemedAt
+                  ? new Date(coupon.redeemedAt).toLocaleString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                    })
+                  : ""}
+                {coupon.redeemedStoreName ? ` · ${coupon.redeemedStoreName}` : ""}
+                {coupon.redeemedStaffName ? ` · Staff: ${coupon.redeemedStaffName}` : ""}
+              </>
+            ) : (
+              "This coupon was not used before it expired."
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className="animate-card-entrance overflow-hidden rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white shadow-[0_14px_32px_rgba(150,9,83,0.14)]">
       <div className="bg-[linear-gradient(135deg,#fff8fb,#ffe6f2)] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">
-            {coupon.status === "active" ? "Active Coupon" : "Coupon History"}
+            Active Coupon
           </p>
-          <div className="flex items-center gap-2">
-            {expiresSoon ? (
-              <span className="rounded-full bg-[#fff1e8] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#9a3412]">
-                Expires Soon
-              </span>
-            ) : null}
-            <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${statusClasses(coupon.status)}`}>
-              {statusCopy(coupon.status)}
+          <span className="rounded-full bg-[#eff9ea] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#2f6c1a]">
+            Ready to Use
+          </span>
+        </div>
+
+        <h2 className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{coupon.title}</h2>
+
+        <div className="mt-3 flex items-center gap-2">
+          <div
+            className={[
+              "inline-flex items-center gap-2 rounded-full px-3 py-1.5",
+              countdownBgClass(remainingMs),
+            ].join(" ")}
+          >
+            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-[var(--yl-ink-muted)]">
+              Time left
+            </span>
+            <span
+              className={[
+                "font-mono text-sm font-black tabular-nums",
+                countdownColorClass(remainingMs),
+              ].join(" ")}
+            >
+              {formatCountdown(remainingMs)}
             </span>
           </div>
         </div>
-        <div className="mt-2 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-xl font-black text-[var(--yl-ink-strong)]">{coupon.title}</h2>
-            <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
-              {coupon.status === "active" ? `Expires ${formatCouponExpiry(coupon.expiresAt)}` : coupon.description}
-            </p>
-          </div>
-          {coupon.status === "active" ? (
-            <div className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[var(--yl-primary)]">
-              {activeSummary}
-            </div>
-          ) : null}
-        </div>
+        <p className="mt-1.5 text-xs font-semibold text-[var(--yl-ink-muted)]">
+          {formatExpiryTime(coupon.expiresAt)}
+        </p>
       </div>
 
       <div className="grid gap-3 px-4 py-4">
         {showQr ? (
           <div className="rounded-[1.25rem] border border-dashed border-[var(--yl-card-border)] bg-white p-3 text-center">
+            {/* Staff-only banner — always visible */}
+            <div className="mb-3 flex items-center gap-2 rounded-[0.9rem] border border-[#fbb6ce] bg-[#fff0f6] px-3 py-2.5">
+              <span className="text-base leading-none">🔒</span>
+              <div className="text-left">
+                <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#9b1239]">
+                  Staff scan required
+                </p>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#9b1239]">
+                  This QR code must be scanned by a Yogurtland staff member. Do not scan it yourself.
+                </p>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={onToggle}
@@ -219,12 +313,16 @@ function CouponCard({
               aria-expanded={expanded}
             >
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Show QR</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">
+                  Show QR Code
+                </p>
                 <p className="mt-1 text-xs font-semibold text-[var(--yl-ink-muted)]">
-                  Tap to {expanded ? "hide" : "view"} this coupon's QR code.
+                  {expanded ? "Tap to hide" : "Show at the counter — ask staff to scan"}
                 </p>
               </div>
-              <span className="text-xl font-black text-[var(--yl-primary)]">{expanded ? "^" : "+"}</span>
+              <span className="text-lg font-black text-[var(--yl-primary)]">
+                {expanded ? "▲" : "▼"}
+              </span>
             </button>
 
             {expanded ? (
@@ -241,27 +339,24 @@ function CouponCard({
                   </div>
                 )}
                 <p className="mt-2 text-xs font-black text-[var(--yl-primary)]">
-                  {secondsLeft}초 후 닫힘
+                  Closes in {secondsLeft}s
                 </p>
-                <div className="mt-2 rounded-[1rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-2.5 text-left text-xs font-semibold text-[var(--yl-ink-muted)]">
-                  Show this at the counter before payment. One-time use only.
+                <div className="mt-2 rounded-[1rem] border border-[#fbb6ce] bg-[#fff0f6] px-3 py-2.5 text-left">
+                  <p className="text-xs font-black text-[#9b1239]">
+                    Show this screen to the staff member at the counter.
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-[#9b1239]">
+                    Only a staff member can complete the redemption — one-time use only.
+                  </p>
                 </div>
               </>
             ) : null}
           </div>
-        ) : (
-          <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-[#fffafc] px-3 py-3 text-sm font-semibold text-[var(--yl-ink-muted)]">
-            {coupon.status === "redeemed" ? (
-              <>
-                Redeemed {coupon.redeemedAt ? new Date(coupon.redeemedAt).toLocaleString() : ""}.
-                {coupon.redeemedStoreName ? ` Store: ${coupon.redeemedStoreName}.` : ""}
-                {coupon.redeemedStaffName ? ` Staff: ${coupon.redeemedStaffName}.` : ""}
-              </>
-            ) : (
-              "This reward has expired and is no longer available to redeem."
-            )}
-          </div>
-        )}
+        ) : null}
+
+        <div className="rounded-[1rem] border border-[#fde8c8] bg-[#fff7ed] px-3 py-2.5 text-xs font-semibold text-[#9a5a00]">
+          1 coupon per day — using this coupon means no new coupon can be earned until tomorrow.
+        </div>
       </div>
     </article>
   );
@@ -280,6 +375,7 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
   const activeCouponsRef = useRef<WalletCoupon[]>([]);
   const tabRef = useRef<WalletTab>("active");
   const notifiedRedeemedTokensRef = useRef<Set<string>>(new Set());
+  const hasAutoExpandedRef = useRef(false);
 
   useEffect(() => {
     activeCouponsRef.current = activeCoupons;
@@ -302,11 +398,18 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
       setExpandedCouponToken(null);
       return;
     }
-
-    if (expandedCouponToken && !activeCoupons.some((coupon) => coupon.redeemToken === expandedCouponToken)) {
+    if (expandedCouponToken && !activeCoupons.some((c) => c.redeemToken === expandedCouponToken)) {
       setExpandedCouponToken(null);
     }
   }, [activeCoupons, expandedCouponToken, tab]);
+
+  // Auto-expand QR when there is exactly one active coupon
+  useEffect(() => {
+    if (!hasAutoExpandedRef.current && activeCoupons.length === 1 && tab === "active") {
+      hasAutoExpandedRef.current = true;
+      setExpandedCouponToken(activeCoupons[0].redeemToken);
+    }
+  }, [activeCoupons, tab]);
 
   useEffect(() => {
     let active = true;
@@ -331,8 +434,8 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
         if (!active) return;
 
         if (!res.ok) {
-          const localActive = localCoupons.filter((coupon) => coupon.status === "active");
-          const localHistory = localCoupons.filter((coupon) => coupon.status !== "active");
+          const localActive = localCoupons.filter((c) => c.status === "active");
+          const localHistory = localCoupons.filter((c) => c.status !== "active");
           if (localCoupons.length > 0) {
             const reconciled = await reconcileActiveCoupons(localActive);
             const nextActive = reconciled.activeCoupons;
@@ -346,13 +449,9 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
             setHistoryCoupons(nextHistory);
             writeLocalWalletCoupons([...nextActive, ...nextHistory]);
             if (options?.initial) {
-              if (requestedTab === "history" && nextHistory.length > 0) {
-                setTab("history");
-              } else if (requestedTab === "active" && nextActive.length > 0) {
-                setTab("active");
-              } else {
-                setTab(nextActive.length > 0 ? "active" : "history");
-              }
+              if (requestedTab === "history" && nextHistory.length > 0) setTab("history");
+              else if (requestedTab === "active" && nextActive.length > 0) setTab("active");
+              else setTab(nextActive.length > 0 ? "active" : "history");
             } else if (tabRef.current === "active" && nextActive.length === 0 && nextHistory.length > 0) {
               setTab("history");
             }
@@ -369,12 +468,12 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
         const serverActive = Array.isArray(json.activeCoupons) ? json.activeCoupons : [];
         const serverHistory = Array.isArray(json.historyCoupons) ? json.historyCoupons : [];
         const mergedLocal = localCoupons.filter(
-          (coupon) =>
-            !serverActive.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken) &&
-            !serverHistory.some((serverCoupon) => serverCoupon.redeemToken === coupon.redeemToken)
+          (c) =>
+            !serverActive.some((s) => s.redeemToken === c.redeemToken) &&
+            !serverHistory.some((s) => s.redeemToken === c.redeemToken)
         );
-        const initialActive = [...serverActive, ...mergedLocal.filter((coupon) => coupon.status === "active")];
-        const initialHistory = [...serverHistory, ...mergedLocal.filter((coupon) => coupon.status !== "active")];
+        const initialActive = [...serverActive, ...mergedLocal.filter((c) => c.status === "active")];
+        const initialHistory = [...serverHistory, ...mergedLocal.filter((c) => c.status !== "active")];
         const reconciled = await reconcileActiveCoupons(initialActive);
         const nextActive = reconciled.activeCoupons;
         const nextHistory = [...initialHistory, ...reconciled.historyCoupons].sort(
@@ -382,18 +481,19 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
             new Date(b.redeemedAt || b.expiresAt).getTime() -
             new Date(a.redeemedAt || a.expiresAt).getTime()
         );
-        const previousActiveTokens = new Set(activeCouponsRef.current.map((coupon) => coupon.redeemToken));
-        const movedToHistory = nextHistory.some((coupon) => previousActiveTokens.has(coupon.redeemToken));
+        const previousActiveTokens = new Set(activeCouponsRef.current.map((c) => c.redeemToken));
+        const movedToHistory = nextHistory.some((c) => previousActiveTokens.has(c.redeemToken));
         const newlyRedeemedCoupon = nextHistory.find(
-          (coupon) =>
-            previousActiveTokens.has(coupon.redeemToken) &&
-            coupon.status === "redeemed" &&
-            !notifiedRedeemedTokensRef.current.has(coupon.redeemToken)
+          (c) =>
+            previousActiveTokens.has(c.redeemToken) &&
+            c.status === "redeemed" &&
+            !notifiedRedeemedTokensRef.current.has(c.redeemToken)
         );
 
         setActiveCoupons(nextActive);
         setHistoryCoupons(nextHistory);
         writeLocalWalletCoupons([...nextActive, ...nextHistory]);
+
         if (newlyRedeemedCoupon) {
           notifiedRedeemedTokensRef.current.add(newlyRedeemedCoupon.redeemToken);
           setRedeemNotice(
@@ -403,13 +503,9 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
           );
         }
         if (options?.initial) {
-          if (requestedTab === "history" && nextHistory.length > 0) {
-            setTab("history");
-          } else if (requestedTab === "active" && nextActive.length > 0) {
-            setTab("active");
-          } else {
-            setTab(nextActive.length > 0 ? "active" : "history");
-          }
+          if (requestedTab === "history" && nextHistory.length > 0) setTab("history");
+          else if (requestedTab === "active" && nextActive.length > 0) setTab("active");
+          else setTab(nextActive.length > 0 ? "active" : "history");
         } else if (movedToHistory && tabRef.current === "active") {
           setTab("history");
         } else if (tabRef.current === "active" && nextActive.length === 0 && nextHistory.length > 0) {
@@ -428,19 +524,12 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
 
     void loadWallet({ initial: true });
 
-    const intervalId = window.setInterval(() => {
-      void loadWallet();
-    }, WALLET_REFRESH_INTERVAL_MS);
+    const intervalId = window.setInterval(() => { void loadWallet(); }, WALLET_REFRESH_INTERVAL_MS);
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void loadWallet();
-      }
+      if (document.visibilityState === "visible") void loadWallet();
     };
-
-    const handleFocus = () => {
-      void loadWallet();
-    };
+    const handleFocus = () => { void loadWallet(); };
 
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -455,8 +544,8 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
 
   useEffect(() => {
     if (!redeemNotice) return;
-    const timeoutId = window.setTimeout(() => setRedeemNotice(null), 5000);
-    return () => window.clearTimeout(timeoutId);
+    const id = window.setTimeout(() => setRedeemNotice(null), 5000);
+    return () => window.clearTimeout(id);
   }, [redeemNotice]);
 
   const sortedActiveCoupons = useMemo(
@@ -483,10 +572,16 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
   const walletSummary = useMemo(
     () => ({
       active: activeCoupons.length,
-      redeemed: historyCoupons.filter((coupon) => coupon.status === "redeemed").length,
-      expiringSoon: activeCoupons.filter((coupon) => isExpiringSoon(coupon.expiresAt)).length,
+      used: historyCoupons.filter((c) => c.status === "redeemed").length,
+      expired: historyCoupons.filter((c) => c.status === "expired").length,
     }),
     [activeCoupons, historyCoupons]
+  );
+
+  const usedToday = useMemo(() => historyCoupons.some(isUsedToday), [historyCoupons]);
+  const hasEverExpired = useMemo(
+    () => historyCoupons.some((c) => c.status === "expired"),
+    [historyCoupons]
   );
 
   const visibleCoupons = useMemo(
@@ -494,14 +589,42 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
     [sortedActiveCoupons, sortedHistoryCoupons, tab]
   );
 
+  function emptyActiveMessage() {
+    if (usedToday) {
+      return {
+        title: "All done for today!",
+        body: "You've used your coupon for today. Come back tomorrow to earn a new reward.",
+        showPlay: false,
+      };
+    }
+    if (hasEverExpired) {
+      return {
+        title: "No active coupons",
+        body: "Your last coupon expired unused. Play again to earn a new one.",
+        showPlay: true,
+      };
+    }
+    return {
+      title: "No active coupons yet",
+      body: "Score 30 or higher in a game to unlock a discount coupon.",
+      showPlay: true,
+    };
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
       <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+
+        {/* Header */}
         <header className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white/90 px-5 py-5 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">Digital Wallet</p>
-              <h1 className="font-display text-[2rem] leading-none text-[var(--yl-ink-strong)]">My Wallet</h1>
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">
+                Digital Wallet
+              </p>
+              <h1 className="font-display text-[2rem] leading-none text-[var(--yl-ink-strong)]">
+                My Wallet
+              </h1>
             </div>
             <Link
               href="/"
@@ -510,14 +633,24 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
               Home
             </Link>
           </div>
-          <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-            {nickname ? `${nickname}, your Yogurtland rewards are ready.` : "Your Yogurtland rewards live here."}
+          <p className="mt-1.5 text-sm font-semibold text-[var(--yl-ink-muted)]">
+            {nickname ? `${nickname}'s rewards` : "Your Yogurtland rewards"}
           </p>
+          <div className="mt-3 flex items-center gap-1.5 rounded-[0.9rem] border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-3 py-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+              24-hour validity
+            </span>
+            <span className="text-[11px] text-[var(--yl-ink-muted)]">·</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+              1 coupon per day
+            </span>
+          </div>
         </header>
 
+        {/* Redeem notice */}
         {redeemNotice ? (
           <section className="rounded-[1.6rem] border border-[#cfe7c4] bg-[#f4ffef] px-5 py-4 shadow-[0_14px_30px_rgba(71,128,52,0.12)]">
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#4d7e32]">Updated</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#4d7e32]">Redeemed</p>
             <p className="mt-1 text-sm font-bold text-[#2f5a19]">{redeemNotice}</p>
           </section>
         ) : null}
@@ -539,67 +672,88 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
           </section>
         ) : (
           <>
+            {/* Stats */}
             <section className="grid grid-cols-3 gap-3">
               <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Active</p>
                 <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.active}</p>
               </div>
               <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Redeemed</p>
-                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.redeemed}</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#4d7e32]">Used</p>
+                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.used}</p>
               </div>
               <div className="rounded-[1.5rem] border border-[var(--yl-card-border)] bg-white/95 px-4 py-4 shadow-[0_16px_36px_rgba(150,9,83,0.1)]">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Soon</p>
-                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.expiringSoon}</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#888]">Expired</p>
+                <p className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{walletSummary.expired}</p>
               </div>
             </section>
 
+            {/* Tabs */}
             <div className="grid grid-cols-2 gap-2 rounded-[1.6rem] border border-[var(--yl-card-border)] bg-white/90 p-2 shadow-[0_18px_44px_rgba(150,9,83,0.12)]">
               <button
                 type="button"
                 onClick={() => setTab("active")}
-                className={`rounded-[1rem] px-4 py-3 text-sm font-black ${tab === "active" ? "bg-[var(--yl-primary)] text-white" : "bg-[var(--yl-card-bg)] text-[var(--yl-ink-strong)]"}`}
+                className={`rounded-[1rem] px-4 py-3 text-sm font-black ${
+                  tab === "active"
+                    ? "bg-[var(--yl-primary)] text-white"
+                    : "bg-[var(--yl-card-bg)] text-[var(--yl-ink-strong)]"
+                }`}
               >
                 Active ({activeCoupons.length})
               </button>
               <button
                 type="button"
                 onClick={() => setTab("history")}
-                className={`rounded-[1rem] px-4 py-3 text-sm font-black ${tab === "history" ? "bg-[var(--yl-primary)] text-white" : "bg-[var(--yl-card-bg)] text-[var(--yl-ink-strong)]"}`}
+                className={`rounded-[1rem] px-4 py-3 text-sm font-black ${
+                  tab === "history"
+                    ? "bg-[var(--yl-primary)] text-white"
+                    : "bg-[var(--yl-card-bg)] text-[var(--yl-ink-strong)]"
+                }`}
               >
                 History ({historyCoupons.length})
               </button>
             </div>
 
+            {/* Coupon list or empty state */}
             {visibleCoupons.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
-                <p className="text-lg font-black text-[var(--yl-ink-strong)]">
-                  {tab === "active" ? "No active coupons yet" : "No coupon history yet"}
-                </p>
-                <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                  {tab === "active"
-                    ? "Finish a run and score at least 10 to unlock your first reward."
-                    : "Redeemed and expired rewards will appear here after use."}
-                </p>
-                <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                  Score 30+: 3% Off
-                  <br />
-                  Score 50+: 5% Off
-                  <br />
-                  Score 100+: 10% Off
-                  <br />
-                  Score 150+: 15% Off
-                  <br />
-                  Score 200+: 20% Off
-                </div>
                 {tab === "active" ? (
-                  <Link
-                    href="/"
-                    className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--yl-primary)] px-4 py-3 text-sm font-black text-white"
-                  >
-                    Play Again
-                  </Link>
-                ) : null}
+                  (() => {
+                    const { title, body, showPlay } = emptyActiveMessage();
+                    return (
+                      <>
+                        <p className="text-lg font-black text-[var(--yl-ink-strong)]">{title}</p>
+                        <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">{body}</p>
+                        <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                          Score 30+: 3% Off
+                          <br />
+                          Score 50+: 5% Off
+                          <br />
+                          Score 100+: 10% Off
+                          <br />
+                          Score 150+: 15% Off
+                          <br />
+                          Score 200+: 20% Off
+                        </div>
+                        {showPlay ? (
+                          <Link
+                            href="/"
+                            className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--yl-primary)] px-4 py-3 text-sm font-black text-white"
+                          >
+                            Play Now
+                          </Link>
+                        ) : null}
+                      </>
+                    );
+                  })()
+                ) : (
+                  <>
+                    <p className="text-lg font-black text-[var(--yl-ink-strong)]">No coupon history yet</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                      Used and expired rewards will appear here.
+                    </p>
+                  </>
+                )}
               </section>
             ) : (
               <div className="grid gap-4">
