@@ -233,6 +233,26 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
+function getMsUntilMidnight(): number {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return Math.max(0, midnight.getTime() - now.getTime());
+}
+
+function useMidnightCountdown() {
+  const [ms, setMs] = useState(() => getMsUntilMidnight());
+  useEffect(() => {
+    const id = window.setInterval(() => setMs(getMsUntilMidnight()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
 function formatExpiryDatetime(expiresAt: string) {
   const d = new Date(expiresAt);
   if (Number.isNaN(d.getTime())) return "";
@@ -417,6 +437,26 @@ function ActiveCouponCard({
         ) : null}
       </div>
     </article>
+  );
+}
+
+function DailyLimitEmptyState() {
+  const countdown = useMidnightCountdown();
+  return (
+    <>
+      <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for today!</p>
+      <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
+        You've already used today's coupon. Playing again today won't issue a new redeemable coupon — come back tomorrow for your next reward.
+      </p>
+      <div className="mt-4 flex items-center justify-between rounded-[1rem] border border-[#c7d2fe] bg-[#eef2ff] px-4 py-3">
+        <span className="text-xs font-black uppercase tracking-[0.1em] text-[#4338ca]">
+          New coupon available in
+        </span>
+        <span className="font-mono text-base font-black tabular-nums text-[#3730a3]">
+          {countdown}
+        </span>
+      </div>
+    </>
   );
 }
 
@@ -936,12 +976,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
             {tab === "active" && activeCards.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
                 {!canUseToday ? (
-                  <>
-                    <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for today!</p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                      You've already used today's coupon. Playing again today won't issue a new redeemable coupon — come back tomorrow for your next reward.
-                    </p>
-                  </>
+                  <DailyLimitEmptyState />
                 ) : (
                   <>
                     <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet</p>
