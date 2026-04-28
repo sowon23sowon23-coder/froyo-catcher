@@ -917,10 +917,21 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
             {tab === "active" && activeCards.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
-                <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet</p>
-                <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                  Play the game and catch some froyo to earn your reward!
-                </p>
+                {!canActivateToday ? (
+                  <>
+                    <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for today!</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                      You've already used today's coupon. Playing again today won't issue a new redeemable coupon — come back tomorrow for your next reward.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet</p>
+                    <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                      Play the game and catch some froyo to earn your reward!
+                    </p>
+                  </>
+                )}
               </section>
             ) : null}
 
