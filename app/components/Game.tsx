@@ -1105,29 +1105,6 @@ export default function Game({
         </div>
 
         {/* Coupon progress bar — free play only */}
-        {mode === "free" && phase === "play" && (() => {
-          const earned = getEligibleCouponReward(score);
-          const next = COUPON_REWARDS.slice().reverse().find((r) => score < r.threshold) ?? null;
-          if (earned) return null;
-          if (!next) return null;
-          const prev = COUPON_REWARDS.slice().reverse().find((r) => score >= r.threshold) ?? null;
-          const from = prev?.threshold ?? 0;
-          const pct = Math.min(100, ((score - from) / (next.threshold - from)) * 100);
-          return (
-            <div className="mb-2 rounded-xl border border-[var(--yl-card-border)] bg-white/80 px-3 py-1.5">
-              <div className="mb-1 flex items-center justify-between text-[10px] font-black">
-                <span className="text-[var(--yl-primary)]">{next.discountPercent}% 쿠폰까지</span>
-                <span className="text-[var(--yl-ink-muted)]">{score}/{next.threshold}</span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--yl-card-border)]">
-                <div
-                  className="h-full rounded-full bg-[var(--yl-primary)] transition-all duration-300"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </div>
-          );
-        })()}
 
         {/* Time Attack progress bar */}
         {mode === "timeAttack" && (
