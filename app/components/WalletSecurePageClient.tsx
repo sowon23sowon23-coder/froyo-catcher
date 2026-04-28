@@ -18,7 +18,7 @@ import {
 const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 const WALLET_REFRESH_INTERVAL_MS = 10000;
 const QR_LOADING_MS = 2500;
-const QR_ACTIVE_MS = 15000;
+const QR_ACTIVE_MS = 20000;
 
 type WalletResponse = {
   nickname?: string;
@@ -449,7 +449,7 @@ function CouponPolicyCard() {
           <ul className="mb-4 list-inside list-disc space-y-1">
             <li>At checkout, open this wallet and show your coupon to a staff member.</li>
             <li>Ask the staff to tap <span className="font-black text-[var(--yl-ink-strong)]">Use</span> — a live QR code will appear.</li>
-            <li>The QR is valid for <span className="font-black text-[var(--yl-ink-strong)]">15 seconds</span> for the staff to scan and apply your discount.</li>
+            <li>The QR is valid for <span className="font-black text-[var(--yl-ink-strong)]">20 seconds</span> for the staff to scan and apply your discount.</li>
             <li>Once used, the coupon cannot be reused.</li>
           </ul>
 
