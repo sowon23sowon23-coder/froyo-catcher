@@ -809,6 +809,24 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     [historyCoupons]
   );
 
+  // Supplement server canActivateToday with local history data.
+  // If the expire API call was delayed or failed, the server may still return
+  // canActivateToday:true even though the user already activated a coupon today.
+  const usedTodayLocal = useMemo(() => {
+    const todayStr = new Date().toDateString();
+    return historyCoupons.some((c) => {
+      if (c.status === "redeemed" && c.redeemedAt) {
+        return new Date(c.redeemedAt).toDateString() === todayStr;
+      }
+      if (c.status === "expired" && c.createdAt) {
+        return new Date(c.createdAt).toDateString() === todayStr;
+      }
+      return false;
+    });
+  }, [historyCoupons]);
+
+  const canUseToday = canActivateToday && !usedTodayLocal;
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
       {showCouponRules && (
@@ -917,7 +935,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
             {tab === "active" && activeCards.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
-                {!canActivateToday ? (
+                {!canUseToday ? (
                   <>
                     <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for today!</p>
                     <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
@@ -959,7 +977,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                       activeCouponId={activeCouponId}
                       secondsLeft={secondsLeft}
                       qrDataUrl={qrDataUrl}
-                      canActivateToday={canActivateToday}
+                      canActivateToday={canUseToday}
                       onStart={() => startCouponFlow(coupon)}
                       onCancel={() => cancelCouponFlow(coupon.id)}
                     />
