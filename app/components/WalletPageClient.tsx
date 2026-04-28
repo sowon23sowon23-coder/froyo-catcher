@@ -135,26 +135,42 @@ function isUsedToday(coupon: WalletCoupon): boolean {
   return new Date(coupon.redeemedAt).toDateString() === new Date().toDateString();
 }
 
+function getMsUntilMidnight(): number {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return Math.max(0, midnight.getTime() - now.getTime());
+}
+
 function CouponCard({
   coupon,
   showQr,
   expanded,
+  lockedToday,
   onToggle,
 }: {
   coupon: WalletCoupon;
   showQr: boolean;
   expanded: boolean;
+  lockedToday?: boolean;
   onToggle?: () => void;
 }) {
   const [qrSrc, setQrSrc] = useState<string>("");
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [remainingMs, setRemainingMs] = useState(() => getRemainingMs(coupon.expiresAt));
+  const [midnightMs, setMidnightMs] = useState(() => getMsUntilMidnight());
 
   useEffect(() => {
     if (coupon.status !== "active") return;
     const id = window.setInterval(() => setRemainingMs(getRemainingMs(coupon.expiresAt)), 1000);
     return () => clearInterval(id);
   }, [coupon.expiresAt, coupon.status]);
+
+  useEffect(() => {
+    if (!lockedToday) return;
+    const id = window.setInterval(() => setMidnightMs(getMsUntilMidnight()), 1000);
+    return () => clearInterval(id);
+  }, [lockedToday]);
 
   useEffect(() => {
     if (!showQr || !expanded) {
@@ -258,9 +274,15 @@ function CouponCard({
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">
             Active Coupon
           </p>
-          <span className="rounded-full bg-[#eff9ea] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#2f6c1a]">
-            Ready to Use
-          </span>
+          {lockedToday ? (
+            <span className="rounded-full bg-[#e0e7ff] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#3730a3]">
+              Saved for Tomorrow
+            </span>
+          ) : (
+            <span className="rounded-full bg-[#eff9ea] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#2f6c1a]">
+              Ready to Use
+            </span>
+          )}
         </div>
 
         <h2 className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">{coupon.title}</h2>
@@ -291,7 +313,31 @@ function CouponCard({
       </div>
 
       <div className="grid gap-3 px-4 py-4">
-        {showQr ? (
+        {lockedToday ? (
+          /* ── Locked state: already used a coupon today ── */
+          <div className="rounded-[1.25rem] border border-[#c7d2fe] bg-[#eef2ff] p-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 text-xl leading-none">🔒</span>
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#3730a3]">
+                  Locked for today
+                </p>
+                <p className="mt-1 text-xs font-semibold text-[#4338ca]">
+                  You've already used a coupon today. This one is saved and will be ready to use after midnight.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between rounded-[0.9rem] border border-[#c7d2fe] bg-white px-3 py-2.5">
+              <span className="text-[11px] font-black uppercase tracking-[0.1em] text-[#4338ca]">
+                Unlocks in
+              </span>
+              <span className="font-mono text-sm font-black tabular-nums text-[#3730a3]">
+                {formatCountdown(midnightMs)}
+              </span>
+            </div>
+          </div>
+        ) : showQr ? (
+          /* ── Normal QR state ── */
           <div className="rounded-[1.25rem] border border-dashed border-[var(--yl-card-border)] bg-white p-3 text-center">
             {/* Staff-only banner — always visible */}
             <div className="mb-3 flex items-center gap-2 rounded-[0.9rem] border border-[#fbb6ce] bg-[#fff0f6] px-3 py-2.5">
@@ -354,9 +400,11 @@ function CouponCard({
           </div>
         ) : null}
 
-        <div className="rounded-[1rem] border border-[#fde8c8] bg-[#fff7ed] px-3 py-2.5 text-xs font-semibold text-[#9a5a00]">
-          1 coupon per day — using this coupon means no new coupon can be earned until tomorrow.
-        </div>
+        {!lockedToday && (
+          <div className="rounded-[1rem] border border-[#fde8c8] bg-[#fff7ed] px-3 py-2.5 text-xs font-semibold text-[#9a5a00]">
+            1 coupon per day — using this coupon means no new coupon can be earned until tomorrow.
+          </div>
+        )}
       </div>
     </article>
   );
@@ -403,13 +451,14 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
     }
   }, [activeCoupons, expandedCouponToken, tab]);
 
-  // Auto-expand QR when there is exactly one active coupon
+  // Auto-expand QR when there is exactly one active coupon and daily limit not yet reached
   useEffect(() => {
-    if (!hasAutoExpandedRef.current && activeCoupons.length === 1 && tab === "active") {
+    const dailyLimitReached = historyCoupons.some(isUsedToday);
+    if (!hasAutoExpandedRef.current && activeCoupons.length === 1 && tab === "active" && !dailyLimitReached) {
       hasAutoExpandedRef.current = true;
       setExpandedCouponToken(activeCoupons[0].redeemToken);
     }
-  }, [activeCoupons, tab]);
+  }, [activeCoupons, historyCoupons, tab]);
 
   useEffect(() => {
     let active = true;
@@ -593,7 +642,7 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
     if (usedToday) {
       return {
         title: "All done for today!",
-        body: "You've used your coupon for today. Come back tomorrow to earn a new reward.",
+        body: "You've used today's coupon. Playing again today won't issue a new redeemable coupon — come back tomorrow for your next reward.",
         showPlay: false,
       };
     }
@@ -714,6 +763,21 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
               </button>
             </div>
 
+            {/* Daily limit banner — shown when limit reached and on active tab */}
+            {usedToday && tab === "active" && (
+              <div className="flex items-start gap-3 rounded-[1.3rem] border border-[#c7d2fe] bg-[#eef2ff] px-4 py-3">
+                <span className="mt-0.5 text-base leading-none">ℹ️</span>
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#3730a3]">
+                    Today's redemption limit reached
+                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-[#4338ca]">
+                    You've already used a coupon today. Even if you play again and score high, a new coupon won't be redeemable until tomorrow.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Coupon list or empty state */}
             {visibleCoupons.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
@@ -724,17 +788,19 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
                       <>
                         <p className="text-lg font-black text-[var(--yl-ink-strong)]">{title}</p>
                         <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">{body}</p>
-                        <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
-                          Score 30+: 3% Off
-                          <br />
-                          Score 50+: 5% Off
-                          <br />
-                          Score 100+: 10% Off
-                          <br />
-                          Score 150+: 15% Off
-                          <br />
-                          Score 200+: 20% Off
-                        </div>
+                        {!usedToday && (
+                          <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
+                            Score 30+: 3% Off
+                            <br />
+                            Score 50+: 5% Off
+                            <br />
+                            Score 100+: 10% Off
+                            <br />
+                            Score 150+: 15% Off
+                            <br />
+                            Score 200+: 20% Off
+                          </div>
+                        )}
                         {showPlay ? (
                           <Link
                             href="/"
@@ -762,6 +828,7 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
                     key={coupon.id}
                     coupon={coupon}
                     showQr={tab === "active"}
+                    lockedToday={tab === "active" && usedToday}
                     expanded={tab === "active" && expandedCouponToken === coupon.redeemToken}
                     onToggle={
                       tab === "active"
