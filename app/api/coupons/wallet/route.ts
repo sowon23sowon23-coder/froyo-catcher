@@ -108,11 +108,14 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  // canActivateToday: false if a coupon issued today has already been explicitly expired
-  // (i.e., the customer activated the QR today). status='expired' in DB means the expire
-  // endpoint was called (customer activation), not a natural time expiry.
+  // canActivateToday: false if the user already activated or redeemed a coupon today.
+  // - status='expired' means the customer tapped Use and the QR was shown (expire endpoint).
+  // - status='redeemed' with redeemed_at today means staff successfully scanned it.
+  const todayIso = todayMidnightUtc.toISOString();
   const activatedTodayCount = (rows.data ?? []).filter(
-    (row) => row.status === "expired" && row.created_at >= todayMidnightUtc.toISOString()
+    (row) =>
+      (row.status === "expired" && row.created_at >= todayIso) ||
+      (row.status === "redeemed" && row.redeemed_at && row.redeemed_at >= todayIso)
   ).length;
 
   return NextResponse.json({
