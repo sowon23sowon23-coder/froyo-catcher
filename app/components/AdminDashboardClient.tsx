@@ -7,7 +7,14 @@ import { formatCurrency, formatDateTime } from "../lib/couponMvp";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type DashboardStats = {
-  coupons: { issued: number; redeemed: number; expired: number; active: number; redeemRate: number };
+  coupons: {
+    issued: number;
+    redeemed: number;
+    expired: number;
+    active: number;
+    redeemRate: number;
+    issuanceLimit?: { type: "daily" | "campaign"; max: number; current: number; percentUsed: number; warning: boolean; stopOnReach: boolean } | null;
+  };
   game: { totalSessions: number; completedSessions: number; completionRate: number; couponIssuedFromGame: number; gameToConversionRate: number };
   funnel: Array<{ label: string; value: number }>;
   charts: { issuedByDay: Array<{ date: string; count: number }>; redeemedByDay: Array<{ date: string; count: number }> };
@@ -49,7 +56,14 @@ type WalletCoupon = { id: number; title: string; reward_type: string; status: st
 type UserEntry = { id: number; nickname_display: string; nickname_key: string; contact_type: string | null; contact_value: string | null; created_at: string; walletCoupons: WalletCoupon[] };
 type FeedbackRow = { id: number; message: string; nickname: string | null; store: string | null; source: string | null; created_at: string };
 
-type NavItem = "dashboard" | "coupon" | "game" | "store" | "users" | "feedback" | "logs";
+type CouponRewardTier = { threshold: number; discountPercent: number; fixedQrValue?: string | null };
+type CouponSettings = {
+  issuanceLimit: { type: "daily" | "campaign"; max: number; stopOnReach: boolean } | null;
+  rewardTiers: CouponRewardTier[];
+  issuanceStats: { dailyIssued: number; campaignIssued: number; currentIssued: number; percentUsed: number };
+};
+
+type NavItem = "dashboard" | "coupon" | "couponSettings" | "game" | "store" | "users" | "feedback" | "logs";
 
 const DEFAULT_MANUAL_DISCOUNT_PERCENT = 3;
 
@@ -74,6 +88,11 @@ export default function AdminDashboardClient() {
   const [creating, setCreating] = useState(false);
   const [userId, setUserId] = useState("");
   const [discountPercent, setDiscountPercent] = useState(String(DEFAULT_MANUAL_DISCOUNT_PERCENT));
+
+  // Coupon settings
+  const [couponSettings, setCouponSettings] = useState<CouponSettings | null>(null);
+  const [couponSettingsLoading, setCouponSettingsLoading] = useState(false);
+  const [couponSettingsSaving, setCouponSettingsSaving] = useState(false);
 
   // Store / logs
   const [storeStats, setStoreStats] = useState<StoreStats | null>(null);
@@ -122,6 +141,17 @@ export default function AdminDashboardClient() {
     } finally { setCouponLoading(false); }
   };
 
+  const loadCouponSettings = async () => {
+    setCouponSettingsLoading(true);
+    try {
+      const res = await fetch("/api/admin/coupon-config", { cache: "no-store" });
+      const json = (await res.json()) as CouponSettings & { error?: string };
+      if (json.error) { setNotice(json.error); return; }
+      setCouponSettings(json);
+      loadedRef.current.couponSettings = true;
+    } finally { setCouponSettingsLoading(false); }
+  };
+
   const loadStore = async () => {
     setStoreLoading(true);
     try {
@@ -165,6 +195,53 @@ export default function AdminDashboardClient() {
       setNotice(json.error ?? (json.coupon ? `Coupon ${json.coupon.code} created.` : "Done."));
       await loadCoupons();
     } finally { setCreating(false); }
+  };
+
+  const saveCouponSettings = async (nextSettings: CouponSettings) => {
+    const limit = nextSettings.issuanceLimit;
+    if (!limit || !Number.isInteger(limit.max) || limit.max < 1) {
+      setNotice("Enter a valid issuance limit.");
+      return;
+    }
+    if (nextSettings.rewardTiers.length < 1) {
+      setNotice("At least one reward tier is required.");
+      return;
+    }
+    const thresholds = new Set<number>();
+    for (const tier of nextSettings.rewardTiers) {
+      if (!Number.isInteger(tier.threshold) || tier.threshold < 1) {
+        setNotice("Tier score thresholds must be whole numbers over 0.");
+        return;
+      }
+      if (!Number.isInteger(tier.discountPercent) || tier.discountPercent < 1 || tier.discountPercent > 100) {
+        setNotice("Discount rates must be whole numbers from 1 to 100.");
+        return;
+      }
+      if (thresholds.has(tier.threshold)) {
+        setNotice("Score thresholds cannot be duplicated.");
+        return;
+      }
+      thresholds.add(tier.threshold);
+    }
+
+    setCouponSettingsSaving(true);
+    try {
+      const sortedTiers = [...nextSettings.rewardTiers].sort((a, b) => b.threshold - a.threshold);
+      const res = await fetch("/api/admin/coupon-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issuance_limit: limit,
+          reward_tiers: sortedTiers,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as CouponSettings & { error?: string };
+      if (!res.ok || json.error) { setNotice(json.error || "Failed to save coupon settings."); return; }
+      setCouponSettings(json);
+      setNotice("Coupon settings saved.");
+      loadedRef.current.dashboard = false;
+      loadedRef.current.coupon = false;
+    } finally { setCouponSettingsSaving(false); }
   };
 
   const searchUsers = async () => {
@@ -211,6 +288,7 @@ export default function AdminDashboardClient() {
       if (nav === "dashboard") void loadDashboard();
       if (nav === "game") void loadGame();
       if (nav === "coupon") void loadCoupons();
+      if (nav === "couponSettings") void loadCouponSettings();
       if (nav === "store" || nav === "logs") void loadStore();
       if (nav === "feedback") void loadFeedback();
     }
@@ -227,6 +305,7 @@ export default function AdminDashboardClient() {
   const navItems: { id: NavItem; label: string; icon: string }[] = [
     { id: "dashboard", label: "Dashboard", icon: "◈" },
     { id: "coupon", label: "Coupon Management", icon: "🎟" },
+    { id: "couponSettings", label: "Coupon Settings", icon: "⚙" },
     { id: "game", label: "Game Analytics", icon: "🎮" },
     { id: "store", label: "Store Analytics", icon: "🏪" },
     { id: "users", label: "User Search", icon: "👤" },
@@ -296,6 +375,7 @@ export default function AdminDashboardClient() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} onRefresh={loadDashboard} />}
           {nav === "coupon" && <CouponSection coupons={coupons} loading={couponLoading} creating={creating} userId={userId} discountPercent={discountPercent} onUserIdChange={setUserId} onDiscountPercentChange={setDiscountPercent} onCreateCoupon={createCoupon} onRefresh={loadCoupons} />}
+          {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
           {nav === "game" && <GameSection data={gameData} loading={gameLoading} onRefresh={loadGame} />}
           {nav === "store" && <StoreSection data={storeStats} loading={storeLoading} onRefresh={loadStore} />}
           {nav === "users" && <UserSection query={userQuery} results={userResults} loading={userSearchLoading} expiringId={expiringId} onQueryChange={setUserQuery} onSearch={searchUsers} onExpire={expireWalletCoupon} />}
@@ -316,7 +396,14 @@ function DashboardSection({ data, loading, onRefresh }: { data: DashboardStats |
         <>
           {/* KPI row */}
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Total Coupons Issued" value={String(data.coupons.issued)} sub="Cumulative" />
+            <KpiCard
+              label="Total Coupons Issued"
+              value={String(data.coupons.issued)}
+              sub={data.coupons.issuanceLimit
+                ? `${data.coupons.issuanceLimit.current}/${data.coupons.issuanceLimit.max} ${data.coupons.issuanceLimit.type} limit (${data.coupons.issuanceLimit.percentUsed}%)`
+                : "Cumulative"}
+              color={data.coupons.issuanceLimit?.warning ? "orange" : undefined}
+            />
             <KpiCard label="Coupons Redeemed" value={String(data.coupons.redeemed)} sub={`Redeem rate ${data.coupons.redeemRate}%`} color="green" />
             <KpiCard label="Game Sessions (14 days)" value={String(data.game.totalSessions)} sub={`Completion rate ${data.game.completionRate}%`} />
             <KpiCard label="Game-to-Coupon Conversion" value={`${data.game.gameToConversionRate}%`} sub="Based on completed sessions" color="orange" />
@@ -457,6 +544,122 @@ function CouponSection({ coupons, loading, creating, userId, discountPercent, on
 }
 
 // ─── Section: Game Analytics ──────────────────────────────────────────────────
+
+function CouponSettingsSection({ settings, loading, saving, onChange, onSave, onRefresh }: {
+  settings: CouponSettings | null;
+  loading: boolean;
+  saving: boolean;
+  onChange: (settings: CouponSettings) => void;
+  onSave: (settings: CouponSettings) => void;
+  onRefresh: () => void;
+}) {
+  const current = settings ?? {
+    issuanceLimit: { type: "daily" as const, max: 500, stopOnReach: true },
+    rewardTiers: [
+      { threshold: 200, discountPercent: 20 },
+      { threshold: 150, discountPercent: 15 },
+      { threshold: 100, discountPercent: 10 },
+      { threshold: 50, discountPercent: 5 },
+      { threshold: 30, discountPercent: 3 },
+    ],
+    issuanceStats: { dailyIssued: 0, campaignIssued: 0, currentIssued: 0, percentUsed: 0 },
+  };
+  const limit = current.issuanceLimit ?? { type: "daily" as const, max: 500, stopOnReach: true };
+
+  const updateLimit = (patch: Partial<NonNullable<CouponSettings["issuanceLimit"]>>) => {
+    onChange({ ...current, issuanceLimit: { ...limit, ...patch } });
+  };
+  const updateTier = (index: number, patch: Partial<CouponRewardTier>) => {
+    onChange({ ...current, rewardTiers: current.rewardTiers.map((tier, i) => i === index ? { ...tier, ...patch } : tier) });
+  };
+  const addTier = () => onChange({ ...current, rewardTiers: [...current.rewardTiers, { threshold: 1, discountPercent: 1 }] });
+  const removeTier = (index: number) => onChange({ ...current, rewardTiers: current.rewardTiers.filter((_, i) => i !== index) });
+  const resetTiers = () => onChange({
+    ...current,
+    rewardTiers: [
+      { threshold: 200, discountPercent: 20 },
+      { threshold: 150, discountPercent: 15 },
+      { threshold: 100, discountPercent: 10 },
+      { threshold: 50, discountPercent: 5 },
+      { threshold: 30, discountPercent: 3 },
+    ],
+  });
+
+  return (
+    <SectionShell title="Coupon Settings" subtitle="Issuance limits and score-based reward tiers" onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+      {loading || !settings ? <LoadingCard /> : (
+        <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
+          <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Issuance Limit</p>
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Limit Type</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {(["daily", "campaign"] as const).map((type) => (
+                    <button key={type} type="button" onClick={() => updateLimit({ type })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${limit.type === type ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>
+                      {type === "daily" ? "Daily" : "Campaign"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Maximum Coupons</span>
+                <input value={String(limit.max)} onChange={(e) => updateLimit({ max: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+              </label>
+              <div className="rounded-2xl bg-[#fff9f4] p-4">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-black text-[#4f2832]">Current Issued</span>
+                  <span className="font-black text-[#c0502a]">{current.issuanceStats.currentIssued} / {limit.max}</span>
+                </div>
+                <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#f4ded8]">
+                  <div className="h-full rounded-full bg-[#ff8a70]" style={{ width: `${Math.min(100, current.issuanceStats.percentUsed)}%` }} />
+                </div>
+                <p className="mt-2 text-xs font-semibold text-[#9a6f75]">{current.issuanceStats.percentUsed}% used</p>
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">When Limit Is Reached</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => updateLimit({ stopOnReach: true })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${limit.stopOnReach ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Stop Issuing</button>
+                  <button type="button" onClick={() => updateLimit({ stopOnReach: false })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${!limit.stopOnReach ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Warn Only</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Reward Tiers</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={addTier} className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56]">Add Tier</button>
+                <button type="button" onClick={resetTiers} className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56]">Reset</button>
+                <button type="button" onClick={() => onSave(current)} disabled={saving} className="rounded-2xl bg-[linear-gradient(135deg,#ff9473,#ff6675)] px-5 py-2 text-sm font-black text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
+              </div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="text-[#9a6f75]">
+                    {["Tier", "Minimum Score", "Discount", "QR Value", ""].map((h) => <th key={h} className="pb-3 pr-3 font-black">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {current.rewardTiers.map((tier, index) => (
+                    <tr key={`${tier.threshold}-${index}`} className="border-t border-[#f5e4de] text-[#563038]">
+                      <td className="py-2.5 pr-3 font-black">{index + 1}</td>
+                      <td className="py-2.5 pr-3"><input value={String(tier.threshold)} onChange={(e) => updateTier(index, { threshold: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="w-24 rounded-xl border border-[#edd9d5] px-3 py-2 font-bold outline-none" /></td>
+                      <td className="py-2.5 pr-3"><input value={String(tier.discountPercent)} onChange={(e) => updateTier(index, { discountPercent: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="w-20 rounded-xl border border-[#edd9d5] px-3 py-2 font-bold outline-none" /></td>
+                      <td className="py-2.5 pr-3"><input value={tier.fixedQrValue ?? ""} onChange={(e) => updateTier(index, { fixedQrValue: e.target.value })} placeholder="Auto" className="w-52 rounded-xl border border-[#edd9d5] px-3 py-2 text-xs font-bold outline-none" /></td>
+                      <td className="py-2.5 text-right"><button type="button" onClick={() => removeTier(index)} disabled={current.rewardTiers.length <= 1} className="rounded-xl border border-[#f0ccc5] px-3 py-1.5 text-xs font-black text-[#c0502a] disabled:opacity-40">Delete</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </SectionShell>
+  );
+}
 
 function GameSection({ data, loading, onRefresh }: { data: GameAnalytics | null; loading: boolean; onRefresh: () => void }) {
   return (

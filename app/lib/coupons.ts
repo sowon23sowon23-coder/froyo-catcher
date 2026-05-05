@@ -1,9 +1,4 @@
-export type CouponRewardType =
-  | "discount_3_percent"
-  | "discount_5_percent"
-  | "discount_10_percent"
-  | "discount_15_percent"
-  | "discount_20_percent";
+export type CouponRewardType = string;
 export type CouponGameMode = "free" | "mission" | "timeAttack";
 export type CouponState = "valid" | "already_redeemed" | "expired" | "invalid";
 
@@ -61,6 +56,107 @@ export const COUPON_REWARDS: CouponRewardDefinition[] = [
   },
 ] as const;
 
+export type CouponRewardTierConfig = {
+  threshold: number;
+  discountPercent: number;
+  fixedQrValue?: string | null;
+};
+
+export type CouponIssuanceLimitConfig = {
+  type: "daily" | "campaign";
+  max: number;
+  stopOnReach: boolean;
+};
+
+export const COUPON_CONFIG_KEYS = {
+  issuanceLimit: "issuance_limit",
+  rewardTiers: "reward_tiers",
+} as const;
+
+function getDefaultRewardForPercent(discountPercent: number) {
+  return COUPON_REWARDS.find((reward) => reward.discountPercent === discountPercent) ?? null;
+}
+
+export function getCouponRewardType(discountPercent: number): CouponRewardType {
+  return `discount_${discountPercent}_percent`;
+}
+
+export function createFallbackQrValue(discountPercent: number, threshold: number) {
+  const seed = `${discountPercent}:${threshold}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return `YL${String(discountPercent).padStart(2, "0")}${hash.toString(36).toUpperCase().padStart(8, "0").slice(0, 8)}`;
+}
+
+export function buildCouponRewardFromTier(tier: CouponRewardTierConfig): CouponRewardDefinition {
+  const defaultReward = getDefaultRewardForPercent(tier.discountPercent);
+  const discountPercent = Math.max(1, Math.min(100, Math.floor(tier.discountPercent)));
+  const threshold = Math.max(1, Math.floor(tier.threshold));
+
+  return {
+    type: defaultReward?.type ?? getCouponRewardType(discountPercent),
+    threshold,
+    discountPercent,
+    fixedQrValue: String(tier.fixedQrValue || defaultReward?.fixedQrValue || createFallbackQrValue(discountPercent, threshold)),
+    title: `${discountPercent}% OFF`,
+    description: `Score ${threshold} or more to unlock a ${discountPercent}% discount coupon.`,
+  };
+}
+
+export function normalizeRewardTiers(input: unknown): CouponRewardTierConfig[] {
+  const rawTiers = Array.isArray(input) ? input : [];
+  const byThreshold = new Map<number, CouponRewardTierConfig>();
+
+  for (const raw of rawTiers) {
+    if (!raw || typeof raw !== "object") continue;
+    const tier = raw as { threshold?: unknown; discountPercent?: unknown; fixedQrValue?: unknown };
+    const threshold = Number(tier.threshold);
+    const discountPercent = Number(tier.discountPercent);
+    if (!Number.isInteger(threshold) || threshold < 1) continue;
+    if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 100) continue;
+    byThreshold.set(threshold, {
+      threshold,
+      discountPercent,
+      fixedQrValue: typeof tier.fixedQrValue === "string" && tier.fixedQrValue.trim() ? tier.fixedQrValue.trim() : null,
+    });
+  }
+
+  return Array.from(byThreshold.values()).sort((a, b) => b.threshold - a.threshold);
+}
+
+export function getDefaultRewardTiers(): CouponRewardTierConfig[] {
+  return COUPON_REWARDS.map((reward) => ({
+    threshold: reward.threshold,
+    discountPercent: reward.discountPercent,
+    fixedQrValue: reward.fixedQrValue,
+  }));
+}
+
+export async function getConfiguredCouponRewards(supabase: any): Promise<CouponRewardDefinition[]> {
+  const result = await supabase
+    .from("coupon_config")
+    .select("value")
+    .eq("key", COUPON_CONFIG_KEYS.rewardTiers)
+    .maybeSingle();
+
+  if (result.error) {
+    console.error("Reward tier config lookup failed", result.error);
+    return [...COUPON_REWARDS];
+  }
+
+  const configuredTiers = normalizeRewardTiers(result.data?.value);
+  const tiers = configuredTiers.length > 0 ? configuredTiers : getDefaultRewardTiers();
+  return tiers.map(buildCouponRewardFromTier);
+}
+
+export async function getEligibleConfiguredCouponReward(supabase: any, score: number) {
+  const normalized = Number.isFinite(score) ? Math.max(0, Math.floor(score)) : 0;
+  const rewards = await getConfiguredCouponRewards(supabase);
+  return rewards.find((reward) => normalized >= reward.threshold) ?? null;
+}
+
 export type WalletCoupon = {
   id: number;
   rewardType: CouponRewardType;
@@ -82,17 +178,28 @@ export function getEligibleCouponReward(score: number) {
 }
 
 export function getCouponRewardByType(rewardType: string | null | undefined) {
-  return COUPON_REWARDS.find((reward) => reward.type === rewardType) ?? null;
+  const staticReward = COUPON_REWARDS.find((reward) => reward.type === rewardType) ?? null;
+  if (staticReward) return staticReward;
+
+  const match = String(rewardType || "").match(/^discount_(\d{1,3})_percent$/);
+  if (!match) return null;
+  const discountPercent = Number(match[1]);
+  if (!Number.isInteger(discountPercent) || discountPercent < 1 || discountPercent > 100) return null;
+  return buildCouponRewardFromTier({ threshold: 1, discountPercent });
 }
 
 export function getCouponRewardByPercent(discountPercent: number | null | undefined) {
-  return COUPON_REWARDS.find((reward) => reward.discountPercent === discountPercent) ?? null;
+  const percent = Number(discountPercent);
+  const staticReward = COUPON_REWARDS.find((reward) => reward.discountPercent === percent) ?? null;
+  if (staticReward) return staticReward;
+  if (!Number.isInteger(percent) || percent < 1 || percent > 100) return null;
+  return buildCouponRewardFromTier({ threshold: 1, discountPercent: percent });
 }
 
 export function inferCouponRewardFromText(...texts: Array<string | null | undefined>) {
   for (const rawText of texts) {
     const text = String(rawText || "");
-    const match = text.match(/\b(3|5|10|15|20)\s*%/i);
+    const match = text.match(/\b(\d{1,3})\s*%/i);
     if (match) {
       return getCouponRewardByPercent(Number(match[1]));
     }

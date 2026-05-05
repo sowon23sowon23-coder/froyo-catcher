@@ -2,9 +2,11 @@
 
 import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/couponData";
 import {
+  COUPON_CONFIG_KEYS,
   getCouponExpiryIso,
-  getEligibleCouponReward,
+  getEligibleConfiguredCouponReward,
   resolveCouponReward,
+  type CouponIssuanceLimitConfig,
 } from "../../../lib/coupons";
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
@@ -45,6 +47,48 @@ function serializeIssuedCoupon(row: {
     issuedAt: String(row.created_at || ""),
     redeemToken: String(row.redeem_token || ""),
   };
+}
+
+async function getIssuanceLimitConfig(supabase: any): Promise<CouponIssuanceLimitConfig | null> {
+  const result = await supabase
+    .from("coupon_config")
+    .select("value")
+    .eq("key", COUPON_CONFIG_KEYS.issuanceLimit)
+    .maybeSingle();
+
+  if (result.error) {
+    console.error("Coupon issuance limit config lookup failed", result.error);
+    return null;
+  }
+
+  const value = result.data?.value as Partial<CouponIssuanceLimitConfig> | null | undefined;
+  const type = value?.type === "campaign" ? "campaign" : value?.type === "daily" ? "daily" : null;
+  const max = Number(value?.max);
+  if (!type || !Number.isInteger(max) || max < 1) return null;
+
+  return {
+    type,
+    max,
+    stopOnReach: value?.stopOnReach !== false,
+  };
+}
+
+async function getCurrentIssuanceCount(supabase: any, config: CouponIssuanceLimitConfig) {
+  let query = supabase.from("wallet_coupons").select("id", { count: "exact", head: true });
+
+  if (config.type === "daily") {
+    const todayMidnightUtc = new Date();
+    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+    query = query.gte("created_at", todayMidnightUtc.toISOString());
+  }
+
+  const result = await query;
+  if (result.error) {
+    console.error("Coupon issuance limit count lookup failed", result.error);
+    throw new Error("Failed to check coupon issuance limit.");
+  }
+
+  return result.count ?? 0;
 }
 
 export async function POST(req: NextRequest) {
@@ -127,7 +171,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { score, gameSessionId, mode } = parsed.data;
-  const reward = getEligibleCouponReward(score);
+  const reward = await getEligibleConfiguredCouponReward(supabase, score);
 
   if (!reward || score < COUPON_SCORE_THRESHOLD) {
     return NextResponse.json({
@@ -139,6 +183,22 @@ export async function POST(req: NextRequest) {
 
   try {
     const expiresAt = getCouponExpiryIso();
+
+    const issuanceLimit = await getIssuanceLimitConfig(supabase);
+    if (issuanceLimit?.stopOnReach) {
+      const currentIssueCount = await getCurrentIssuanceCount(supabase, issuanceLimit);
+      if (currentIssueCount >= issuanceLimit.max) {
+        const reason = issuanceLimit.type === "daily" ? "daily_limit_reached" : "campaign_limit_reached";
+        return NextResponse.json({
+          eligible: true,
+          issued: false,
+          reason,
+          message: issuanceLimit.type === "daily"
+            ? "Today's coupons are all gone."
+            : "This campaign's coupons are all gone.",
+        });
+      }
+    }
 
     // Policy: max 2 coupons issued per account per calendar day (UTC)
     const todayMidnightUtc = new Date();

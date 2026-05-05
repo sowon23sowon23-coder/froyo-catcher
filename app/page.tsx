@@ -1080,6 +1080,8 @@ export default function Page() {
         error?: string;
         eligible?: boolean;
         issued?: boolean;
+        reason?: string;
+        message?: string;
         coupon?: {
           couponName?: string;
           title?: string;
@@ -1094,6 +1096,16 @@ export default function Page() {
 
       if (!res.ok) {
         throw new Error(json.error || "Failed to evaluate coupon reward.");
+      }
+
+      if (json.eligible && json.issued === false) {
+        setCouponNotice(
+          json.reason === "daily_limit_reached"
+            ? "Today's coupons are all gone."
+            : json.reason === "campaign_limit_reached"
+              ? "This campaign's coupons are all gone."
+              : json.message || json.reason || "Coupon could not be issued."
+        );
       }
 
       const couponTitle = json.coupon?.couponName || json.coupon?.title;
@@ -1431,15 +1443,17 @@ export default function Page() {
         <div className="fixed left-1/2 top-4 z-[140] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-[var(--yl-card-border)] bg-white/95 px-4 py-3 shadow-[0_18px_36px_rgba(150,9,83,0.2)] backdrop-blur-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Issued</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Update</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
-            <a
-              href="/wallet"
-              className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
-            >
-              My Wallet
-            </a>
+            {!couponNotice.includes("all gone") ? (
+              <a
+                href="/wallet"
+                className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
+              >
+                My Wallet
+              </a>
+            ) : null}
           </div>
         </div>
       ) : null}

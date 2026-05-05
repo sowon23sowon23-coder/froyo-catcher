@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow } from "../../../lib/couponData";
 import { buildChartSeries, getCouponStatus } from "../../../lib/couponMvp";
+import { COUPON_CONFIG_KEYS, type CouponIssuanceLimitConfig } from "../../../lib/coupons";
 import { requirePortalRole } from "../../../lib/portalAuth";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = getServiceSupabaseOrThrow();
 
-    const [couponsResult, sessionsResult, redeemLogsResult] = await Promise.all([
+    const [couponsResult, sessionsResult, redeemLogsResult, couponConfigResult] = await Promise.all([
       supabase
         .from("wallet_coupons")
         .select("id,status,expires_at,redeemed_at,created_at,reward_type")
@@ -28,6 +29,11 @@ export async function GET(req: NextRequest) {
         .select("id,action_type,store_id,created_at")
         .order("created_at", { ascending: false })
         .limit(5),
+      supabase
+        .from("coupon_config")
+        .select("value")
+        .eq("key", COUPON_CONFIG_KEYS.issuanceLimit)
+        .maybeSingle(),
     ]);
 
     const coupons = couponsResult.data ?? [];
@@ -55,6 +61,31 @@ export async function GET(req: NextRequest) {
 
     // Coupon → redeem conversion rate
     const redeemRate = issued > 0 ? Number(((redeemed / issued) * 100).toFixed(1)) : 0;
+    const rawIssuanceLimit = couponConfigResult.data?.value as Partial<CouponIssuanceLimitConfig> | null | undefined;
+    const limitType = rawIssuanceLimit?.type === "campaign" ? "campaign" : rawIssuanceLimit?.type === "daily" ? "daily" : null;
+    const limitMax = Number(rawIssuanceLimit?.max);
+    const todayMidnightUtc = new Date();
+    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+    const issuanceLimit = limitType && Number.isInteger(limitMax) && limitMax > 0
+      ? {
+          type: limitType,
+          max: limitMax,
+          current: limitType === "campaign"
+            ? issued
+            : coupons.filter((coupon) => {
+                const createdAt = new Date(String(coupon.created_at || "")).getTime();
+                return Number.isFinite(createdAt) && createdAt >= todayMidnightUtc.getTime();
+              }).length,
+          stopOnReach: rawIssuanceLimit?.stopOnReach !== false,
+        }
+      : null;
+    const issuanceLimitWithPercent = issuanceLimit
+      ? {
+          ...issuanceLimit,
+          percentUsed: Math.min(100, Math.round((issuanceLimit.current / issuanceLimit.max) * 100)),
+          warning: issuanceLimit.current / issuanceLimit.max >= 0.8,
+        }
+      : null;
 
     // Game session stats (last 14 days)
     const totalSessions = sessions.length;
@@ -76,7 +107,7 @@ export async function GET(req: NextRequest) {
     ];
 
     return NextResponse.json({
-      coupons: { issued, redeemed, expired, active, redeemRate },
+      coupons: { issued, redeemed, expired, active, redeemRate, issuanceLimit: issuanceLimitWithPercent },
       game: { totalSessions, completedSessions, completionRate, couponIssuedFromGame, gameToConversionRate },
       funnel,
       charts: {
