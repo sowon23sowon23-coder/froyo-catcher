@@ -591,6 +591,9 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
         <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
           <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
             <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Issuance Limit</p>
+            <p className="mt-2 text-xs font-semibold leading-relaxed text-[#9a6f75]">
+              Daily resets every day. Campaign counts all coupons for the whole promotion.
+            </p>
             <div className="mt-4 space-y-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Limit Type</p>
