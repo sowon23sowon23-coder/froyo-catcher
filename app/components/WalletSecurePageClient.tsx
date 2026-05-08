@@ -240,17 +240,23 @@ function getMsUntilMidnight(): number {
   return Math.max(0, midnight.getTime() - now.getTime());
 }
 
-function useMidnightCountdown() {
-  const [ms, setMs] = useState(() => getMsUntilMidnight());
+function use24hCountdown(lastCreatedAt: string | null) {
+  const targetMs = lastCreatedAt
+    ? new Date(lastCreatedAt).getTime() + 24 * 60 * 60 * 1000
+    : null;
+  const calc = () => (targetMs ? Math.max(0, targetMs - Date.now()) : 0);
+  const [ms, setMs] = useState(calc);
   useEffect(() => {
-    const id = window.setInterval(() => setMs(getMsUntilMidnight()), 1000);
+    if (!targetMs) { setMs(0); return; }
+    const id = window.setInterval(() => setMs(calc()), 1000);
     return () => clearInterval(id);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetMs]);
   const totalSecs = Math.floor(ms / 1000);
   const h = Math.floor(totalSecs / 3600);
   const m = Math.floor((totalSecs % 3600) / 60);
   const s = totalSecs % 60;
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  return { ms, formatted: `${pad(h)}:${pad(m)}:${pad(s)}` };
 }
 
 function formatExpiryDatetime(expiresAt: string) {
@@ -440,20 +446,20 @@ function ActiveCouponCard({
   );
 }
 
-function DailyLimitEmptyState() {
-  const countdown = useMidnightCountdown();
+function DailyLimitEmptyState({ lastCreatedAt }: { lastCreatedAt: string | null }) {
+  const { formatted } = use24hCountdown(lastCreatedAt);
   return (
     <>
-      <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for today!</p>
+      <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for now!</p>
       <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-        You've already used today's coupon. Playing again today won't issue a new redeemable coupon. Come back tomorrow for your next reward.
+        You've already used a coupon recently. A new one will be available once the timer runs out.
       </p>
       <div className="mt-4 flex items-center justify-between rounded-[1rem] border border-[#c7d2fe] bg-[#eef2ff] px-4 py-3">
         <span className="text-xs font-black uppercase tracking-[0.1em] text-[#4338ca]">
-          New coupon available in
+          Next coupon available in
         </span>
         <span className="font-mono text-base font-black tabular-nums text-[#3730a3]">
-          {countdown}
+          {formatted}
         </span>
       </div>
     </>
@@ -876,6 +882,19 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
   const canUseToday = canActivateToday && !usedTodayLocal;
 
+  const lastCouponCreatedAt = useMemo(() => {
+    const all = [...activeCoupons, ...historyCoupons];
+    if (all.length === 0) return null;
+    return all.reduce((a, b) =>
+      new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b
+    ).createdAt;
+  }, [activeCoupons, historyCoupons]);
+
+  const issuanceBlockedMs = useMemo(() => {
+    if (!lastCouponCreatedAt) return 0;
+    return Math.max(0, new Date(lastCouponCreatedAt).getTime() + 24 * 60 * 60 * 1000 - Date.now());
+  }, [lastCouponCreatedAt]);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
       {showCouponRules && (
@@ -984,8 +1003,8 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
             {tab === "active" && activeCards.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
-                {!canUseToday ? (
-                  <DailyLimitEmptyState />
+                {!canUseToday || issuanceBlockedMs > 0 ? (
+                  <DailyLimitEmptyState lastCreatedAt={lastCouponCreatedAt} />
                 ) : (
                   <>
                     <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet</p>
