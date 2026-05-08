@@ -659,7 +659,6 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   const [isEditing, setIsEditing] = useState(false);
   const [editSnapshot, setEditSnapshot] = useState<CouponSettings | null>(null);
   const [qrPreview, setQrPreview] = useState<{ value: string; label: string; dataUrl: string } | null>(null);
-  const [previewScore, setPreviewScore] = useState("170");
 
   const current = settings ?? {
     issuanceLimit: {
@@ -689,11 +688,6 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
     campaignEndDate: "",
     soldOutMessage: "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
   };
-
-  const previewReward = [...current.rewardTiers]
-    .filter((tier) => tier.active !== false)
-    .sort((a, b) => b.threshold - a.threshold)
-    .find((tier) => Number(previewScore) >= tier.threshold);
 
   const updateLimit = (patch: Partial<NonNullable<CouponSettings["issuanceLimit"]>>) => {
     onChange({ ...current, issuanceLimit: { ...limit, ...patch } });
@@ -873,15 +867,6 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                   </button>
                 </div>
               ))}
-            </div>
-            <div className="mt-4 rounded-2xl bg-[#fff9f4] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Score Preview</p>
-              <div className="mt-3 flex items-center gap-3">
-                <input value={previewScore} onChange={(e) => setPreviewScore(e.target.value.replace(/[^\d]/g, ""))} className="w-28 rounded-xl border border-[#edd9d5] px-3 py-2 text-sm font-bold outline-none" placeholder="Score" />
-                <p className="text-sm font-black text-[#4f2832]">
-                  {previewReward ? `→ ${previewReward.discountPercent}% coupon` : `→ no coupon`}
-                </p>
-              </div>
             </div>
           </div>
 
