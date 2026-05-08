@@ -417,7 +417,6 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
         : "Latest dashboard data";
   const setMode = (mode: DashboardFilter["mode"]) => onFilterChange({ ...filter, mode });
   const clearFilter = () => onFilterChange({ mode: "latest", date: "", startDate: "", endDate: "" });
-  const normalizeDateInput = (value: string) => value.replace(/[^\d-]/g, "").slice(0, 10);
 
   return (
     <SectionShell title="Dashboard" subtitle={rangeLabel} onRefresh={onRefresh} loading={loading} csvHref={undefined}>
@@ -434,11 +433,9 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
             <label className="block">
               <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Date</span>
               <input
-                type="text"
-                inputMode="numeric"
-                placeholder="YYYY-MM-DD"
+                type="date"
                 value={filter.date}
-                onChange={(event) => onFilterChange({ ...filter, date: normalizeDateInput(event.target.value) })}
+                onChange={(event) => onFilterChange({ ...filter, date: event.target.value })}
                 className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
               />
             </label>
@@ -448,22 +445,18 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Start Date</span>
                 <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="YYYY-MM-DD"
+                  type="date"
                   value={filter.startDate}
-                  onChange={(event) => onFilterChange({ ...filter, startDate: normalizeDateInput(event.target.value) })}
+                  onChange={(event) => onFilterChange({ ...filter, startDate: event.target.value })}
                   className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
                 />
               </label>
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">End Date</span>
                 <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="YYYY-MM-DD"
+                  type="date"
                   value={filter.endDate}
-                  onChange={(event) => onFilterChange({ ...filter, endDate: normalizeDateInput(event.target.value) })}
+                  onChange={(event) => onFilterChange({ ...filter, endDate: event.target.value })}
                   className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
                 />
               </label>
