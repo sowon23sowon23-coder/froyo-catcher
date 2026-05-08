@@ -1452,9 +1452,9 @@ export default function Page() {
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Update</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
-            {couponNotice.includes("is in My Wallet") ? (
+            {couponNotice.includes("is in My Wallet") || couponNotice.includes("already received") ? (
               <a
-                href="/wallet"
+                href={couponNotice.includes("already received") ? "/wallet?tab=history" : "/wallet"}
                 className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
               >
                 My Wallet

@@ -446,7 +446,7 @@ function DailyLimitEmptyState() {
     <>
       <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for today!</p>
       <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-        You've already used today's coupon. Playing again today won't issue a new redeemable coupon — come back tomorrow for your next reward.
+        You've already used today's coupon. Playing again today won't issue a new redeemable coupon. Come back tomorrow for your next reward.
       </p>
       <div className="mt-4 flex items-center justify-between rounded-[1rem] border border-[#c7d2fe] bg-[#eef2ff] px-4 py-3">
         <span className="text-xs font-black uppercase tracking-[0.1em] text-[#4338ca]">
@@ -527,6 +527,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const activeCouponsRef = useRef<WalletCoupon[]>([]);
   const historyCouponsRef = useRef<WalletCoupon[]>([]);
   const activeCouponIdRef = useRef<number | null>(null);
+  const autoSelectedTabRef = useRef(false);
   const generationTimeoutRef = useRef<number | null>(null);
   const countdownTimeoutRef = useRef<number | null>(null);
   const clockIntervalRef = useRef<number | null>(null);
@@ -652,6 +653,10 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
             setNickname(nickname || "");
             setActiveCoupons(nextActive);
             setHistoryCoupons(nextHistory);
+            if (!autoSelectedTabRef.current && requestedTab === "active" && nextActive.length === 0 && nextHistory.length > 0) {
+              autoSelectedTabRef.current = true;
+              setTab("history");
+            }
             writeLocalWalletCoupons([...nextActive, ...nextHistory]);
             setError(null);
             return;
@@ -699,6 +704,10 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
         setActiveCoupons(reconciled.activeCoupons);
         setHistoryCoupons(nextHistory);
+        if (!autoSelectedTabRef.current && requestedTab === "active" && reconciled.activeCoupons.length === 0 && nextHistory.length > 0) {
+          autoSelectedTabRef.current = true;
+          setTab("history");
+        }
         writeLocalWalletCoupons([...reconciled.activeCoupons, ...nextHistory]);
         setError(null);
       } catch {
@@ -1046,4 +1055,3 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     </main>
   );
 }
-
