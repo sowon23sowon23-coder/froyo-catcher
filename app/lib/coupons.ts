@@ -71,7 +71,6 @@ export type CouponIssuanceLimitConfig = {
   campaignStartDate?: string | null;
   campaignEndDate?: string | null;
   soldOutMessage?: string | null;
-  warningThresholds?: number[];
 };
 
 export const COUPON_CONFIG_KEYS = {

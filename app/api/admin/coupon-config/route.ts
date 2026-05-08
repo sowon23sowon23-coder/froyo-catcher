@@ -29,12 +29,6 @@ function normalizeIssuanceLimit(input: unknown): CouponIssuanceLimitConfig | nul
   const type = raw.type === "campaign" ? "campaign" : raw.type === "daily" ? "daily" : null;
   const max = Number(raw.max);
   if (!type || !Number.isInteger(max) || max < 1) return null;
-  const warningThresholds = Array.isArray(raw.warningThresholds)
-    ? raw.warningThresholds
-        .map((value) => Number(value))
-        .filter((value) => Number.isInteger(value) && value >= 1 && value <= 100)
-        .sort((a, b) => a - b)
-    : [80, 90, 100];
   return {
     type,
     max,
@@ -45,7 +39,6 @@ function normalizeIssuanceLimit(input: unknown): CouponIssuanceLimitConfig | nul
     soldOutMessage: typeof raw.soldOutMessage === "string" && raw.soldOutMessage.trim()
       ? raw.soldOutMessage.trim().slice(0, 180)
       : "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
-    warningThresholds: warningThresholds.length ? Array.from(new Set(warningThresholds)) : [80, 90, 100],
   };
 }
 

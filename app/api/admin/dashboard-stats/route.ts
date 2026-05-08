@@ -147,7 +147,6 @@ export async function GET(req: NextRequest) {
       ? {
           ...issuanceLimit,
           percentUsed: Math.min(100, Math.round((issuanceLimit.current / issuanceLimit.max) * 100)),
-          warning: issuanceLimit.current / issuanceLimit.max >= Math.min(...(rawIssuanceLimit?.warningThresholds ?? [80])) / 100,
           remaining: Math.max(0, issuanceLimit.max - issuanceLimit.current),
         }
       : null;

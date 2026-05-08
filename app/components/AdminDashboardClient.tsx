@@ -14,7 +14,7 @@ type DashboardStats = {
     expired: number;
     active: number;
     redeemRate: number;
-    issuanceLimit?: { type: "daily" | "campaign"; max: number; current: number; percentUsed: number; warning: boolean; stopOnReach: boolean } | null;
+    issuanceLimit?: { type: "daily" | "campaign"; max: number; current: number; percentUsed: number; stopOnReach: boolean } | null;
   };
   game: { totalSessions: number; completedSessions: number; completionRate: number; couponIssuedFromGame: number; gameToConversionRate: number };
   funnel: Array<{ label: string; value: number }>;
@@ -67,7 +67,6 @@ type CouponSettings = {
     campaignStartDate?: string | null;
     campaignEndDate?: string | null;
     soldOutMessage?: string | null;
-    warningThresholds?: number[];
   } | null;
   rewardTiers: CouponRewardTier[];
   issuanceStats: { dailyIssued: number; campaignIssued: number; currentIssued: number; percentUsed: number };
@@ -505,7 +504,7 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
               sub={data.coupons.issuanceLimit
                 ? `${data.coupons.issuanceLimit.current}/${data.coupons.issuanceLimit.max} ${data.coupons.issuanceLimit.type} limit (${data.coupons.issuanceLimit.percentUsed}%)`
                 : "Cumulative"}
-              color={data.coupons.issuanceLimit?.warning ? "orange" : undefined}
+              color={undefined}
             />
             <KpiCard label="Coupons Redeemed" value={String(data.coupons.redeemed)} sub={`Redeem rate ${data.coupons.redeemRate}%`} color="green" />
             <KpiCard label={hasFilter ? "Game Sessions" : "Game Sessions (14 days)"} value={String(data.game.totalSessions)} sub={`Completion rate ${data.game.completionRate}%`} />
@@ -665,7 +664,6 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
       campaignStartDate: "",
       campaignEndDate: "",
       soldOutMessage: "Today's coupons are all gone.",
-      warningThresholds: [80, 90, 100],
     },
     rewardTiers: [
       { threshold: 200, discountPercent: 20, active: true },
@@ -684,15 +682,12 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
     campaignStartDate: "",
     campaignEndDate: "",
     soldOutMessage: "Today's coupons are all gone.",
-    warningThresholds: [80, 90, 100],
   };
   const [previewScore, setPreviewScore] = useState("170");
   const previewReward = [...current.rewardTiers]
     .filter((tier) => tier.active !== false)
     .sort((a, b) => b.threshold - a.threshold)
     .find((tier) => Number(previewScore) >= tier.threshold);
-  const warningText = (limit.warningThresholds ?? [80, 90, 100]).join(", ");
-
   const updateLimit = (patch: Partial<NonNullable<CouponSettings["issuanceLimit"]>>) => {
     onChange({ ...current, issuanceLimit: { ...limit, ...patch } });
   };
@@ -765,11 +760,6 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Sold-Out Message</span>
                 <input value={limit.soldOutMessage ?? ""} onChange={(e) => updateLimit({ soldOutMessage: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-              </label>
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Warning Thresholds</span>
-                <input value={warningText} onChange={(e) => updateLimit({ warningThresholds: e.target.value.split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value)) })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-                <p className="mt-1 text-xs font-semibold text-[#9a6f75]">Comma-separated percentages, for example 80, 90, 100.</p>
               </label>
               <div className="rounded-2xl bg-[#fff9f4] p-4">
                 <div className="flex items-center justify-between gap-3 text-sm">

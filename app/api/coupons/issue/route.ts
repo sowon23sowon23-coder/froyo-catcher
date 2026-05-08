@@ -76,7 +76,6 @@ async function getIssuanceLimitConfig(supabase: any): Promise<CouponIssuanceLimi
     campaignStartDate: typeof value?.campaignStartDate === "string" ? value.campaignStartDate : null,
     campaignEndDate: typeof value?.campaignEndDate === "string" ? value.campaignEndDate : null,
     soldOutMessage: typeof value?.soldOutMessage === "string" ? value.soldOutMessage : null,
-    warningThresholds: Array.isArray(value?.warningThresholds) ? value.warningThresholds.map(Number) : undefined,
   };
 }
 
