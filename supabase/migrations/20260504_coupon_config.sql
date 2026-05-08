@@ -11,6 +11,16 @@ create table if not exists public.coupon_config (
 create index if not exists coupon_config_key_idx
   on public.coupon_config (key);
 
+create table if not exists public.coupon_config_history (
+  id bigint generated always as identity primary key,
+  changed_by text null,
+  changes jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists coupon_config_history_created_idx
+  on public.coupon_config_history (created_at desc);
+
 create or replace function public.set_row_updated_at()
 returns trigger
 language plpgsql
@@ -31,7 +41,16 @@ insert into public.coupon_config (key, value)
 values
   (
     'issuance_limit',
-    '{"type":"daily","max":500,"stopOnReach":true}'::jsonb
+    '{
+      "type":"daily",
+      "max":500,
+      "stopOnReach":true,
+      "enabled":true,
+      "campaignStartDate":null,
+      "campaignEndDate":null,
+      "soldOutMessage":"Today''s coupons are all gone.",
+      "warningThresholds":[80,90,100]
+    }'::jsonb
   ),
   (
     'reward_tiers',
@@ -115,4 +134,6 @@ begin
 end $$;
 
 alter table if exists public.coupon_config enable row level security;
+alter table if exists public.coupon_config_history enable row level security;
 revoke all on table public.coupon_config from anon, authenticated;
+revoke all on table public.coupon_config_history from anon, authenticated;

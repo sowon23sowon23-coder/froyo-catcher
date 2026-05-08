@@ -70,6 +70,11 @@ async function getIssuanceLimitConfig(supabase: any): Promise<CouponIssuanceLimi
     type,
     max,
     stopOnReach: value?.stopOnReach !== false,
+    enabled: value?.enabled !== false,
+    campaignStartDate: typeof value?.campaignStartDate === "string" ? value.campaignStartDate : null,
+    campaignEndDate: typeof value?.campaignEndDate === "string" ? value.campaignEndDate : null,
+    soldOutMessage: typeof value?.soldOutMessage === "string" ? value.soldOutMessage : null,
+    warningThresholds: Array.isArray(value?.warningThresholds) ? value.warningThresholds.map(Number) : undefined,
   };
 }
 
@@ -80,6 +85,17 @@ async function getCurrentIssuanceCount(supabase: any, config: CouponIssuanceLimi
     const todayMidnightUtc = new Date();
     todayMidnightUtc.setUTCHours(0, 0, 0, 0);
     query = query.gte("created_at", todayMidnightUtc.toISOString());
+  } else {
+    if (config.campaignStartDate) {
+      query = query.gte("created_at", `${config.campaignStartDate}T00:00:00.000Z`);
+    }
+    if (config.campaignEndDate) {
+      const end = new Date(`${config.campaignEndDate}T00:00:00.000Z`);
+      if (!Number.isNaN(end.getTime())) {
+        end.setUTCDate(end.getUTCDate() + 1);
+        query = query.lt("created_at", end.toISOString());
+      }
+    }
   }
 
   const result = await query;
@@ -185,6 +201,33 @@ export async function POST(req: NextRequest) {
     const expiresAt = getCouponExpiryIso();
 
     const issuanceLimit = await getIssuanceLimitConfig(supabase);
+    if (issuanceLimit?.enabled === false) {
+      return NextResponse.json({
+        eligible: true,
+        issued: false,
+        reason: "coupon_policy_inactive",
+        message: "Coupon issuance is currently paused.",
+      });
+    }
+    if (issuanceLimit?.type === "campaign") {
+      const today = new Date().toISOString().slice(0, 10);
+      if (issuanceLimit.campaignStartDate && today < issuanceLimit.campaignStartDate) {
+        return NextResponse.json({
+          eligible: true,
+          issued: false,
+          reason: "campaign_not_started",
+          message: "This coupon campaign has not started yet.",
+        });
+      }
+      if (issuanceLimit.campaignEndDate && today > issuanceLimit.campaignEndDate) {
+        return NextResponse.json({
+          eligible: true,
+          issued: false,
+          reason: "campaign_ended",
+          message: "This coupon campaign has ended.",
+        });
+      }
+    }
     if (issuanceLimit?.stopOnReach) {
       const currentIssueCount = await getCurrentIssuanceCount(supabase, issuanceLimit);
       if (currentIssueCount >= issuanceLimit.max) {
@@ -193,9 +236,9 @@ export async function POST(req: NextRequest) {
           eligible: true,
           issued: false,
           reason,
-          message: issuanceLimit.type === "daily"
+          message: issuanceLimit.soldOutMessage || (issuanceLimit.type === "daily"
             ? "Today's coupons are all gone."
-            : "This campaign's coupons are all gone.",
+            : "This campaign's coupons are all gone."),
         });
       }
     }

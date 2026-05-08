@@ -18,16 +18,34 @@ type CouponConfigMap = {
   reward_tiers?: CouponRewardTierConfig[] | null;
 };
 
+function normalizeDateValue(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
 function normalizeIssuanceLimit(input: unknown): CouponIssuanceLimitConfig | null {
   if (!input || typeof input !== "object") return null;
   const raw = input as Partial<CouponIssuanceLimitConfig>;
   const type = raw.type === "campaign" ? "campaign" : raw.type === "daily" ? "daily" : null;
   const max = Number(raw.max);
   if (!type || !Number.isInteger(max) || max < 1) return null;
+  const warningThresholds = Array.isArray(raw.warningThresholds)
+    ? raw.warningThresholds
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value >= 1 && value <= 100)
+        .sort((a, b) => a - b)
+    : [80, 90, 100];
   return {
     type,
     max,
     stopOnReach: raw.stopOnReach !== false,
+    enabled: raw.enabled !== false,
+    campaignStartDate: normalizeDateValue(raw.campaignStartDate),
+    campaignEndDate: normalizeDateValue(raw.campaignEndDate),
+    soldOutMessage: typeof raw.soldOutMessage === "string" && raw.soldOutMessage.trim()
+      ? raw.soldOutMessage.trim().slice(0, 180)
+      : "Today's coupons are all gone.",
+    warningThresholds: warningThresholds.length ? Array.from(new Set(warningThresholds)) : [80, 90, 100],
   };
 }
 
@@ -66,10 +84,21 @@ async function loadConfig(supabase: any) {
   const todayMidnightUtc = new Date();
   todayMidnightUtc.setUTCHours(0, 0, 0, 0);
   dailyQuery = dailyQuery.gte("created_at", todayMidnightUtc.toISOString());
+  let campaignQuery = supabase.from("wallet_coupons").select("id", { count: "exact", head: true });
+  if (issuanceLimit?.campaignStartDate) {
+    campaignQuery = campaignQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
+  }
+  if (issuanceLimit?.campaignEndDate) {
+    const end = new Date(`${issuanceLimit.campaignEndDate}T00:00:00.000Z`);
+    if (!Number.isNaN(end.getTime())) {
+      end.setUTCDate(end.getUTCDate() + 1);
+      campaignQuery = campaignQuery.lt("created_at", end.toISOString());
+    }
+  }
 
   const [dailyCountResult, campaignCountResult] = await Promise.all([
     dailyQuery,
-    supabase.from("wallet_coupons").select("id", { count: "exact", head: true }),
+    campaignQuery,
   ]);
 
   if (dailyCountResult.error || campaignCountResult.error) {
@@ -81,6 +110,12 @@ async function loadConfig(supabase: any) {
     ? campaignCountResult.count ?? 0
     : dailyCountResult.count ?? 0;
 
+  const recentHistoryResult = await supabase
+    .from("coupon_config_history")
+    .select("id,changed_by,changes,created_at")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
   return {
     issuanceLimit,
     rewardTiers,
@@ -90,6 +125,7 @@ async function loadConfig(supabase: any) {
       currentIssued,
       percentUsed: issuanceLimit?.max ? Math.min(100, Math.round((currentIssued / issuanceLimit.max) * 100)) : 0,
     },
+    history: recentHistoryResult.error ? [] : recentHistoryResult.data ?? [],
   };
 }
 
@@ -123,6 +159,12 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Please enter a valid coupon issuance limit." }, { status: 400 });
   }
 
+  if (issuanceLimit.type === "campaign" && issuanceLimit.campaignStartDate && issuanceLimit.campaignEndDate) {
+    if (issuanceLimit.campaignStartDate > issuanceLimit.campaignEndDate) {
+      return NextResponse.json({ error: "Campaign start date must be before the end date." }, { status: 400 });
+    }
+  }
+
   if (rewardTiers.length < 1) {
     return NextResponse.json({ error: "At least one reward tier is required." }, { status: 400 });
   }
@@ -131,8 +173,16 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Score thresholds cannot be duplicated." }, { status: 400 });
   }
 
+  const sortedForSafety = [...rewardTiers].sort((a, b) => b.threshold - a.threshold);
+  for (let i = 1; i < sortedForSafety.length; i += 1) {
+    if (sortedForSafety[i]!.discountPercent > sortedForSafety[i - 1]!.discountPercent) {
+      return NextResponse.json({ error: "Higher score tiers should not have lower discounts than lower score tiers." }, { status: 400 });
+    }
+  }
+
   try {
     const supabase = getServiceSupabaseOrThrow();
+    const before = await loadConfig(supabase).catch(() => null);
     const rows = [
       { key: COUPON_CONFIG_KEYS.issuanceLimit, value: issuanceLimit, updated_at: new Date().toISOString() },
       { key: COUPON_CONFIG_KEYS.rewardTiers, value: ensureTierQrValues(rewardTiers), updated_at: new Date().toISOString() },
@@ -143,6 +193,14 @@ export async function PUT(req: NextRequest) {
       console.error("Coupon config save failed", saved.error);
       return NextResponse.json({ error: "Failed to save coupon settings." }, { status: 500 });
     }
+
+    await supabase.from("coupon_config_history").insert([{
+      changed_by: session.staffName || session.staffId || session.role,
+      changes: {
+        before: before ? { issuanceLimit: before.issuanceLimit, rewardTiers: before.rewardTiers } : null,
+        after: { issuanceLimit, rewardTiers: ensureTierQrValues(rewardTiers) },
+      },
+    }]);
 
     return NextResponse.json(await loadConfig(supabase));
   } catch (error) {

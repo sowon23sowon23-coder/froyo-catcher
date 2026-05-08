@@ -66,6 +66,11 @@ export type CouponIssuanceLimitConfig = {
   type: "daily" | "campaign";
   max: number;
   stopOnReach: boolean;
+  enabled?: boolean;
+  campaignStartDate?: string | null;
+  campaignEndDate?: string | null;
+  soldOutMessage?: string | null;
+  warningThresholds?: number[];
 };
 
 export const COUPON_CONFIG_KEYS = {

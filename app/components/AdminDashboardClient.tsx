@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 
 import { formatCurrency, formatDateTime } from "../lib/couponMvp";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ??? Types ???????????????????????????????????????????????????????????????????
 
 type DashboardStats = {
   filter?: { mode: "latest" | "day" | "range"; date: string | null; startDate: string | null; endDate: string | null };
@@ -59,9 +59,19 @@ type FeedbackRow = { id: number; message: string; nickname: string | null; store
 
 type CouponRewardTier = { threshold: number; discountPercent: number; fixedQrValue?: string | null };
 type CouponSettings = {
-  issuanceLimit: { type: "daily" | "campaign"; max: number; stopOnReach: boolean } | null;
+  issuanceLimit: {
+    type: "daily" | "campaign";
+    max: number;
+    stopOnReach: boolean;
+    enabled?: boolean;
+    campaignStartDate?: string | null;
+    campaignEndDate?: string | null;
+    soldOutMessage?: string | null;
+    warningThresholds?: number[];
+  } | null;
   rewardTiers: CouponRewardTier[];
   issuanceStats: { dailyIssued: number; campaignIssued: number; currentIssued: number; percentUsed: number };
+  history?: Array<{ id: number; changed_by: string | null; changes: unknown; created_at: string }>;
 };
 
 type NavItem = "dashboard" | "coupon" | "couponSettings" | "game" | "users" | "feedback" | "logs";
@@ -69,7 +79,7 @@ type DashboardFilter = { mode: "latest" | "day" | "range"; date: string; startDa
 
 const DEFAULT_MANUAL_DISCOUNT_PERCENT = 3;
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ??? Main Component ???????????????????????????????????????????????????????????
 
 export default function AdminDashboardClient() {
   const [nav, setNav] = useState<NavItem>("dashboard");
@@ -114,7 +124,7 @@ export default function AdminDashboardClient() {
 
   const loadedRef = useRef<Partial<Record<NavItem, boolean>>>({});
 
-  // ── Loaders ─────────────────────────────────────────────────────────────────
+  // ?? Loaders ?????????????????????????????????????????????????????????????????
 
   const loadDashboard = async () => {
     setDashLoading(true);
@@ -216,6 +226,10 @@ export default function AdminDashboardClient() {
       setNotice("Enter a valid issuance limit.");
       return;
     }
+    if (limit.type === "campaign" && limit.campaignStartDate && limit.campaignEndDate && limit.campaignStartDate > limit.campaignEndDate) {
+      setNotice("Campaign start date must be before the end date.");
+      return;
+    }
     if (nextSettings.rewardTiers.length < 1) {
       setNotice("At least one reward tier is required.");
       return;
@@ -235,6 +249,13 @@ export default function AdminDashboardClient() {
         return;
       }
       thresholds.add(tier.threshold);
+    }
+    const sortedForSafety = [...nextSettings.rewardTiers].sort((a, b) => b.threshold - a.threshold);
+    for (let i = 1; i < sortedForSafety.length; i += 1) {
+      if (sortedForSafety[i]!.discountPercent > sortedForSafety[i - 1]!.discountPercent) {
+        setNotice("Higher score tiers should not have lower discounts than lower score tiers.");
+        return;
+      }
     }
 
     setCouponSettingsSaving(true);
@@ -303,7 +324,6 @@ export default function AdminDashboardClient() {
     }
     if (!loadedRef.current[nav]) {
       if (nav === "game") void loadGame();
-      if (nav === "coupon") void loadCoupons();
       if (nav === "couponSettings") void loadCouponSettings();
       if (nav === "logs") void loadStore();
       if (nav === "feedback") void loadFeedback();
@@ -316,18 +336,18 @@ export default function AdminDashboardClient() {
     return () => window.clearTimeout(t);
   }, [notice]);
 
-  // ── Nav config ───────────────────────────────────────────────────────────────
+  // ?? Nav config ???????????????????????????????????????????????????????????????
 
   const navItems: { id: NavItem; label: string; icon: string }[] = [
-    { id: "dashboard", label: "Dashboard", icon: "◈" },
-    { id: "couponSettings", label: "Coupon Settings", icon: "⚙" },
-    { id: "game", label: "Game Analytics", icon: "🎮" },
-    { id: "users", label: "User Search", icon: "👤" },
-    { id: "feedback", label: "Feedback", icon: "💬" },
-    { id: "logs", label: "Logs", icon: "📋" },
+    { id: "dashboard", label: "Dashboard", icon: "#" },
+    { id: "couponSettings", label: "Coupon Settings", icon: "*" },
+    { id: "game", label: "Game Analytics", icon: "G" },
+    { id: "users", label: "User Search", icon: "@" },
+    { id: "feedback", label: "Feedback", icon: "~" },
+    { id: "logs", label: "Logs", icon: "=" },
   ];
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ?? Render ???????????????????????????????????????????????????????????????????
 
   return (
     <div className="flex min-h-screen bg-[#fff8f3]">
@@ -381,7 +401,7 @@ export default function AdminDashboardClient() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar (mobile) */}
         <header className="flex items-center justify-between border-b border-[#f0ddd8] bg-white px-4 py-3 lg:hidden">
-          <button type="button" onClick={() => setSidebarOpen(true)} className="text-xl text-[#4f2832]">☰</button>
+          <button type="button" onClick={() => setSidebarOpen(true)} className="text-xl text-[#4f2832]">Menu</button>
           <span className="font-black text-[#4f2832]">{navItems.find((n) => n.id === nav)?.label}</span>
           <div className="w-6" />
         </header>
@@ -399,7 +419,7 @@ export default function AdminDashboardClient() {
   );
 }
 
-// ─── Section: Dashboard ───────────────────────────────────────────────────────
+// ??? Section: Dashboard ???????????????????????????????????????????????????????
 
 function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: {
   data: DashboardStats | null;
@@ -547,7 +567,7 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
   );
 }
 
-// ─── Section: Coupon Management ───────────────────────────────────────────────
+// ??? Section: Coupon Management ???????????????????????????????????????????????
 
 function CouponSection({ coupons, loading, creating, userId, discountPercent, onUserIdChange, onDiscountPercentChange, onCreateCoupon, onRefresh }: {
   coupons: CouponListRow[]; loading: boolean; creating: boolean;
@@ -583,7 +603,7 @@ function CouponSection({ coupons, loading, creating, userId, discountPercent, on
                   <span className="font-bold text-[#9a6f75]">{r.reward}</span>
                 </div>
               ))}
-              <p className="pt-1 text-xs text-[#c4a0ae]">Maximum 1 per day · Valid for 24 hours</p>
+              <p className="pt-1 text-xs text-[#c4a0ae]">Maximum 1 per day - Valid for 24 hours</p>
             </div>
           </div>
         </div>
@@ -626,7 +646,7 @@ function CouponSection({ coupons, loading, creating, userId, discountPercent, on
   );
 }
 
-// ─── Section: Game Analytics ──────────────────────────────────────────────────
+// ??? Section: Game Analytics ??????????????????????????????????????????????????
 
 function CouponSettingsSection({ settings, loading, saving, onChange, onSave, onRefresh }: {
   settings: CouponSettings | null;
@@ -637,7 +657,16 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   onRefresh: () => void;
 }) {
   const current = settings ?? {
-    issuanceLimit: { type: "daily" as const, max: 500, stopOnReach: true },
+    issuanceLimit: {
+      type: "daily" as const,
+      max: 500,
+      stopOnReach: true,
+      enabled: true,
+      campaignStartDate: "",
+      campaignEndDate: "",
+      soldOutMessage: "Today's coupons are all gone.",
+      warningThresholds: [80, 90, 100],
+    },
     rewardTiers: [
       { threshold: 200, discountPercent: 20 },
       { threshold: 150, discountPercent: 15 },
@@ -647,7 +676,21 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
     ],
     issuanceStats: { dailyIssued: 0, campaignIssued: 0, currentIssued: 0, percentUsed: 0 },
   };
-  const limit = current.issuanceLimit ?? { type: "daily" as const, max: 500, stopOnReach: true };
+  const limit = current.issuanceLimit ?? {
+    type: "daily" as const,
+    max: 500,
+    stopOnReach: true,
+    enabled: true,
+    campaignStartDate: "",
+    campaignEndDate: "",
+    soldOutMessage: "Today's coupons are all gone.",
+    warningThresholds: [80, 90, 100],
+  };
+  const [previewScore, setPreviewScore] = useState("170");
+  const previewReward = [...current.rewardTiers]
+    .sort((a, b) => b.threshold - a.threshold)
+    .find((tier) => Number(previewScore) >= tier.threshold);
+  const warningText = (limit.warningThresholds ?? [80, 90, 100]).join(", ");
 
   const updateLimit = (patch: Partial<NonNullable<CouponSettings["issuanceLimit"]>>) => {
     onChange({ ...current, issuanceLimit: { ...limit, ...patch } });
@@ -678,6 +721,21 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
               Daily resets every day. Campaign counts all coupons for the whole promotion.
             </p>
             <div className="mt-4 space-y-4">
+              <div className="rounded-2xl bg-[#fff9f4] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-black text-[#4f2832]">Coupon Policy</p>
+                    <p className="text-xs font-semibold text-[#9a6f75]">Pause all automatic coupon issuance when needed.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateLimit({ enabled: limit.enabled === false })}
+                    className={`rounded-2xl border px-4 py-2 text-sm font-black ${limit.enabled !== false ? "border-[#75c28b] bg-[#e8f8ee] text-[#2a8a50]" : "border-[#f0ccc5] bg-white text-[#c0502a]"}`}
+                  >
+                    {limit.enabled !== false ? "Active" : "Paused"}
+                  </button>
+                </div>
+              </div>
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Limit Type</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -691,6 +749,27 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
               <label className="block">
                 <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Maximum Coupons</span>
                 <input value={String(limit.max)} onChange={(e) => updateLimit({ max: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+              </label>
+              {limit.type === "campaign" ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Campaign Start</span>
+                    <input type="date" value={limit.campaignStartDate ?? ""} onChange={(e) => updateLimit({ campaignStartDate: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Campaign End</span>
+                    <input type="date" value={limit.campaignEndDate ?? ""} onChange={(e) => updateLimit({ campaignEndDate: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                  </label>
+                </div>
+              ) : null}
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Sold-Out Message</span>
+                <input value={limit.soldOutMessage ?? ""} onChange={(e) => updateLimit({ soldOutMessage: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+              </label>
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Warning Thresholds</span>
+                <input value={warningText} onChange={(e) => updateLimit({ warningThresholds: e.target.value.split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value)) })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                <p className="mt-1 text-xs font-semibold text-[#9a6f75]">Comma-separated percentages, for example 80, 90, 100.</p>
               </label>
               <div className="rounded-2xl bg-[#fff9f4] p-4">
                 <div className="flex items-center justify-between gap-3 text-sm">
@@ -740,6 +819,36 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                 </tbody>
               </table>
             </div>
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-2xl bg-[#fff9f4] p-4">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Tier Preview</p>
+                <input value={previewScore} onChange={(e) => setPreviewScore(e.target.value.replace(/[^\d]/g, ""))} className="mt-3 w-full rounded-xl border border-[#edd9d5] px-3 py-2 text-sm font-bold outline-none" />
+                <p className="mt-2 text-sm font-black text-[#4f2832]">
+                  {previewReward ? `Score ${previewScore || 0} -> ${previewReward.discountPercent}% coupon` : `Score ${previewScore || 0} -> no coupon`}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-[#fff9f4] p-4">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Safety Checks</p>
+                <p className="mt-2 text-xs font-semibold text-[#9a6f75]">
+                  The API blocks duplicate thresholds, invalid discounts, reversed campaign dates, and lower discounts on higher-score tiers.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 rounded-2xl border border-[#f0ddd8] bg-[#fffdf8] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Recent Setting Changes</p>
+              {(current.history ?? []).length === 0 ? (
+                <p className="mt-2 text-xs font-semibold text-[#9a6f75]">No setting changes recorded yet.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {(current.history ?? []).map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs">
+                      <span className="font-black text-[#4f2832]">{row.changed_by || "admin"}</span>
+                      <span className="font-semibold text-[#9a6f75]">{formatDateTime(row.created_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -752,7 +861,7 @@ function GameSection({ data, loading, onRefresh }: { data: GameAnalytics | null;
     <SectionShell title="Game Analytics" subtitle="Session-based gameplay metrics" onRefresh={onRefresh} loading={loading} csvHref={undefined}>
       {loading || !data ? <LoadingCard /> : data.totalSessions === 0 ? (
         <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-10 text-center">
-          <p className="text-4xl">🎮</p>
+          <p className="text-4xl">Game</p>
           <p className="mt-3 font-black text-[#4f2832]">No game session data yet</p>
           <p className="mt-1 text-sm text-[#9a6f75]">Data will be collected automatically once the game is played.</p>
         </div>
@@ -817,7 +926,7 @@ function GameSection({ data, loading, onRefresh }: { data: GameAnalytics | null;
   );
 }
 
-// ─── Section: Store Analytics ─────────────────────────────────────────────────
+// ??? Section: Store Analytics ?????????????????????????????????????????????????
 
 function StoreSection({ data, loading, onRefresh }: { data: StoreStats | null; loading: boolean; onRefresh: () => void }) {
   return (
@@ -868,7 +977,7 @@ function StoreSection({ data, loading, onRefresh }: { data: StoreStats | null; l
   );
 }
 
-// ─── Section: User Search ─────────────────────────────────────────────────────
+// ??? Section: User Search ?????????????????????????????????????????????????????
 
 function UserSection({ query, results, loading, expiringId, onQueryChange, onSearch, onExpire }: {
   query: string; results: UserEntry[]; loading: boolean; expiringId: number | null;
@@ -893,7 +1002,7 @@ function UserSection({ query, results, loading, expiringId, onQueryChange, onSea
             <div>
               <p className="font-black text-[#4f2832]">{user.nickname_display || user.nickname_key}</p>
               <p className="mt-0.5 text-xs text-[#9a6f75]">
-                {user.contact_type ? `${user.contact_type}: ${user.contact_value}` : "No contact info"} · Joined {formatDateTime(user.created_at)}
+                {user.contact_type ? `${user.contact_type}: ${user.contact_value}` : "No contact info"} - Joined {formatDateTime(user.created_at)}
               </p>
             </div>
             <span className="rounded-full bg-[#fff0f0] px-3 py-1 text-xs font-black text-[#cd6d66]">{user.walletCoupons.length} coupons</span>
@@ -910,7 +1019,7 @@ function UserSection({ query, results, loading, expiringId, onQueryChange, onSea
                       <span className="font-black text-[#4f2832]">{c.title}</span>
                       <StatusBadge status={c.status} />
                     </div>
-                    <p className="mt-0.5 text-xs text-[#b89aa5]">Issued {formatDateTime(c.created_at)} · Expires {formatDateTime(c.expires_at)}</p>
+                    <p className="mt-0.5 text-xs text-[#b89aa5]">Issued {formatDateTime(c.created_at)} - Expires {formatDateTime(c.expires_at)}</p>
                   </div>
                   {c.status === "active" && (
                     <button type="button" onClick={() => onExpire(c.id, user.id)} disabled={expiringId === c.id}
@@ -928,7 +1037,7 @@ function UserSection({ query, results, loading, expiringId, onQueryChange, onSea
   );
 }
 
-// ─── Section: Feedback ────────────────────────────────────────────────────────
+// ??? Section: Feedback ????????????????????????????????????????????????????????
 
 function FeedbackSection({ rows, loading, onRefresh }: { rows: FeedbackRow[]; loading: boolean; onRefresh: () => void }) {
   return (
@@ -945,7 +1054,7 @@ function FeedbackSection({ rows, loading, onRefresh }: { rows: FeedbackRow[]; lo
             <div key={row.id} className="rounded-2xl border border-[#f0ddd8] bg-white p-4">
               <p className="font-semibold text-[#4f2832]">{row.message}</p>
               <p className="mt-1.5 text-xs text-[#9a6f75]">
-                {row.nickname ? `@${row.nickname}` : "Anonymous"}{row.store ? ` · ${row.store}` : ""}{row.source ? ` · ${row.source}` : ""}
+                {row.nickname ? `@${row.nickname}` : "Anonymous"}{row.store ? ` - ${row.store}` : ""}{row.source ? ` - ${row.source}` : ""}
                 <span className="ml-2 text-[#c4a0ae]">{formatDateTime(row.created_at)}</span>
               </p>
             </div>
@@ -956,7 +1065,7 @@ function FeedbackSection({ rows, loading, onRefresh }: { rows: FeedbackRow[]; lo
   );
 }
 
-// ─── Section: Logs ────────────────────────────────────────────────────────────
+// ??? Section: Logs ????????????????????????????????????????????????????????????
 
 function LogsSection({ data, loading, onRefresh }: { data: StoreStats | null; loading: boolean; onRefresh: () => void }) {
   return (
@@ -975,7 +1084,7 @@ function LogsSection({ data, loading, onRefresh }: { data: StoreStats | null; lo
                   </div>
                   {log.reason && <p className="mt-1 text-[#6b5058]">{log.reason}</p>}
                   <p className="mt-1 text-xs text-[#9a6f75]">
-                    {log.store_id ?? "-"} / {log.staff_id ?? "-"} · {formatDateTime(log.created_at)}
+                    {log.store_id ?? "-"} / {log.staff_id ?? "-"} - {formatDateTime(log.created_at)}
                   </p>
                 </div>
               ))}
@@ -987,7 +1096,7 @@ function LogsSection({ data, loading, onRefresh }: { data: StoreStats | null; lo
   );
 }
 
-// ─── Shared UI Components ─────────────────────────────────────────────────────
+// ??? Shared UI Components ?????????????????????????????????????????????????????
 
 function SectionShell({ title, subtitle, onRefresh, loading, csvHref, children }: {
   title: string; subtitle: string; onRefresh: () => void; loading: boolean;
@@ -1068,3 +1177,5 @@ function MiniBarChart({ series, color }: { series: Array<{ date: string; count: 
     </div>
   );
 }
+
+
