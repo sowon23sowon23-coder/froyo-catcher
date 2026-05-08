@@ -109,8 +109,6 @@ export async function GET(req: NextRequest) {
   });
 
   // canActivateToday: false if the user already activated or redeemed a coupon today.
-  // - status='expired' means the customer tapped Use and the QR was shown (expire endpoint).
-  // - status='redeemed' with redeemed_at today means staff successfully scanned it.
   const todayIso = todayMidnightUtc.toISOString();
   const activatedTodayCount = (rows.data ?? []).filter(
     (row) =>
@@ -118,11 +116,19 @@ export async function GET(req: NextRequest) {
       (row.status === "redeemed" && row.redeemed_at && row.redeemed_at >= todayIso)
   ).length;
 
+  // nextIssuanceAt: when the 24h rolling issuance window reopens (null = can issue now)
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const latestIssuedRow = (rows.data ?? []).find((row) => row.created_at >= twentyFourHoursAgo);
+  const nextIssuanceAt = latestIssuedRow
+    ? new Date(new Date(latestIssuedRow.created_at).getTime() + 24 * 60 * 60 * 1000).toISOString()
+    : null;
+
   return NextResponse.json({
     nickname: entry.nickname,
     coupons,
     activeCoupons: coupons.filter((coupon) => coupon.status === "active"),
     historyCoupons: coupons.filter((coupon) => coupon.status !== "active"),
     canActivateToday: activatedTodayCount < 1,
+    nextIssuanceAt,
   });
 }

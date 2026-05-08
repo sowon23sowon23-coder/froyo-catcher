@@ -26,6 +26,7 @@ type WalletResponse = {
   activeCoupons?: WalletCoupon[];
   historyCoupons?: WalletCoupon[];
   canActivateToday?: boolean;
+  nextIssuanceAt?: string | null;
   error?: string;
 };
 
@@ -240,10 +241,8 @@ function getMsUntilMidnight(): number {
   return Math.max(0, midnight.getTime() - now.getTime());
 }
 
-function use24hCountdown(lastCreatedAt: string | null) {
-  const targetMs = lastCreatedAt
-    ? new Date(lastCreatedAt).getTime() + 24 * 60 * 60 * 1000
-    : null;
+function use24hCountdown(nextIssuanceAt: string | null) {
+  const targetMs = nextIssuanceAt ? new Date(nextIssuanceAt).getTime() : null;
   const calc = () => (targetMs ? Math.max(0, targetMs - Date.now()) : 0);
   const [ms, setMs] = useState(calc);
   useEffect(() => {
@@ -446,8 +445,8 @@ function ActiveCouponCard({
   );
 }
 
-function DailyLimitEmptyState({ lastCreatedAt }: { lastCreatedAt: string | null }) {
-  const { formatted } = use24hCountdown(lastCreatedAt);
+function DailyLimitEmptyState({ nextIssuanceAt }: { nextIssuanceAt: string | null }) {
+  const { formatted } = use24hCountdown(nextIssuanceAt);
   return (
     <>
       <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for now!</p>
@@ -524,6 +523,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const [walletUiStates, setWalletUiStates] = useState<Record<number, WalletUiState>>({});
   const [activeCouponId, setActiveCouponId] = useState<number | null>(null);
   const [canActivateToday, setCanActivateToday] = useState(true);
+  const [nextIssuanceAt, setNextIssuanceAt] = useState<string | null>(null);
   const [showCouponRules, setShowCouponRules] = useState(false);
   const [dontShowCouponRules, setDontShowCouponRules] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(QR_ACTIVE_MS / 1000);
@@ -676,6 +676,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
         setNickname(String(json.nickname || "").trim());
         if (typeof json.canActivateToday === "boolean") setCanActivateToday(json.canActivateToday);
+        setNextIssuanceAt(typeof json.nextIssuanceAt === "string" ? json.nextIssuanceAt : null);
         const serverActive = Array.isArray(json.activeCoupons) ? json.activeCoupons : [];
         const serverHistory = Array.isArray(json.historyCoupons) ? json.historyCoupons : [];
 
@@ -882,18 +883,10 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
   const canUseToday = canActivateToday && !usedTodayLocal;
 
-  const lastCouponCreatedAt = useMemo(() => {
-    const all = [...activeCoupons, ...historyCoupons];
-    if (all.length === 0) return null;
-    return all.reduce((a, b) =>
-      new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b
-    ).createdAt;
-  }, [activeCoupons, historyCoupons]);
-
   const issuanceBlockedMs = useMemo(() => {
-    if (!lastCouponCreatedAt) return 0;
-    return Math.max(0, new Date(lastCouponCreatedAt).getTime() + 24 * 60 * 60 * 1000 - Date.now());
-  }, [lastCouponCreatedAt]);
+    if (!nextIssuanceAt) return 0;
+    return Math.max(0, new Date(nextIssuanceAt).getTime() - Date.now());
+  }, [nextIssuanceAt]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
@@ -1004,7 +997,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
             {tab === "active" && activeCards.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
                 {!canUseToday || issuanceBlockedMs > 0 ? (
-                  <DailyLimitEmptyState lastCreatedAt={lastCouponCreatedAt} />
+                  <DailyLimitEmptyState nextIssuanceAt={nextIssuanceAt} />
                 ) : (
                   <>
                     <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet</p>
