@@ -237,8 +237,8 @@ export async function POST(req: NextRequest) {
           issued: false,
           reason,
           message: issuanceLimit.soldOutMessage || (issuanceLimit.type === "daily"
-            ? "Today's coupons are all gone."
-            : "This campaign's coupons are all gone."),
+            ? "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다."
+            : "아쉽게도 이번 캠페인의 쿠폰이 모두 소진되었습니다."),
         });
       }
     }

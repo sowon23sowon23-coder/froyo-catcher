@@ -44,7 +44,7 @@ function normalizeIssuanceLimit(input: unknown): CouponIssuanceLimitConfig | nul
     campaignEndDate: normalizeDateValue(raw.campaignEndDate),
     soldOutMessage: typeof raw.soldOutMessage === "string" && raw.soldOutMessage.trim()
       ? raw.soldOutMessage.trim().slice(0, 180)
-      : "Today's coupons are all gone.",
+      : "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
     warningThresholds: warningThresholds.length ? Array.from(new Set(warningThresholds)) : [80, 90, 100],
   };
 }
