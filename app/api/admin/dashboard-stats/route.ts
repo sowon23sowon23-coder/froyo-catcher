@@ -7,28 +7,49 @@ import { requirePortalRole } from "../../../lib/portalAuth";
 
 export const dynamic = "force-dynamic";
 
+function getDateRange(dateParam: string | null) {
+  if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return null;
+  const start = new Date(`${dateParam}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { date: dateParam, startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
 export async function GET(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) return NextResponse.json({ error: "Admin login required." }, { status: 401 });
 
   try {
     const supabase = getServiceSupabaseOrThrow();
+    const dateRange = getDateRange(req.nextUrl.searchParams.get("date"));
+
+    let couponsQuery = supabase
+      .from("wallet_coupons")
+      .select("id,status,expires_at,redeemed_at,created_at,reward_type")
+      .order("created_at", { ascending: false })
+      .limit(5000);
+    let sessionsQuery = supabase
+      .from("game_sessions")
+      .select("id,score,coupon_issued,completed,created_at");
+    let redeemLogsQuery = supabase
+      .from("redeem_logs")
+      .select("id,action_type,store_id,created_at")
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (dateRange) {
+      couponsQuery = couponsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
+      sessionsQuery = sessionsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
+      redeemLogsQuery = redeemLogsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
+    } else {
+      sessionsQuery = sessionsQuery.gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString());
+    }
 
     const [couponsResult, sessionsResult, redeemLogsResult, couponConfigResult] = await Promise.all([
-      supabase
-        .from("wallet_coupons")
-        .select("id,status,expires_at,redeemed_at,created_at,reward_type")
-        .order("created_at", { ascending: false })
-        .limit(5000),
-      supabase
-        .from("game_sessions")
-        .select("id,score,coupon_issued,completed,created_at")
-        .gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
-      supabase
-        .from("redeem_logs")
-        .select("id,action_type,store_id,created_at")
-        .order("created_at", { ascending: false })
-        .limit(5),
+      couponsQuery,
+      sessionsQuery,
+      redeemLogsQuery,
       supabase
         .from("coupon_config")
         .select("value")
@@ -87,7 +108,7 @@ export async function GET(req: NextRequest) {
         }
       : null;
 
-    // Game session stats (last 14 days)
+    // Game session stats
     const totalSessions = sessions.length;
     const completedSessions = sessions.filter((s) => s.completed).length;
     const couponIssuedFromGame = sessions.filter((s) => s.coupon_issued).length;
@@ -98,7 +119,7 @@ export async function GET(req: NextRequest) {
       ? Math.round((couponIssuedFromGame / completedSessions) * 100)
       : 0;
 
-    // Funnel (last 14 days, approximated)
+    // Funnel
     const funnel = [
       { label: "Game Started", value: totalSessions },
       { label: "Game Completed", value: completedSessions },
@@ -107,12 +128,13 @@ export async function GET(req: NextRequest) {
     ];
 
     return NextResponse.json({
+      filter: { date: dateRange?.date ?? null },
       coupons: { issued, redeemed, expired, active, redeemRate, issuanceLimit: issuanceLimitWithPercent },
       game: { totalSessions, completedSessions, completionRate, couponIssuedFromGame, gameToConversionRate },
       funnel,
       charts: {
-        issuedByDay: buildChartSeries(14, issueDates),
-        redeemedByDay: buildChartSeries(14, redeemDates),
+        issuedByDay: dateRange ? [{ date: dateRange.date, count: issued }] : buildChartSeries(14, issueDates),
+        redeemedByDay: dateRange ? [{ date: dateRange.date, count: redeemed }] : buildChartSeries(14, redeemDates),
       },
       recentRedeems: redeemLogsResult.data ?? [],
     });

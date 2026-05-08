@@ -7,6 +7,7 @@ import { formatCurrency, formatDateTime } from "../lib/couponMvp";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type DashboardStats = {
+  filter?: { date: string | null };
   coupons: {
     issued: number;
     redeemed: number;
@@ -77,6 +78,7 @@ export default function AdminDashboardClient() {
   // Dashboard
   const [dashStats, setDashStats] = useState<DashboardStats | null>(null);
   const [dashLoading, setDashLoading] = useState(false);
+  const [dashboardDate, setDashboardDate] = useState("");
 
   // Game analytics
   const [gameData, setGameData] = useState<GameAnalytics | null>(null);
@@ -116,7 +118,8 @@ export default function AdminDashboardClient() {
   const loadDashboard = async () => {
     setDashLoading(true);
     try {
-      const res = await fetch("/api/admin/dashboard-stats", { cache: "no-store" });
+      const params = dashboardDate ? `?date=${encodeURIComponent(dashboardDate)}` : "";
+      const res = await fetch(`/api/admin/dashboard-stats${params}`, { cache: "no-store" });
       setDashStats((await res.json()) as DashboardStats);
       loadedRef.current.dashboard = true;
     } finally { setDashLoading(false); }
@@ -291,7 +294,7 @@ export default function AdminDashboardClient() {
       if (nav === "logs") void loadStore();
       if (nav === "feedback") void loadFeedback();
     }
-  }, [nav]);
+  }, [nav, dashboardDate]);
 
   useEffect(() => {
     if (!notice) return;
@@ -371,7 +374,7 @@ export default function AdminDashboardClient() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} onRefresh={loadDashboard} />}
+          {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} selectedDate={dashboardDate} onDateChange={setDashboardDate} onRefresh={loadDashboard} />}
           {nav === "coupon" && <CouponSection coupons={coupons} loading={couponLoading} creating={creating} userId={userId} discountPercent={discountPercent} onUserIdChange={setUserId} onDiscountPercentChange={setDiscountPercent} onCreateCoupon={createCoupon} onRefresh={loadCoupons} />}
           {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
           {nav === "game" && <GameSection data={gameData} loading={gameLoading} onRefresh={loadGame} />}
@@ -386,9 +389,41 @@ export default function AdminDashboardClient() {
 
 // ─── Section: Dashboard ───────────────────────────────────────────────────────
 
-function DashboardSection({ data, loading, onRefresh }: { data: DashboardStats | null; loading: boolean; onRefresh: () => void }) {
+function DashboardSection({ data, loading, selectedDate, onDateChange, onRefresh }: {
+  data: DashboardStats | null;
+  loading: boolean;
+  selectedDate: string;
+  onDateChange: (value: string) => void;
+  onRefresh: () => void;
+}) {
+  const rangeLabel = selectedDate ? `Data for ${selectedDate}` : "Latest dashboard data";
+
   return (
-    <SectionShell title="Dashboard" subtitle="Today's key metrics" onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+    <SectionShell title="Dashboard" subtitle={rangeLabel} onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+      <div className="mb-5 rounded-[1.6rem] border border-[#f0ddd8] bg-white p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block">
+            <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">View Date</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(event) => onDateChange(event.target.value)}
+              className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => onDateChange("")}
+            disabled={!selectedDate || loading}
+            className="rounded-2xl border border-[#ecd9d2] px-4 py-2.5 text-sm font-black text-[#764a56] disabled:opacity-50"
+          >
+            Show Latest
+          </button>
+        </div>
+        <p className="mt-3 text-xs font-semibold text-[#9a6f75]">
+          Choose a date to filter coupon issuance, game sessions, conversion funnel, and recent logs for that day.
+        </p>
+      </div>
       {loading || !data ? <LoadingCard /> : (
         <>
           {/* KPI row */}
@@ -402,13 +437,13 @@ function DashboardSection({ data, loading, onRefresh }: { data: DashboardStats |
               color={data.coupons.issuanceLimit?.warning ? "orange" : undefined}
             />
             <KpiCard label="Coupons Redeemed" value={String(data.coupons.redeemed)} sub={`Redeem rate ${data.coupons.redeemRate}%`} color="green" />
-            <KpiCard label="Game Sessions (14 days)" value={String(data.game.totalSessions)} sub={`Completion rate ${data.game.completionRate}%`} />
+            <KpiCard label={selectedDate ? "Game Sessions" : "Game Sessions (14 days)"} value={String(data.game.totalSessions)} sub={`Completion rate ${data.game.completionRate}%`} />
             <KpiCard label="Game-to-Coupon Conversion" value={`${data.game.gameToConversionRate}%`} sub="Based on completed sessions" color="orange" />
           </div>
 
           {/* Funnel */}
           <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Conversion Funnel (14 Days)</p>
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">{selectedDate ? "Conversion Funnel" : "Conversion Funnel (14 Days)"}</p>
             <div className="mt-5 flex items-end gap-2 overflow-x-auto pb-2">
               {data.funnel.map((step, i) => {
                 const max = data.funnel[0]?.value ?? 1;
@@ -431,11 +466,11 @@ function DashboardSection({ data, loading, onRefresh }: { data: DashboardStats |
           {/* Charts */}
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Daily Coupon Issuance (14 Days)</p>
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">{selectedDate ? "Coupon Issuance" : "Daily Coupon Issuance (14 Days)"}</p>
               <MiniBarChart series={data.charts.issuedByDay} color="bg-[#ff9a76]" />
             </div>
             <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Daily Coupon Redemption (14 Days)</p>
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">{selectedDate ? "Coupon Redemption" : "Daily Coupon Redemption (14 Days)"}</p>
               <MiniBarChart series={data.charts.redeemedByDay} color="bg-[#46b874]" />
             </div>
           </div>
