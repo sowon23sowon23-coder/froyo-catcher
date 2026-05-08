@@ -320,7 +320,6 @@ export default function AdminDashboardClient() {
 
   const navItems: { id: NavItem; label: string; icon: string }[] = [
     { id: "dashboard", label: "Dashboard", icon: "◈" },
-    { id: "coupon", label: "Coupon Management", icon: "🎟" },
     { id: "couponSettings", label: "Coupon Settings", icon: "⚙" },
     { id: "game", label: "Game Analytics", icon: "🎮" },
     { id: "users", label: "User Search", icon: "👤" },
@@ -389,7 +388,6 @@ export default function AdminDashboardClient() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadDashboard} />}
-          {nav === "coupon" && <CouponSection coupons={coupons} loading={couponLoading} creating={creating} userId={userId} discountPercent={discountPercent} onUserIdChange={setUserId} onDiscountPercentChange={setDiscountPercent} onCreateCoupon={createCoupon} onRefresh={loadCoupons} />}
           {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
           {nav === "game" && <GameSection data={gameData} loading={gameLoading} onRefresh={loadGame} />}
           {nav === "users" && <UserSection query={userQuery} results={userResults} loading={userSearchLoading} expiringId={expiringId} onQueryChange={setUserQuery} onSearch={searchUsers} onExpire={expireWalletCoupon} />}
