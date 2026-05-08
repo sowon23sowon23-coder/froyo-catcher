@@ -63,7 +63,7 @@ type CouponSettings = {
   issuanceStats: { dailyIssued: number; campaignIssued: number; currentIssued: number; percentUsed: number };
 };
 
-type NavItem = "dashboard" | "coupon" | "couponSettings" | "game" | "store" | "users" | "feedback" | "logs";
+type NavItem = "dashboard" | "coupon" | "couponSettings" | "game" | "users" | "feedback" | "logs";
 
 const DEFAULT_MANUAL_DISCOUNT_PERCENT = 3;
 
@@ -157,7 +157,6 @@ export default function AdminDashboardClient() {
     try {
       const res = await fetch("/api/admin/stats", { cache: "no-store" });
       setStoreStats((await res.json()) as StoreStats);
-      loadedRef.current.store = true;
       loadedRef.current.logs = true;
     } finally { setStoreLoading(false); }
   };
@@ -289,7 +288,7 @@ export default function AdminDashboardClient() {
       if (nav === "game") void loadGame();
       if (nav === "coupon") void loadCoupons();
       if (nav === "couponSettings") void loadCouponSettings();
-      if (nav === "store" || nav === "logs") void loadStore();
+      if (nav === "logs") void loadStore();
       if (nav === "feedback") void loadFeedback();
     }
   }, [nav]);
@@ -307,7 +306,6 @@ export default function AdminDashboardClient() {
     { id: "coupon", label: "Coupon Management", icon: "🎟" },
     { id: "couponSettings", label: "Coupon Settings", icon: "⚙" },
     { id: "game", label: "Game Analytics", icon: "🎮" },
-    { id: "store", label: "Store Analytics", icon: "🏪" },
     { id: "users", label: "User Search", icon: "👤" },
     { id: "feedback", label: "Feedback", icon: "💬" },
     { id: "logs", label: "Logs", icon: "📋" },
@@ -377,7 +375,6 @@ export default function AdminDashboardClient() {
           {nav === "coupon" && <CouponSection coupons={coupons} loading={couponLoading} creating={creating} userId={userId} discountPercent={discountPercent} onUserIdChange={setUserId} onDiscountPercentChange={setDiscountPercent} onCreateCoupon={createCoupon} onRefresh={loadCoupons} />}
           {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
           {nav === "game" && <GameSection data={gameData} loading={gameLoading} onRefresh={loadGame} />}
-          {nav === "store" && <StoreSection data={storeStats} loading={storeLoading} onRefresh={loadStore} />}
           {nav === "users" && <UserSection query={userQuery} results={userResults} loading={userSearchLoading} expiringId={expiringId} onQueryChange={setUserQuery} onSearch={searchUsers} onExpire={expireWalletCoupon} />}
           {nav === "feedback" && <FeedbackSection rows={feedbackRows} loading={feedbackLoading} onRefresh={loadFeedback} />}
           {nav === "logs" && <LogsSection data={storeStats} loading={storeLoading} onRefresh={loadStore} />}
