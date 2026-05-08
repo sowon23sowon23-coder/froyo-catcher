@@ -3,7 +3,9 @@
 import { getServiceSupabaseOrThrow, issueCouponSchema } from "../../../lib/couponData";
 import {
   COUPON_CONFIG_KEYS,
+  getCouponDiscountPercent,
   getCouponExpiryIso,
+  getCouponState,
   getEligibleConfiguredCouponReward,
   resolveCouponReward,
   type CouponIssuanceLimitConfig,
@@ -243,28 +245,73 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Policy: max 2 coupons issued per account per calendar day (UTC)
     const todayMidnightUtc = new Date();
     todayMidnightUtc.setUTCHours(0, 0, 0, 0);
 
-    const issuedTodayResult = await supabase
+    const todayCouponResult = await supabase
       .from("wallet_coupons")
-      .select("id", { count: "exact", head: true })
+      .select("id,reward_type,status,expires_at,redeemed_at")
       .eq("entry_id", entry.id)
-      .gte("created_at", todayMidnightUtc.toISOString());
+      .gte("created_at", todayMidnightUtc.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (issuedTodayResult.error) {
-      console.error("Daily issue count lookup failed", issuedTodayResult.error);
+    if (todayCouponResult.error) {
+      console.error("Daily coupon lookup failed", todayCouponResult.error);
       return NextResponse.json({ error: "Failed to check daily issue limit." }, { status: 500 });
     }
 
-    const issuedTodayCount = issuedTodayResult.count ?? 0;
-    if (issuedTodayCount >= 1) {
+    const todayCoupon = todayCouponResult.data;
+
+    if (todayCoupon) {
+      const existingState = getCouponState({
+        status: todayCoupon.status,
+        expiresAt: todayCoupon.expires_at,
+        redeemedAt: todayCoupon.redeemed_at,
+      });
+
+      if (existingState !== "valid") {
+        return NextResponse.json({
+          eligible: true,
+          issued: false,
+          reason: "user_daily_limit_reached",
+          message: "You already received today's coupon. Come back tomorrow for another one.",
+        });
+      }
+
+      const existingDiscount = getCouponDiscountPercent(todayCoupon.reward_type) ?? 0;
+      if (reward.discountPercent <= existingDiscount) {
+        return NextResponse.json({
+          eligible: true,
+          issued: false,
+          reason: "user_daily_limit_reached",
+          message: "You already received today's coupon. Come back tomorrow for another one.",
+        });
+      }
+
+      // Upgrade the existing active coupon to the higher tier
+      const upgraded = await supabase
+        .from("wallet_coupons")
+        .update({ reward_type: reward.type, title: reward.title, description: reward.description })
+        .eq("id", todayCoupon.id)
+        .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
+        .single();
+
+      if (upgraded.error || !upgraded.data?.id) {
+        console.error("Coupon upgrade failed", upgraded.error);
+        return NextResponse.json({
+          error: "Failed to upgrade coupon.",
+          detail: upgraded.error?.message ?? null,
+        }, { status: 500 });
+      }
+
       return NextResponse.json({
         eligible: true,
-        issued: false,
-        reason: "user_daily_limit_reached",
-        message: "You already received today's coupon. Come back tomorrow for another one.",
+        issued: true,
+        upgraded: true,
+        coupon: serializeIssuedCoupon(upgraded.data),
+        qrPayload: reward.fixedQrValue,
       });
     }
 

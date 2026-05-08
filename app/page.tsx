@@ -51,6 +51,7 @@ type IssuedCoupon = {
   expiresAt: string;
   redeemToken: string;
   createdAt: string;
+  upgraded?: boolean;
 };
 
 const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
@@ -1081,6 +1082,7 @@ export default function Page() {
         error?: string;
         eligible?: boolean;
         issued?: boolean;
+        upgraded?: boolean;
         reason?: string;
         message?: string;
         coupon?: {
@@ -1120,6 +1122,7 @@ export default function Page() {
           expiresAt: json.coupon.expiresAt,
           redeemToken: String(json.coupon?.redeemToken || ""),
           createdAt: String(json.coupon?.issuedAt || new Date().toISOString()),
+          upgraded: json.upgraded === true,
         };
       }
 
@@ -1392,7 +1395,11 @@ export default function Page() {
                       : formatCouponLabel(issuedCoupon.rewardType) !== "Coupon"
                         ? formatCouponLabel(issuedCoupon.rewardType)
                         : "Discount";
-                    setCouponNotice(`${percentLabel} discount coupon is in My Wallet!`);
+                    setCouponNotice(
+                      issuedCoupon.upgraded
+                        ? `쿠폰이 ${percentLabel} 할인으로 업그레이드됐습니다!`
+                        : `${percentLabel} discount coupon is in My Wallet!`
+                    );
                   }
 
                   if (!isFreePlay) {
@@ -1452,7 +1459,7 @@ export default function Page() {
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Update</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
-            {couponNotice.includes("is in My Wallet") || couponNotice.includes("already received") ? (
+            {couponNotice.includes("is in My Wallet") || couponNotice.includes("already received") || couponNotice.includes("업그레이드") ? (
               <a
                 href={couponNotice.includes("already received") ? "/wallet?tab=history" : "/wallet"}
                 className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
