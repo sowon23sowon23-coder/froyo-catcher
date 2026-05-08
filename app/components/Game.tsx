@@ -1316,7 +1316,7 @@ export default function Game({
                         </div>
                         {earned ? (
                           <p className="mt-2 text-center text-xs font-black text-[#2f6c1a]">
-                            🎉 {earned.discountPercent}% coupon earned!
+                            {earned.discountPercent}% coupon eligible
                           </p>
                         ) : next ? (
                           <p className="mt-2 text-center text-[11px] font-bold text-[var(--yl-ink-muted)]">

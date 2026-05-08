@@ -7,6 +7,7 @@ import HomeScreen from "./components/HomeScreen";
 import Game from "./components/Game";
 import LeaderboardModal, { LeaderMode, LeaderRow } from "./components/LeaderboardModal";
 import { formatCouponLabel, resolveCouponReward, type CouponGameMode, type WalletCoupon } from "./lib/coupons";
+import { COUPON_SCORE_THRESHOLD } from "./lib/couponMvp";
 import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
 
@@ -1123,6 +1124,9 @@ export default function Page() {
       return null;
     } catch (err) {
       console.error("Coupon issue failed:", err);
+      if (score >= COUPON_SCORE_THRESHOLD) {
+        setCouponNotice("Coupon could not be issued. Please check your wallet or try again after logging in.");
+      }
       return null;
     }
   };
