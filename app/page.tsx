@@ -517,7 +517,7 @@ export default function Page() {
 
   useEffect(() => {
     if (!couponNotice) return;
-    const id = window.setTimeout(() => setCouponNotice(null), 5000);
+    const id = window.setTimeout(() => setCouponNotice(null), 12000);
     return () => window.clearTimeout(id);
   }, [couponNotice]);
 
@@ -1105,12 +1105,14 @@ export default function Page() {
             ? "Today's coupons are all gone."
             : json.reason === "campaign_limit_reached"
               ? "This campaign's coupons are all gone."
+              : json.reason === "Daily issuance limit reached. You can receive 1 coupon per day."
+                ? "You already received today's coupon. Please try again tomorrow."
               : json.message || json.reason || "Coupon could not be issued."
         );
       }
 
       const couponTitle = json.coupon?.couponName || json.coupon?.title;
-      if (json.eligible && couponTitle && json.coupon?.expiresAt) {
+      if (json.issued === true && json.eligible && couponTitle && json.coupon?.expiresAt && json.coupon?.redeemToken) {
         return {
           title: couponTitle,
           description: String(json.coupon?.description || ""),
@@ -1450,7 +1452,7 @@ export default function Page() {
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Update</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
-            {!couponNotice.includes("all gone") ? (
+            {couponNotice.includes("is in My Wallet") ? (
               <a
                 href="/wallet"
                 className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
