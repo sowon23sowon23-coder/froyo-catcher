@@ -245,14 +245,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const todayMidnightUtc = new Date();
-    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const todayCouponResult = await supabase
       .from("wallet_coupons")
       .select("id,reward_type,status,expires_at,redeemed_at")
       .eq("entry_id", entry.id)
-      .gte("created_at", todayMidnightUtc.toISOString())
+      .gte("created_at", twentyFourHoursAgo.toISOString())
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

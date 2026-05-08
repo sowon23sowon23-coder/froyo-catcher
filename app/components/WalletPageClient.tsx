@@ -633,30 +633,61 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
     [historyCoupons]
   );
 
+  const lastCouponCreatedAt = useMemo(() => {
+    const all = [...activeCoupons, ...historyCoupons];
+    if (all.length === 0) return null;
+    return all.reduce((a, b) =>
+      new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b
+    ).createdAt;
+  }, [activeCoupons, historyCoupons]);
+
+  const nextIssuanceAt = useMemo(
+    () => (lastCouponCreatedAt ? new Date(lastCouponCreatedAt).getTime() + 24 * 60 * 60 * 1000 : null),
+    [lastCouponCreatedAt]
+  );
+
+  const [nextCouponMs, setNextCouponMs] = useState(() =>
+    nextIssuanceAt ? Math.max(0, nextIssuanceAt - Date.now()) : 0
+  );
+
+  useEffect(() => {
+    if (!nextIssuanceAt) { setNextCouponMs(0); return; }
+    const tick = () => setNextCouponMs(Math.max(0, nextIssuanceAt - Date.now()));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [nextIssuanceAt]);
+
   const visibleCoupons = useMemo(
     () => (tab === "active" ? sortedActiveCoupons : sortedHistoryCoupons),
     [sortedActiveCoupons, sortedHistoryCoupons, tab]
   );
 
   function emptyActiveMessage() {
+    const locked = nextCouponMs > 0;
     if (usedToday) {
       return {
         title: "All done for today!",
-        body: "You've used today's coupon. Playing again today won't issue a new redeemable coupon — come back tomorrow for your next reward.",
+        body: "You've used today's coupon. Play again after the timer runs out to earn your next one.",
         showPlay: false,
+        showCountdown: locked,
       };
     }
     if (hasEverExpired) {
       return {
         title: "No active coupons",
-        body: "Your last coupon expired unused. Play again to earn a new one.",
-        showPlay: true,
+        body: locked
+          ? "Your last coupon expired unused. A new one will be available once the timer runs out."
+          : "Your last coupon expired unused. Play again to earn a new one.",
+        showPlay: !locked,
+        showCountdown: locked,
       };
     }
     return {
       title: "No active coupons yet",
       body: "Score 30 or higher in a game to unlock a discount coupon.",
       showPlay: true,
+      showCountdown: false,
     };
   }
 
@@ -783,12 +814,22 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
                 {tab === "active" ? (
                   (() => {
-                    const { title, body, showPlay } = emptyActiveMessage();
+                    const { title, body, showPlay, showCountdown } = emptyActiveMessage();
                     return (
                       <>
                         <p className="text-lg font-black text-[var(--yl-ink-strong)]">{title}</p>
                         <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">{body}</p>
-                        {!usedToday && (
+                        {showCountdown && (
+                          <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+                              Next coupon available in
+                            </p>
+                            <p className={["mt-1 font-mono text-3xl font-black tabular-nums", countdownColorClass(nextCouponMs)].join(" ")}>
+                              {formatCountdown(nextCouponMs)}
+                            </p>
+                          </div>
+                        )}
+                        {!usedToday && !showCountdown && (
                           <div className="mt-4 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] p-4 text-sm font-semibold text-[var(--yl-ink-muted)]">
                             Score 30+: 3% Off
                             <br />
