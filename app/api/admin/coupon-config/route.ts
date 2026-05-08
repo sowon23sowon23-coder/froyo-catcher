@@ -74,11 +74,11 @@ async function loadConfig(supabase: any) {
   const configuredTiers = normalizeRewardTiers(map.get(COUPON_CONFIG_KEYS.rewardTiers));
   const rewardTiers = configuredTiers.length > 0 ? ensureTierQrValues(configuredTiers) : getDefaultRewardTiers();
 
-  let dailyQuery = supabase.from("wallet_coupons").select("id", { count: "exact", head: true });
+  let dailyQuery = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
   const todayMidnightUtc = new Date();
   todayMidnightUtc.setUTCHours(0, 0, 0, 0);
   dailyQuery = dailyQuery.gte("created_at", todayMidnightUtc.toISOString());
-  let campaignQuery = supabase.from("wallet_coupons").select("id", { count: "exact", head: true });
+  let campaignQuery = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
   if (issuanceLimit?.campaignStartDate) {
     campaignQuery = campaignQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
   }

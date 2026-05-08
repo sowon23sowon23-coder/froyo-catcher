@@ -80,7 +80,7 @@ async function getIssuanceLimitConfig(supabase: any): Promise<CouponIssuanceLimi
 }
 
 async function getCurrentIssuanceCount(supabase: any, config: CouponIssuanceLimitConfig) {
-  let query = supabase.from("wallet_coupons").select("id", { count: "exact", head: true });
+  let query = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
 
   if (config.type === "daily") {
     const todayMidnightUtc = new Date();
