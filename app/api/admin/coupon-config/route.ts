@@ -104,11 +104,40 @@ async function loadConfig(supabase: any) {
     ? campaignCountResult.count ?? 0
     : dailyCountResult.count ?? 0;
 
-  const recentHistoryResult = await supabase
-    .from("coupon_config_history")
-    .select("id,changed_by,changes,created_at")
-    .order("created_at", { ascending: false })
-    .limit(10);
+  let completedAt: string | null = null;
+  if (issuanceLimit && issuanceLimit.max > 0 && currentIssued >= issuanceLimit.max) {
+    let completionQuery = supabase
+      .from("wallet_coupons")
+      .select("created_at")
+      .order("created_at", { ascending: true })
+      .range(issuanceLimit.max - 1, issuanceLimit.max - 1);
+    if (issuanceLimit.type === "daily") {
+      completionQuery = completionQuery.gte("created_at", todayMidnightUtc.toISOString());
+    } else {
+      if (issuanceLimit.campaignStartDate) {
+        completionQuery = completionQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
+      }
+      if (issuanceLimit.campaignEndDate) {
+        const end = new Date(`${issuanceLimit.campaignEndDate}T00:00:00.000Z`);
+        if (!Number.isNaN(end.getTime())) {
+          end.setUTCDate(end.getUTCDate() + 1);
+          completionQuery = completionQuery.lt("created_at", end.toISOString());
+        }
+      }
+    }
+    const completionResult = await completionQuery.maybeSingle();
+    if (!completionResult.error && completionResult.data?.created_at) {
+      completedAt = String(completionResult.data.created_at);
+    }
+  }
+
+  const [recentHistoryResult] = await Promise.all([
+    supabase
+      .from("coupon_config_history")
+      .select("id,changed_by,changes,created_at")
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
 
   return {
     issuanceLimit,
@@ -118,6 +147,7 @@ async function loadConfig(supabase: any) {
       campaignIssued: campaignCountResult.count ?? 0,
       currentIssued,
       percentUsed: issuanceLimit?.max ? Math.min(100, Math.round((currentIssued / issuanceLimit.max) * 100)) : 0,
+      completedAt,
     },
     history: recentHistoryResult.error ? [] : recentHistoryResult.data ?? [],
   };

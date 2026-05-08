@@ -70,7 +70,7 @@ type CouponSettings = {
     soldOutMessage?: string | null;
   } | null;
   rewardTiers: CouponRewardTier[];
-  issuanceStats: { dailyIssued: number; campaignIssued: number; currentIssued: number; percentUsed: number };
+  issuanceStats: { dailyIssued: number; campaignIssued: number; currentIssued: number; percentUsed: number; completedAt?: string | null };
   history?: Array<{ id: number; changed_by: string | null; changes: unknown; created_at: string }>;
 };
 
@@ -850,6 +850,9 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                 <div className="h-full rounded-full bg-[#ff8a70]" style={{ width: `${Math.min(100, current.issuanceStats.percentUsed)}%` }} />
               </div>
               <p className="mt-2 text-xs font-semibold text-[#9a6f75]">{current.issuanceStats.percentUsed}% used</p>
+              {current.issuanceStats.completedAt && (
+                <p className="mt-1.5 text-xs font-black text-[#2a8a50]">Limit reached · {formatDateTime(current.issuanceStats.completedAt)}</p>
+              )}
             </div>
           </div>
 
