@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import QRCode from "qrcode";
 import { formatCurrency, formatDateTime } from "../lib/couponMvp";
 
 // ??? Types ???????????????????????????????????????????????????????????????????
@@ -655,6 +656,11 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   onSave: (settings: CouponSettings) => void;
   onRefresh: () => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editSnapshot, setEditSnapshot] = useState<CouponSettings | null>(null);
+  const [qrPreview, setQrPreview] = useState<{ value: string; label: string; dataUrl: string } | null>(null);
+  const [previewScore, setPreviewScore] = useState("170");
+
   const current = settings ?? {
     issuanceLimit: {
       type: "daily" as const,
@@ -663,7 +669,7 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
       enabled: true,
       campaignStartDate: "",
       campaignEndDate: "",
-      soldOutMessage: "Today's coupons are all gone.",
+      soldOutMessage: "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
     },
     rewardTiers: [
       { threshold: 200, discountPercent: 20, active: true },
@@ -681,176 +687,218 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
     enabled: true,
     campaignStartDate: "",
     campaignEndDate: "",
-    soldOutMessage: "Today's coupons are all gone.",
+    soldOutMessage: "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
   };
-  const [previewScore, setPreviewScore] = useState("170");
+
   const previewReward = [...current.rewardTiers]
     .filter((tier) => tier.active !== false)
     .sort((a, b) => b.threshold - a.threshold)
     .find((tier) => Number(previewScore) >= tier.threshold);
+
   const updateLimit = (patch: Partial<NonNullable<CouponSettings["issuanceLimit"]>>) => {
     onChange({ ...current, issuanceLimit: { ...limit, ...patch } });
   };
-  const updateTier = (index: number, patch: Partial<CouponRewardTier>) => {
-    onChange({ ...current, rewardTiers: current.rewardTiers.map((tier, i) => i === index ? { ...tier, ...patch } : tier) });
+  const toggleTierActive = (index: number) => {
+    const next = { ...current, rewardTiers: current.rewardTiers.map((tier, i) => i === index ? { ...tier, active: tier.active === false } : tier) };
+    onChange(next);
+    onSave(next);
+    setEditSnapshot((prev) => prev ? { ...prev, rewardTiers: next.rewardTiers } : null);
   };
-  const addTier = () => onChange({ ...current, rewardTiers: [...current.rewardTiers, { threshold: 1, discountPercent: 1, active: true }] });
-  const resetTiers = () => onChange({
-    ...current,
-    rewardTiers: [
-      { threshold: 200, discountPercent: 20, active: true },
-      { threshold: 150, discountPercent: 15, active: true },
-      { threshold: 100, discountPercent: 10, active: true },
-      { threshold: 50, discountPercent: 5, active: true },
-      { threshold: 30, discountPercent: 3, active: true },
-    ],
-  });
+
+  const enterEdit = () => {
+    setEditSnapshot(current);
+    setIsEditing(true);
+  };
+  const cancelEdit = () => {
+    if (editSnapshot) onChange(editSnapshot);
+    setIsEditing(false);
+    setEditSnapshot(null);
+  };
+  const saveEdit = () => {
+    onSave(current);
+    setIsEditing(false);
+    setEditSnapshot(null);
+  };
+
+  const togglePause = () => {
+    const next = { ...current, issuanceLimit: { ...limit, enabled: limit.enabled === false } };
+    onChange(next);
+    onSave(next);
+  };
+
+  const showQrPreview = async (tier: CouponRewardTier) => {
+    const value = tier.fixedQrValue?.trim() || `YL${tier.discountPercent}`;
+    try {
+      const dataUrl = await QRCode.toDataURL(value, { width: 200, margin: 2, color: { dark: "#4d2931", light: "#ffffff" } });
+      setQrPreview({ value, label: `${tier.discountPercent}% OFF · min ${tier.threshold} pts`, dataUrl });
+    } catch { /* ignore */ }
+  };
 
   return (
     <SectionShell title="Coupon Settings" subtitle="Issuance limits and score-based reward tiers" onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+      {qrPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setQrPreview(null)}>
+          <div className="mx-4 w-full max-w-xs rounded-[2rem] bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <p className="text-center text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">QR Preview</p>
+            <div className="mt-4 flex justify-center">
+              <img src={qrPreview.dataUrl} alt="QR Code" className="h-48 w-48 rounded-xl" />
+            </div>
+            <p className="mt-3 text-center text-sm font-black text-[#4f2832]">{qrPreview.label}</p>
+            <p className="mt-1 break-all text-center font-mono text-xs text-[#9a6f75]">{qrPreview.value}</p>
+            <button type="button" onClick={() => setQrPreview(null)} className="mt-5 w-full rounded-2xl bg-[#fff0e8] py-3 text-sm font-black text-[#c0502a]">Close</button>
+          </div>
+        </div>
+      )}
       {loading || !settings ? <LoadingCard /> : (
-        <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
-          <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
-            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Issuance Limit</p>
-            <p className="mt-2 text-xs font-semibold leading-relaxed text-[#9a6f75]">
-              Daily resets every day. Campaign counts all coupons for the whole promotion.
-            </p>
-            <div className="mt-4 space-y-4">
-              <div className="rounded-2xl bg-[#fff9f4] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-black text-[#4f2832]">Coupon Policy</p>
-                    <p className="text-xs font-semibold text-[#9a6f75]">Pause all automatic coupon issuance when needed.</p>
+        <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Coupon Policy</p>
+              <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+                {isEditing
+                  ? <span className="font-black text-[#e08a50]">Editing — unsaved changes</span>
+                  : <>{limit.enabled !== false ? "Issuing coupons" : "Paused — no new coupons being issued"}{" · "}{limit.type === "daily" ? "Daily" : "Campaign"} limit: {limit.max.toLocaleString()}</>
+                }
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={togglePause}
+                disabled={saving}
+                className={`rounded-2xl border px-4 py-2 text-sm font-black disabled:opacity-60 ${limit.enabled !== false ? "border-[#f0ccc5] bg-white text-[#c0502a]" : "border-[#75c28b] bg-[#e8f8ee] text-[#2a8a50]"}`}
+              >
+                {limit.enabled !== false ? "Pause" : "Resume"}
+              </button>
+              {!isEditing ? (
+                <button type="button" onClick={enterEdit} className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56]">Edit</button>
+              ) : (
+                <>
+                  <button type="button" onClick={cancelEdit} className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56]">Cancel</button>
+                  <button type="button" onClick={saveEdit} disabled={saving} className="rounded-2xl bg-[linear-gradient(135deg,#ff9473,#ff6675)] px-5 py-2 text-sm font-black text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-[#f5e4de] pt-5">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Issuance Limit</p>
+            {isEditing ? (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Limit Type</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {(["daily", "campaign"] as const).map((type) => (
+                      <button key={type} type="button" onClick={() => updateLimit({ type })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${limit.type === type ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>
+                        {type === "daily" ? "Daily" : "Campaign"}
+                      </button>
+                    ))}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => updateLimit({ enabled: limit.enabled === false })}
-                    className={`rounded-2xl border px-4 py-2 text-sm font-black ${limit.enabled !== false ? "border-[#75c28b] bg-[#e8f8ee] text-[#2a8a50]" : "border-[#f0ccc5] bg-white text-[#c0502a]"}`}
-                  >
-                    {limit.enabled !== false ? "Active" : "Paused"}
+                </div>
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Maximum Coupons</span>
+                  <input value={String(limit.max)} onChange={(e) => updateLimit({ max: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                </label>
+                {limit.type === "campaign" ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Campaign Start</span>
+                      <input type="date" value={limit.campaignStartDate ?? ""} onChange={(e) => updateLimit({ campaignStartDate: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Campaign End</span>
+                      <input type="date" value={limit.campaignEndDate ?? ""} onChange={(e) => updateLimit({ campaignEndDate: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                    </label>
+                  </div>
+                ) : null}
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Sold-Out Message</span>
+                  <input value={limit.soldOutMessage ?? ""} onChange={(e) => updateLimit({ soldOutMessage: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                </label>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">When Limit Is Reached</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => updateLimit({ stopOnReach: true })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${limit.stopOnReach ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Stop Issuing</button>
+                    <button type="button" onClick={() => updateLimit({ stopOnReach: false })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${!limit.stopOnReach ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Warn Only</button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-3">
+                <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                  <p className="text-xs font-semibold text-[#9a6f75]">Type</p>
+                  <p className="mt-1 text-sm font-black text-[#4f2832]">{limit.type === "daily" ? "Daily" : "Campaign"}</p>
+                </div>
+                <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                  <p className="text-xs font-semibold text-[#9a6f75]">Max</p>
+                  <p className="mt-1 text-sm font-black text-[#4f2832]">{limit.max.toLocaleString()}</p>
+                </div>
+                {limit.type === "campaign" && (limit.campaignStartDate || limit.campaignEndDate) && (
+                  <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                    <p className="text-xs font-semibold text-[#9a6f75]">Period</p>
+                    <p className="mt-1 text-sm font-black text-[#4f2832]">{limit.campaignStartDate ?? "—"} ~ {limit.campaignEndDate ?? "—"}</p>
+                  </div>
+                )}
+                <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                  <p className="text-xs font-semibold text-[#9a6f75]">On Limit</p>
+                  <p className="mt-1 text-sm font-black text-[#4f2832]">{limit.stopOnReach ? "Stop Issuing" : "Warn Only"}</p>
+                </div>
+              </div>
+            )}
+            <div className="mt-4 rounded-2xl bg-[#fff9f4] p-4">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-black text-[#4f2832]">Current Issued</span>
+                <span className="font-black text-[#c0502a]">{current.issuanceStats.currentIssued} / {limit.max}</span>
+              </div>
+              <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#f4ded8]">
+                <div className="h-full rounded-full bg-[#ff8a70]" style={{ width: `${Math.min(100, current.issuanceStats.percentUsed)}%` }} />
+              </div>
+              <p className="mt-2 text-xs font-semibold text-[#9a6f75]">{current.issuanceStats.percentUsed}% used</p>
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-[#f5e4de] pt-5">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Reward Tiers</p>
+            <p className="mt-1 text-xs font-semibold text-[#9a6f75]">Inactive tiers are saved but ignored for new coupon issuance.</p>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {current.rewardTiers.map((tier, index) => (
+                <div key={`${tier.threshold}-${index}`} className={`rounded-2xl border p-3 transition-opacity ${tier.active === false ? "border-[#f0ddd8] bg-[#fdf5f3] opacity-60" : "border-[#edd9d5] bg-[#fff9f4]"}`}>
+                  <div className="flex items-start justify-between gap-1">
+                    <p className="text-lg font-black text-[#4d2931]">{tier.discountPercent}%</p>
+                    <button type="button" onClick={() => void showQrPreview(tier)} className="rounded-xl border border-[#edd9d5] px-1.5 py-0.5 text-[10px] font-black text-[#9a6f75] hover:border-[#cd6d66] hover:text-[#cd6d66]" title="Preview QR Code">QR</button>
+                  </div>
+                  <p className="mt-0.5 text-xs font-semibold text-[#9a6f75]">min {tier.threshold} pts</p>
+                  <button type="button" onClick={() => toggleTierActive(index)} disabled={saving} className={`mt-3 w-full rounded-xl border py-1.5 text-xs font-black disabled:opacity-50 ${tier.active === false ? "border-[#75c28b] text-[#2a8a50]" : "border-[#f0ccc5] text-[#c0502a]"}`}>
+                    {tier.active === false ? "Activate" : "Deactivate"}
                   </button>
                 </div>
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Limit Type</p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  {(["daily", "campaign"] as const).map((type) => (
-                    <button key={type} type="button" onClick={() => updateLimit({ type })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${limit.type === type ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>
-                      {type === "daily" ? "Daily" : "Campaign"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Maximum Coupons</span>
-                <input value={String(limit.max)} onChange={(e) => updateLimit({ max: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-              </label>
-              {limit.type === "campaign" ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Campaign Start</span>
-                    <input type="date" value={limit.campaignStartDate ?? ""} onChange={(e) => updateLimit({ campaignStartDate: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Campaign End</span>
-                    <input type="date" value={limit.campaignEndDate ?? ""} onChange={(e) => updateLimit({ campaignEndDate: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-                  </label>
-                </div>
-              ) : null}
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Sold-Out Message</span>
-                <input value={limit.soldOutMessage ?? ""} onChange={(e) => updateLimit({ soldOutMessage: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-              </label>
-              <div className="rounded-2xl bg-[#fff9f4] p-4">
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="font-black text-[#4f2832]">Current Issued</span>
-                  <span className="font-black text-[#c0502a]">{current.issuanceStats.currentIssued} / {limit.max}</span>
-                </div>
-                <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#f4ded8]">
-                  <div className="h-full rounded-full bg-[#ff8a70]" style={{ width: `${Math.min(100, current.issuanceStats.percentUsed)}%` }} />
-                </div>
-                <p className="mt-2 text-xs font-semibold text-[#9a6f75]">{current.issuanceStats.percentUsed}% used</p>
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">When Limit Is Reached</p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => updateLimit({ stopOnReach: true })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${limit.stopOnReach ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Stop Issuing</button>
-                  <button type="button" onClick={() => updateLimit({ stopOnReach: false })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${!limit.stopOnReach ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Warn Only</button>
-                </div>
+              ))}
+            </div>
+            <div className="mt-4 rounded-2xl bg-[#fff9f4] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Score Preview</p>
+              <div className="mt-3 flex items-center gap-3">
+                <input value={previewScore} onChange={(e) => setPreviewScore(e.target.value.replace(/[^\d]/g, ""))} className="w-28 rounded-xl border border-[#edd9d5] px-3 py-2 text-sm font-bold outline-none" placeholder="Score" />
+                <p className="text-sm font-black text-[#4f2832]">
+                  {previewReward ? `→ ${previewReward.discountPercent}% coupon` : `→ no coupon`}
+                </p>
               </div>
             </div>
           </div>
-          <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Reward Tiers</p>
-              <div className="flex gap-2">
-                <button type="button" onClick={addTier} className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56]">Add Tier</button>
-                <button type="button" onClick={resetTiers} className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56]">Reset</button>
-                <button type="button" onClick={() => onSave(current)} disabled={saving} className="rounded-2xl bg-[linear-gradient(135deg,#ff9473,#ff6675)] px-5 py-2 text-sm font-black text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
+
+          <div className="mt-5 rounded-2xl border border-[#f0ddd8] bg-[#fffdf8] p-4">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Recent Setting Changes</p>
+            {(current.history ?? []).length === 0 ? (
+              <p className="mt-2 text-xs font-semibold text-[#9a6f75]">No setting changes recorded yet.</p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {(current.history ?? []).map((row) => (
+                  <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs">
+                    <span className="font-black text-[#4f2832]">{row.changed_by || "admin"}</span>
+                    <span className="font-semibold text-[#9a6f75]">{formatDateTime(row.created_at)}</span>
+                  </div>
+                ))}
               </div>
-            </div>
-            <p className="mt-2 text-xs font-semibold leading-relaxed text-[#9a6f75]">
-              Inactive tiers stay saved, but they are ignored for new coupon issuance and previews.
-            </p>
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="text-[#9a6f75]">
-                    {["Tier", "Status", "Minimum Score", "Discount", "QR Value", ""].map((h) => <th key={h} className="pb-3 pr-3 font-black">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {current.rewardTiers.map((tier, index) => (
-                    <tr key={`${tier.threshold}-${index}`} className={`border-t border-[#f5e4de] text-[#563038] ${tier.active === false ? "opacity-55" : ""}`}>
-                      <td className="py-2.5 pr-3 font-black">{index + 1}</td>
-                      <td className="py-2.5 pr-3">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-black ${tier.active === false ? "bg-[#f7ebe8] text-[#9a6f75]" : "bg-[#e8f8ee] text-[#2a8a50]"}`}>
-                          {tier.active === false ? "Inactive" : "Active"}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-3"><input value={String(tier.threshold)} onChange={(e) => updateTier(index, { threshold: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="w-24 rounded-xl border border-[#edd9d5] px-3 py-2 font-bold outline-none" /></td>
-                      <td className="py-2.5 pr-3"><input value={String(tier.discountPercent)} onChange={(e) => updateTier(index, { discountPercent: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="w-20 rounded-xl border border-[#edd9d5] px-3 py-2 font-bold outline-none" /></td>
-                      <td className="py-2.5 pr-3"><input value={tier.fixedQrValue ?? ""} onChange={(e) => updateTier(index, { fixedQrValue: e.target.value })} placeholder="Auto" className="w-52 rounded-xl border border-[#edd9d5] px-3 py-2 text-xs font-bold outline-none" /></td>
-                      <td className="py-2.5 text-right">
-                        <button type="button" onClick={() => updateTier(index, { active: tier.active === false })} className={`rounded-xl border px-3 py-1.5 text-xs font-black ${tier.active === false ? "border-[#75c28b] text-[#2a8a50]" : "border-[#f0ccc5] text-[#c0502a]"}`}>
-                          {tier.active === false ? "Activate" : "Deactivate"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-5 grid gap-3 lg:grid-cols-2">
-              <div className="rounded-2xl bg-[#fff9f4] p-4">
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Tier Preview</p>
-                <input value={previewScore} onChange={(e) => setPreviewScore(e.target.value.replace(/[^\d]/g, ""))} className="mt-3 w-full rounded-xl border border-[#edd9d5] px-3 py-2 text-sm font-bold outline-none" />
-                <p className="mt-2 text-sm font-black text-[#4f2832]">
-                  {previewReward ? `Score ${previewScore || 0} -> ${previewReward.discountPercent}% coupon` : `Score ${previewScore || 0} -> no coupon`}
-                </p>
-              </div>
-              <div className="rounded-2xl bg-[#fff9f4] p-4">
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Safety Checks</p>
-                <p className="mt-2 text-xs font-semibold text-[#9a6f75]">
-                  The API blocks duplicate thresholds, invalid discounts, reversed campaign dates, and lower discounts on active higher-score tiers.
-                </p>
-              </div>
-            </div>
-            <div className="mt-5 rounded-2xl border border-[#f0ddd8] bg-[#fffdf8] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Recent Setting Changes</p>
-              {(current.history ?? []).length === 0 ? (
-                <p className="mt-2 text-xs font-semibold text-[#9a6f75]">No setting changes recorded yet.</p>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  {(current.history ?? []).map((row) => (
-                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs">
-                      <span className="font-black text-[#4f2832]">{row.changed_by || "admin"}</span>
-                      <span className="font-semibold text-[#9a6f75]">{formatDateTime(row.created_at)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
       )}

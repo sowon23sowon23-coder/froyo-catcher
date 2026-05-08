@@ -10,14 +10,13 @@ type CharId = "green" | "berry" | "sprinkle";
 type CharacterOption = {
   id: CharId;
   label: string;
-  flavor: string;
   accent: string;
 };
 
 const CHARACTERS: CharacterOption[] = [
-  { id: "green", label: "Pistachio", flavor: "Smooth and steady", accent: "var(--yl-green)" },
-  { id: "berry", label: "Berry Burst", flavor: "Fast and lively", accent: "var(--yl-berry)" },
-  { id: "sprinkle", label: "Sprinkle Pop", flavor: "Playful and bright", accent: "var(--yl-yellow)" },
+  { id: "green", label: "Pistachio", accent: "var(--yl-green)" },
+  { id: "berry", label: "Berry Burst", accent: "var(--yl-berry)" },
+  { id: "sprinkle", label: "Sprinkle Pop", accent: "var(--yl-yellow)" },
 ];
 
 type InfoButton = {
@@ -257,7 +256,6 @@ export default function HomeScreen({
                     />
                   </div>
                   <p className="text-xs font-black text-[var(--yl-ink-strong)]">{c.label}</p>
-                  <p className="text-xs font-bold text-[var(--yl-ink-muted)]">{c.flavor}</p>
                 </button>
               );
             })}
