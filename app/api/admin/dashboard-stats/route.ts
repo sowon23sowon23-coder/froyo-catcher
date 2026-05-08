@@ -7,13 +7,56 @@ import { requirePortalRole } from "../../../lib/portalAuth";
 
 export const dynamic = "force-dynamic";
 
-function getDateRange(dateParam: string | null) {
-  if (!dateParam || !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return null;
-  const start = new Date(`${dateParam}T00:00:00.000Z`);
+function parseDate(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return value;
+}
+
+function getDateRange(req: NextRequest) {
+  const mode = req.nextUrl.searchParams.get("mode");
+  const dateParam = parseDate(req.nextUrl.searchParams.get("date"));
+  const startParam = parseDate(req.nextUrl.searchParams.get("startDate"));
+  const endParam = parseDate(req.nextUrl.searchParams.get("endDate"));
+
+  const rangeStart = mode === "range" ? startParam : dateParam;
+  const rangeEnd = mode === "range" ? endParam : dateParam;
+  if (!rangeStart || !rangeEnd) return null;
+
+  const start = new Date(`${rangeStart}T00:00:00.000Z`);
   if (Number.isNaN(start.getTime())) return null;
-  const end = new Date(start);
+  const end = new Date(`${rangeEnd}T00:00:00.000Z`);
+  if (Number.isNaN(end.getTime())) return null;
   end.setUTCDate(end.getUTCDate() + 1);
-  return { date: dateParam, startIso: start.toISOString(), endIso: end.toISOString() };
+  if (start.getTime() >= end.getTime()) return null;
+
+  return {
+    mode: mode === "range" ? "range" : "day",
+    date: mode === "range" ? null : rangeStart,
+    startDate: rangeStart,
+    endDate: rangeEnd,
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
+}
+
+function buildRangeChartSeries(startDate: string, endDate: string, timestamps: string[]) {
+  const counts = new Map<string, number>();
+  for (const timestamp of timestamps) {
+    const key = new Date(timestamp).toISOString().slice(0, 10);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const series: Array<{ date: string; count: number }> = [];
+  const cursor = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T00:00:00.000Z`);
+  while (cursor.getTime() <= end.getTime() && series.length < 62) {
+    const key = cursor.toISOString().slice(0, 10);
+    series.push({ date: key, count: counts.get(key) ?? 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return series;
 }
 
 export async function GET(req: NextRequest) {
@@ -22,7 +65,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = getServiceSupabaseOrThrow();
-    const dateRange = getDateRange(req.nextUrl.searchParams.get("date"));
+    const dateRange = getDateRange(req);
 
     let couponsQuery = supabase
       .from("wallet_coupons")
@@ -128,13 +171,22 @@ export async function GET(req: NextRequest) {
     ];
 
     return NextResponse.json({
-      filter: { date: dateRange?.date ?? null },
+      filter: {
+        mode: dateRange?.mode ?? "latest",
+        date: dateRange?.date ?? null,
+        startDate: dateRange?.startDate ?? null,
+        endDate: dateRange?.endDate ?? null,
+      },
       coupons: { issued, redeemed, expired, active, redeemRate, issuanceLimit: issuanceLimitWithPercent },
       game: { totalSessions, completedSessions, completionRate, couponIssuedFromGame, gameToConversionRate },
       funnel,
       charts: {
-        issuedByDay: dateRange ? [{ date: dateRange.date, count: issued }] : buildChartSeries(14, issueDates),
-        redeemedByDay: dateRange ? [{ date: dateRange.date, count: redeemed }] : buildChartSeries(14, redeemDates),
+        issuedByDay: dateRange
+          ? buildRangeChartSeries(dateRange.startDate, dateRange.endDate, issueDates)
+          : buildChartSeries(14, issueDates),
+        redeemedByDay: dateRange
+          ? buildRangeChartSeries(dateRange.startDate, dateRange.endDate, redeemDates)
+          : buildChartSeries(14, redeemDates),
       },
       recentRedeems: redeemLogsResult.data ?? [],
     });
