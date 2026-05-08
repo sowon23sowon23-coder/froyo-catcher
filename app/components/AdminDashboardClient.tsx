@@ -57,7 +57,7 @@ type WalletCoupon = { id: number; title: string; reward_type: string; status: st
 type UserEntry = { id: number; nickname_display: string; nickname_key: string; contact_type: string | null; contact_value: string | null; created_at: string; walletCoupons: WalletCoupon[] };
 type FeedbackRow = { id: number; message: string; nickname: string | null; store: string | null; source: string | null; created_at: string };
 
-type CouponRewardTier = { threshold: number; discountPercent: number; fixedQrValue?: string | null };
+type CouponRewardTier = { threshold: number; discountPercent: number; fixedQrValue?: string | null; active?: boolean };
 type CouponSettings = {
   issuanceLimit: {
     type: "daily" | "campaign";
@@ -250,7 +250,7 @@ export default function AdminDashboardClient() {
       }
       thresholds.add(tier.threshold);
     }
-    const sortedForSafety = [...nextSettings.rewardTiers].sort((a, b) => b.threshold - a.threshold);
+    const sortedForSafety = nextSettings.rewardTiers.filter((tier) => tier.active !== false).sort((a, b) => b.threshold - a.threshold);
     for (let i = 1; i < sortedForSafety.length; i += 1) {
       if (sortedForSafety[i]!.discountPercent > sortedForSafety[i - 1]!.discountPercent) {
         setNotice("Higher score tiers should not have lower discounts than lower score tiers.");
@@ -668,11 +668,11 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
       warningThresholds: [80, 90, 100],
     },
     rewardTiers: [
-      { threshold: 200, discountPercent: 20 },
-      { threshold: 150, discountPercent: 15 },
-      { threshold: 100, discountPercent: 10 },
-      { threshold: 50, discountPercent: 5 },
-      { threshold: 30, discountPercent: 3 },
+      { threshold: 200, discountPercent: 20, active: true },
+      { threshold: 150, discountPercent: 15, active: true },
+      { threshold: 100, discountPercent: 10, active: true },
+      { threshold: 50, discountPercent: 5, active: true },
+      { threshold: 30, discountPercent: 3, active: true },
     ],
     issuanceStats: { dailyIssued: 0, campaignIssued: 0, currentIssued: 0, percentUsed: 0 },
   };
@@ -688,6 +688,7 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   };
   const [previewScore, setPreviewScore] = useState("170");
   const previewReward = [...current.rewardTiers]
+    .filter((tier) => tier.active !== false)
     .sort((a, b) => b.threshold - a.threshold)
     .find((tier) => Number(previewScore) >= tier.threshold);
   const warningText = (limit.warningThresholds ?? [80, 90, 100]).join(", ");
@@ -698,16 +699,15 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   const updateTier = (index: number, patch: Partial<CouponRewardTier>) => {
     onChange({ ...current, rewardTiers: current.rewardTiers.map((tier, i) => i === index ? { ...tier, ...patch } : tier) });
   };
-  const addTier = () => onChange({ ...current, rewardTiers: [...current.rewardTiers, { threshold: 1, discountPercent: 1 }] });
-  const removeTier = (index: number) => onChange({ ...current, rewardTiers: current.rewardTiers.filter((_, i) => i !== index) });
+  const addTier = () => onChange({ ...current, rewardTiers: [...current.rewardTiers, { threshold: 1, discountPercent: 1, active: true }] });
   const resetTiers = () => onChange({
     ...current,
     rewardTiers: [
-      { threshold: 200, discountPercent: 20 },
-      { threshold: 150, discountPercent: 15 },
-      { threshold: 100, discountPercent: 10 },
-      { threshold: 50, discountPercent: 5 },
-      { threshold: 30, discountPercent: 3 },
+      { threshold: 200, discountPercent: 20, active: true },
+      { threshold: 150, discountPercent: 15, active: true },
+      { threshold: 100, discountPercent: 10, active: true },
+      { threshold: 50, discountPercent: 5, active: true },
+      { threshold: 30, discountPercent: 3, active: true },
     ],
   });
 
@@ -799,21 +799,33 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                 <button type="button" onClick={() => onSave(current)} disabled={saving} className="rounded-2xl bg-[linear-gradient(135deg,#ff9473,#ff6675)] px-5 py-2 text-sm font-black text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
               </div>
             </div>
+            <p className="mt-2 text-xs font-semibold leading-relaxed text-[#9a6f75]">
+              Inactive tiers stay saved, but they are ignored for new coupon issuance and previews.
+            </p>
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead>
                   <tr className="text-[#9a6f75]">
-                    {["Tier", "Minimum Score", "Discount", "QR Value", ""].map((h) => <th key={h} className="pb-3 pr-3 font-black">{h}</th>)}
+                    {["Tier", "Status", "Minimum Score", "Discount", "QR Value", ""].map((h) => <th key={h} className="pb-3 pr-3 font-black">{h}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {current.rewardTiers.map((tier, index) => (
-                    <tr key={`${tier.threshold}-${index}`} className="border-t border-[#f5e4de] text-[#563038]">
+                    <tr key={`${tier.threshold}-${index}`} className={`border-t border-[#f5e4de] text-[#563038] ${tier.active === false ? "opacity-55" : ""}`}>
                       <td className="py-2.5 pr-3 font-black">{index + 1}</td>
+                      <td className="py-2.5 pr-3">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-black ${tier.active === false ? "bg-[#f7ebe8] text-[#9a6f75]" : "bg-[#e8f8ee] text-[#2a8a50]"}`}>
+                          {tier.active === false ? "Inactive" : "Active"}
+                        </span>
+                      </td>
                       <td className="py-2.5 pr-3"><input value={String(tier.threshold)} onChange={(e) => updateTier(index, { threshold: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="w-24 rounded-xl border border-[#edd9d5] px-3 py-2 font-bold outline-none" /></td>
                       <td className="py-2.5 pr-3"><input value={String(tier.discountPercent)} onChange={(e) => updateTier(index, { discountPercent: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="w-20 rounded-xl border border-[#edd9d5] px-3 py-2 font-bold outline-none" /></td>
                       <td className="py-2.5 pr-3"><input value={tier.fixedQrValue ?? ""} onChange={(e) => updateTier(index, { fixedQrValue: e.target.value })} placeholder="Auto" className="w-52 rounded-xl border border-[#edd9d5] px-3 py-2 text-xs font-bold outline-none" /></td>
-                      <td className="py-2.5 text-right"><button type="button" onClick={() => removeTier(index)} disabled={current.rewardTiers.length <= 1} className="rounded-xl border border-[#f0ccc5] px-3 py-1.5 text-xs font-black text-[#c0502a] disabled:opacity-40">Delete</button></td>
+                      <td className="py-2.5 text-right">
+                        <button type="button" onClick={() => updateTier(index, { active: tier.active === false })} className={`rounded-xl border px-3 py-1.5 text-xs font-black ${tier.active === false ? "border-[#75c28b] text-[#2a8a50]" : "border-[#f0ccc5] text-[#c0502a]"}`}>
+                          {tier.active === false ? "Activate" : "Deactivate"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -830,7 +842,7 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
               <div className="rounded-2xl bg-[#fff9f4] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-[#cd6d66]">Safety Checks</p>
                 <p className="mt-2 text-xs font-semibold text-[#9a6f75]">
-                  The API blocks duplicate thresholds, invalid discounts, reversed campaign dates, and lower discounts on higher-score tiers.
+                  The API blocks duplicate thresholds, invalid discounts, reversed campaign dates, and lower discounts on active higher-score tiers.
                 </p>
               </div>
             </div>

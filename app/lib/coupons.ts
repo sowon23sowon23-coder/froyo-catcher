@@ -60,6 +60,7 @@ export type CouponRewardTierConfig = {
   threshold: number;
   discountPercent: number;
   fixedQrValue?: string | null;
+  active?: boolean;
 };
 
 export type CouponIssuanceLimitConfig = {
@@ -116,7 +117,7 @@ export function normalizeRewardTiers(input: unknown): CouponRewardTierConfig[] {
 
   for (const raw of rawTiers) {
     if (!raw || typeof raw !== "object") continue;
-    const tier = raw as { threshold?: unknown; discountPercent?: unknown; fixedQrValue?: unknown };
+    const tier = raw as { threshold?: unknown; discountPercent?: unknown; fixedQrValue?: unknown; active?: unknown };
     const threshold = Number(tier.threshold);
     const discountPercent = Number(tier.discountPercent);
     if (!Number.isInteger(threshold) || threshold < 1) continue;
@@ -125,6 +126,7 @@ export function normalizeRewardTiers(input: unknown): CouponRewardTierConfig[] {
       threshold,
       discountPercent,
       fixedQrValue: typeof tier.fixedQrValue === "string" && tier.fixedQrValue.trim() ? tier.fixedQrValue.trim() : null,
+      active: tier.active !== false,
     });
   }
 
@@ -136,6 +138,7 @@ export function getDefaultRewardTiers(): CouponRewardTierConfig[] {
     threshold: reward.threshold,
     discountPercent: reward.discountPercent,
     fixedQrValue: reward.fixedQrValue,
+    active: true,
   }));
 }
 
@@ -153,7 +156,7 @@ export async function getConfiguredCouponRewards(supabase: any): Promise<CouponR
 
   const configuredTiers = normalizeRewardTiers(result.data?.value);
   const tiers = configuredTiers.length > 0 ? configuredTiers : getDefaultRewardTiers();
-  return tiers.map(buildCouponRewardFromTier);
+  return tiers.filter((tier) => tier.active !== false).map(buildCouponRewardFromTier);
 }
 
 export async function getEligibleConfiguredCouponReward(supabase: any, score: number) {

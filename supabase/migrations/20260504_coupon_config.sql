@@ -55,11 +55,11 @@ values
   (
     'reward_tiers',
     '[
-      {"threshold":200,"discountPercent":20,"fixedQrValue":"YL20MN56P734Q26"},
-      {"threshold":150,"discountPercent":15,"fixedQrValue":"YL15TR62L440D26"},
-      {"threshold":100,"discountPercent":10,"fixedQrValue":"YL10QZ88P357R26"},
-      {"threshold":50,"discountPercent":5,"fixedQrValue":"YL05BV24M108W26"},
-      {"threshold":30,"discountPercent":3,"fixedQrValue":"YL03AX79K921S26"}
+      {"threshold":200,"discountPercent":20,"fixedQrValue":"YL20MN56P734Q26","active":true},
+      {"threshold":150,"discountPercent":15,"fixedQrValue":"YL15TR62L440D26","active":true},
+      {"threshold":100,"discountPercent":10,"fixedQrValue":"YL10QZ88P357R26","active":true},
+      {"threshold":50,"discountPercent":5,"fixedQrValue":"YL05BV24M108W26","active":true},
+      {"threshold":30,"discountPercent":3,"fixedQrValue":"YL03AX79K921S26","active":true}
     ]'::jsonb
   )
 on conflict (key) do nothing;

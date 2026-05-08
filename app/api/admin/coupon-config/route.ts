@@ -56,6 +56,7 @@ function ensureTierQrValues(tiers: CouponRewardTierConfig[]) {
       threshold: reward.threshold,
       discountPercent: reward.discountPercent,
       fixedQrValue: reward.fixedQrValue,
+      active: tier.active !== false,
     };
   });
 }
@@ -173,7 +174,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Score thresholds cannot be duplicated." }, { status: 400 });
   }
 
-  const sortedForSafety = [...rewardTiers].sort((a, b) => b.threshold - a.threshold);
+  const sortedForSafety = rewardTiers.filter((tier) => tier.active !== false).sort((a, b) => b.threshold - a.threshold);
   for (let i = 1; i < sortedForSafety.length; i += 1) {
     if (sortedForSafety[i]!.discountPercent > sortedForSafety[i - 1]!.discountPercent) {
       return NextResponse.json({ error: "Higher score tiers should not have lower discounts than lower score tiers." }, { status: 400 });
