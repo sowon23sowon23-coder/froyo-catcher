@@ -82,7 +82,9 @@ const DEFAULT_MANUAL_DISCOUNT_PERCENT = 3;
 // ??? Main Component ???????????????????????????????????????????????????????????
 
 export default function AdminDashboardClient() {
-  const [nav, setNav] = useState<NavItem>("dashboard");
+  const NAV_ITEMS: NavItem[] = ["dashboard", "coupon", "couponSettings", "game", "users", "feedback", "logs"];
+  const savedNav = typeof window !== "undefined" ? localStorage.getItem("adminNav") : null;
+  const [nav, setNav] = useState<NavItem>(NAV_ITEMS.includes(savedNav as NavItem) ? (savedNav as NavItem) : "dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -374,7 +376,7 @@ export default function AdminDashboardClient() {
             <button
               key={item.id}
               type="button"
-              onClick={() => { setNav(item.id); setSidebarOpen(false); }}
+              onClick={() => { setNav(item.id); localStorage.setItem("adminNav", item.id); setSidebarOpen(false); }}
               className={`flex w-full items-center gap-3 px-5 py-3 text-sm font-black transition ${
                 nav === item.id
                   ? "bg-[linear-gradient(135deg,#fff1eb,#ffddd4)] text-[#c0502a]"
