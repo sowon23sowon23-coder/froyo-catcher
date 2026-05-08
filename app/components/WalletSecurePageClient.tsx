@@ -687,7 +687,6 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
         setNickname(String(json.nickname || "").trim());
         if (typeof json.canActivateToday === "boolean") setCanActivateToday(json.canActivateToday);
-        setNextIssuanceAt(typeof json.nextIssuanceAt === "string" ? json.nextIssuanceAt : null);
         const serverActive = Array.isArray(json.activeCoupons) ? json.activeCoupons : [];
         const serverHistory = Array.isArray(json.historyCoupons) ? json.historyCoupons : [];
 
@@ -727,6 +726,27 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
           setTab("history");
         }
         writeLocalWalletCoupons([...reconciled.activeCoupons, ...nextHistory]);
+
+        // Derive nextIssuanceAt from the full merged coupon list as a fallback.
+        // The server may lag when a coupon was just issued, so we take whichever
+        // value is later: the server's or the one derived from local+server data.
+        const allKnownCoupons = [...reconciled.activeCoupons, ...nextHistory];
+        const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+        const latestWithin24hMs = allKnownCoupons.reduce<number | null>((best, c) => {
+          const t = new Date(c.createdAt).getTime();
+          if (!Number.isFinite(t) || t < cutoffMs) return best;
+          return best === null || t > best ? t : best;
+        }, null);
+        const derivedNextIssuanceAt = latestWithin24hMs
+          ? new Date(latestWithin24hMs + 24 * 60 * 60 * 1000).toISOString()
+          : null;
+        const serverNextIssuanceAt = typeof json.nextIssuanceAt === "string" ? json.nextIssuanceAt : null;
+        setNextIssuanceAt(
+          serverNextIssuanceAt && derivedNextIssuanceAt
+            ? (serverNextIssuanceAt > derivedNextIssuanceAt ? serverNextIssuanceAt : derivedNextIssuanceAt)
+            : serverNextIssuanceAt ?? derivedNextIssuanceAt
+        );
+
         setError(null);
       } catch {
         if (!active) return;
