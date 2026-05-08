@@ -1108,7 +1108,7 @@ export default function Page() {
             : json.reason === "campaign_limit_reached"
               ? "아쉽게도 이번 캠페인의 쿠폰이 모두 소진되었습니다."
               : json.reason === "user_daily_limit_reached"
-                ? "You already received today's coupon. Please try again tomorrow."
+                ? "You already have a coupon. Check your wallet!"
               : json.message || json.reason || "Coupon could not be issued."
         );
       }

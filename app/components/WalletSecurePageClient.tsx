@@ -665,6 +665,17 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
             }
             writeLocalWalletCoupons([...nextActive, ...nextHistory]);
             setError(null);
+            // Compute nextIssuanceAt from local coupons as fallback
+            const allLocal = [...nextActive, ...nextHistory];
+            const twentyFourHoursAgoMs = Date.now() - 24 * 60 * 60 * 1000;
+            const localLatest = allLocal.length > 0
+              ? allLocal.reduce((a, b) => new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b)
+              : null;
+            setNextIssuanceAt(
+              localLatest && new Date(localLatest.createdAt).getTime() >= twentyFourHoursAgoMs
+                ? new Date(new Date(localLatest.createdAt).getTime() + 24 * 60 * 60 * 1000).toISOString()
+                : null
+            );
             return;
           }
 
