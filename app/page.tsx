@@ -1105,7 +1105,7 @@ export default function Page() {
             ? "Today's coupons are all gone."
             : json.reason === "campaign_limit_reached"
               ? "This campaign's coupons are all gone."
-              : json.reason === "Daily issuance limit reached. You can receive 1 coupon per day."
+              : json.reason === "user_daily_limit_reached"
                 ? "You already received today's coupon. Please try again tomorrow."
               : json.message || json.reason || "Coupon could not be issued."
         );

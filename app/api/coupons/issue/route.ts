@@ -263,7 +263,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         eligible: true,
         issued: false,
-        reason: "Daily issuance limit reached. You can receive 1 coupon per day.",
+        reason: "user_daily_limit_reached",
+        message: "You already received today's coupon. Come back tomorrow for another one.",
       });
     }
 
