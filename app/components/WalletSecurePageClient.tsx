@@ -449,9 +449,9 @@ function DailyLimitEmptyState({ nextIssuanceAt }: { nextIssuanceAt: string | nul
   const { formatted } = use24hCountdown(nextIssuanceAt);
   return (
     <>
-      <p className="text-lg font-black text-[var(--yl-ink-strong)]">All done for now!</p>
+      <p className="text-lg font-black text-[var(--yl-ink-strong)]">You've used all available coupons for today.</p>
       <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-        You've already used a coupon recently. A new one will be available once the timer runs out.
+        A new coupon will be available once the timer runs out.
       </p>
       <div className="mt-4 flex items-center justify-between rounded-[1rem] border border-[#c7d2fe] bg-[#eef2ff] px-4 py-3">
         <span className="text-xs font-black uppercase tracking-[0.1em] text-[#4338ca]">

@@ -274,7 +274,7 @@ export async function POST(req: NextRequest) {
           eligible: true,
           issued: false,
           reason: "user_daily_limit_reached",
-          message: "You already received today's coupon. Come back tomorrow for another one.",
+          message: "You've used all available coupons for today.",
         });
       }
 
@@ -284,7 +284,7 @@ export async function POST(req: NextRequest) {
           eligible: true,
           issued: false,
           reason: "user_daily_limit_reached",
-          message: "You already received today's coupon. Come back tomorrow for another one.",
+          message: "You've used all available coupons for today.",
         });
       }
 

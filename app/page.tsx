@@ -1108,7 +1108,7 @@ export default function Page() {
             : json.reason === "campaign_limit_reached"
               ? "아쉽게도 이번 캠페인의 쿠폰이 모두 소진되었습니다."
               : json.reason === "user_daily_limit_reached"
-                ? "You already have a coupon. Check your wallet!"
+                ? "You've used all available coupons for today."
               : json.message || json.reason || "Coupon could not be issued."
         );
       }
@@ -1459,9 +1459,9 @@ export default function Page() {
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Update</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
-            {couponNotice.includes("is in My Wallet") || couponNotice.includes("already received") || couponNotice.includes("업그레이드") ? (
+            {couponNotice.includes("is in My Wallet") || couponNotice.includes("available coupons") || couponNotice.includes("업그레이드") ? (
               <a
-                href={couponNotice.includes("already received") ? "/wallet?tab=history" : "/wallet"}
+                href={couponNotice.includes("available coupons") ? "/wallet?tab=history" : "/wallet"}
                 className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
               >
                 My Wallet
