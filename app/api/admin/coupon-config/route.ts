@@ -227,12 +227,20 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Failed to save coupon settings." }, { status: 500 });
     }
 
+    console.log("[coupon-config PUT] update results", {
+      limitData: limitResult.data,
+      tiersData: tiersResult.data,
+      limitError: limitResult.error,
+      tiersError: tiersResult.error,
+    });
+
     if (!limitResult.data?.length || !tiersResult.data?.length) {
       // Rows don't exist yet — insert them (first-time setup)
       const insertRows = [
         ...(!limitResult.data?.length ? [{ key: COUPON_CONFIG_KEYS.issuanceLimit, value: issuanceLimit }] : []),
         ...(!tiersResult.data?.length ? [{ key: COUPON_CONFIG_KEYS.rewardTiers, value: ensureTierQrValues(rewardTiers) }] : []),
       ];
+      console.log("[coupon-config PUT] falling back to insert", insertRows.map((r) => r.key));
       const insertResult = await supabase.from("coupon_config").insert(insertRows);
       if (insertResult.error) {
         console.error("Coupon config insert failed", insertResult.error);
@@ -248,7 +256,9 @@ export async function PUT(req: NextRequest) {
       },
     }]);
 
-    return NextResponse.json(await loadConfig(supabase));
+    const savedConfig = await loadConfig(supabase);
+    console.log("[coupon-config PUT] saved issuanceLimit.max =", savedConfig.issuanceLimit?.max);
+    return NextResponse.json(savedConfig);
   } catch (error) {
     console.error("Admin coupon-config PUT route error", error);
     return NextResponse.json({ error: "Failed to save coupon settings." }, { status: 500 });
