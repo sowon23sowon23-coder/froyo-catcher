@@ -661,6 +661,7 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   const [isEditing, setIsEditing] = useState(false);
   const [editSnapshot, setEditSnapshot] = useState<CouponSettings | null>(null);
   const [qrPreview, setQrPreview] = useState<{ value: string; label: string; dataUrl: string } | null>(null);
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
   const current = settings ?? {
     issuanceLimit: {
@@ -869,14 +870,37 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
             {(current.history ?? []).length === 0 ? (
               <p className="mt-2 text-xs font-semibold text-[#9a6f75]">No setting changes recorded yet.</p>
             ) : (
-              <div className="mt-3 space-y-2">
-                {(current.history ?? []).map((row) => (
-                  <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs">
-                    <span className="font-black text-[#4f2832]">{row.changed_by || "admin"}</span>
-                    <span className="font-semibold text-[#9a6f75]">{formatDateTime(row.created_at)}</span>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="mt-3 space-y-2">
+                  {(showAllHistory ? current.history ?? [] : (current.history ?? []).slice(0, 3)).map((row) => {
+                    const diffs = summarizeConfigChanges(row.changes);
+                    return (
+                      <div key={row.id} className="rounded-xl bg-white px-3 py-2.5 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-1">
+                          <span className="font-black text-[#4f2832]">{row.changed_by || "admin"}</span>
+                          <span className="font-semibold text-[#9a6f75]">{formatDateTime(row.created_at)}</span>
+                        </div>
+                        {diffs.length > 0 && (
+                          <ul className="mt-1.5 space-y-0.5">
+                            {diffs.map((d, i) => (
+                              <li key={i} className="text-[#7a5560]">{d}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {(current.history ?? []).length > 3 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllHistory((v) => !v)}
+                    className="mt-2 text-xs font-black text-[#cd6d66] hover:underline"
+                  >
+                    {showAllHistory ? "Show less" : `Show all ${(current.history ?? []).length} changes`}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -1162,6 +1186,40 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
       {sub && <p className="mt-1 text-xs font-semibold text-[#9a6f75]">{sub}</p>}
     </div>
   );
+}
+
+function summarizeConfigChanges(changes: unknown): string[] {
+  if (!changes || typeof changes !== "object") return [];
+  const c = changes as { before?: { issuanceLimit?: Record<string, unknown> | null; rewardTiers?: Array<Record<string, unknown>> | null } | null; after?: { issuanceLimit?: Record<string, unknown> | null; rewardTiers?: Array<Record<string, unknown>> | null } };
+  const before = c.before;
+  const after = c.after;
+  if (!after) return [];
+
+  const diffs: string[] = [];
+  const bl = before?.issuanceLimit;
+  const al = after.issuanceLimit;
+
+  if (al) {
+    if (bl?.type !== al.type) diffs.push(`Type: ${bl?.type ?? "—"} → ${al.type}`);
+    if (bl?.max !== al.max) diffs.push(`Max: ${bl?.max ?? "—"} → ${al.max}`);
+    if (bl?.enabled !== al.enabled) diffs.push(al.enabled === false ? "Paused issuance" : "Resumed issuance");
+    if (bl?.campaignStartDate !== al.campaignStartDate || bl?.campaignEndDate !== al.campaignEndDate) {
+      const prev = bl?.campaignStartDate ? `${bl.campaignStartDate} ~ ${bl.campaignEndDate ?? "—"}` : "—";
+      const next = al.campaignStartDate ? `${al.campaignStartDate} ~ ${al.campaignEndDate ?? "—"}` : "—";
+      if (prev !== next) diffs.push(`Period: ${prev} → ${next}`);
+    }
+  }
+
+  const bt = before?.rewardTiers ?? [];
+  const at2 = after.rewardTiers ?? [];
+  for (const afterTier of at2) {
+    const beforeTier = (bt as Array<Record<string, unknown>>).find((t) => t.threshold === afterTier.threshold);
+    if (beforeTier && beforeTier.active !== afterTier.active) {
+      diffs.push(afterTier.active === false ? `${afterTier.discountPercent}% tier deactivated` : `${afterTier.discountPercent}% tier activated`);
+    }
+  }
+
+  return diffs;
 }
 
 function formatCouponValue(amount: number, rewardType?: string) {
