@@ -207,15 +207,37 @@ export async function PUT(req: NextRequest) {
   try {
     const supabase = getServiceSupabaseOrThrow();
     const before = await loadConfig(supabase).catch(() => null);
-    const rows = [
-      { key: COUPON_CONFIG_KEYS.issuanceLimit, value: issuanceLimit, updated_at: new Date().toISOString() },
-      { key: COUPON_CONFIG_KEYS.rewardTiers, value: ensureTierQrValues(rewardTiers), updated_at: new Date().toISOString() },
-    ];
 
-    const saved = await supabase.from("coupon_config").upsert(rows, { onConflict: "key" });
-    if (saved.error) {
-      console.error("Coupon config save failed", saved.error);
+    const [limitResult, tiersResult] = await Promise.all([
+      supabase
+        .from("coupon_config")
+        .update({ value: issuanceLimit })
+        .eq("key", COUPON_CONFIG_KEYS.issuanceLimit)
+        .select("key"),
+      supabase
+        .from("coupon_config")
+        .update({ value: ensureTierQrValues(rewardTiers) })
+        .eq("key", COUPON_CONFIG_KEYS.rewardTiers)
+        .select("key"),
+    ]);
+
+    if (limitResult.error || tiersResult.error) {
+      const err = limitResult.error ?? tiersResult.error;
+      console.error("Coupon config save failed", err);
       return NextResponse.json({ error: "Failed to save coupon settings." }, { status: 500 });
+    }
+
+    if (!limitResult.data?.length || !tiersResult.data?.length) {
+      // Rows don't exist yet — insert them (first-time setup)
+      const insertRows = [
+        ...(!limitResult.data?.length ? [{ key: COUPON_CONFIG_KEYS.issuanceLimit, value: issuanceLimit }] : []),
+        ...(!tiersResult.data?.length ? [{ key: COUPON_CONFIG_KEYS.rewardTiers, value: ensureTierQrValues(rewardTiers) }] : []),
+      ];
+      const insertResult = await supabase.from("coupon_config").insert(insertRows);
+      if (insertResult.error) {
+        console.error("Coupon config insert failed", insertResult.error);
+        return NextResponse.json({ error: "Failed to save coupon settings." }, { status: 500 });
+      }
     }
 
     await supabase.from("coupon_config_history").insert([{
