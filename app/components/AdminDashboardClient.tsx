@@ -697,8 +697,6 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   const toggleTierActive = (index: number) => {
     const next = { ...current, rewardTiers: current.rewardTiers.map((tier, i) => i === index ? { ...tier, active: tier.active === false } : tier) };
     onChange(next);
-    onSave(next);
-    setEditSnapshot((prev) => prev ? { ...prev, rewardTiers: next.rewardTiers } : null);
   };
 
   const enterEdit = () => {
@@ -856,9 +854,11 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                     <button type="button" onClick={() => void showQrPreview(tier)} className="rounded-xl border border-[#edd9d5] px-1.5 py-0.5 text-[10px] font-black text-[#9a6f75] hover:border-[#cd6d66] hover:text-[#cd6d66]" title="Preview QR Code">QR</button>
                   </div>
                   <p className="mt-0.5 text-xs font-semibold text-[#9a6f75]">min {tier.threshold} pts</p>
-                  <button type="button" onClick={() => toggleTierActive(index)} disabled={saving} className={`mt-3 w-full rounded-xl border py-1.5 text-xs font-black disabled:opacity-50 ${tier.active === false ? "border-[#75c28b] text-[#2a8a50]" : "border-[#f0ccc5] text-[#c0502a]"}`}>
-                    {tier.active === false ? "Activate" : "Deactivate"}
-                  </button>
+                  {isEditing && (
+                    <button type="button" onClick={() => toggleTierActive(index)} disabled={saving} className={`mt-3 w-full rounded-xl border py-1.5 text-xs font-black disabled:opacity-50 ${tier.active === false ? "border-[#75c28b] text-[#2a8a50]" : "border-[#f0ccc5] text-[#c0502a]"}`}>
+                      {tier.active === false ? "Activate" : "Deactivate"}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
