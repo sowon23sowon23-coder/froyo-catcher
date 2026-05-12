@@ -811,13 +811,6 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                   <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Sold-Out Message</span>
                   <input value={limit.soldOutMessage ?? ""} onChange={(e) => updateLimit({ soldOutMessage: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
                 </label>
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">When Limit Is Reached</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => updateLimit({ stopOnReach: true })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${limit.stopOnReach ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Stop Issuing</button>
-                    <button type="button" onClick={() => updateLimit({ stopOnReach: false })} className={`rounded-2xl border px-3 py-2 text-sm font-black ${!limit.stopOnReach ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Warn Only</button>
-                  </div>
-                </div>
               </div>
             ) : (
               <div className="mt-3 flex flex-wrap gap-3">
@@ -835,10 +828,6 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                     <p className="mt-1 text-sm font-black text-[#4f2832]">{limit.campaignStartDate ?? "—"} ~ {limit.campaignEndDate ?? "—"}</p>
                   </div>
                 )}
-                <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
-                  <p className="text-xs font-semibold text-[#9a6f75]">On Limit</p>
-                  <p className="mt-1 text-sm font-black text-[#4f2832]">{limit.stopOnReach ? "Stop Issuing" : "Warn Only"}</p>
-                </div>
               </div>
             )}
             <div className="mt-4 rounded-2xl bg-[#fff9f4] p-4">
