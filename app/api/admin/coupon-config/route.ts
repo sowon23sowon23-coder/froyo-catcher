@@ -256,9 +256,47 @@ export async function PUT(req: NextRequest) {
       },
     }]);
 
-    const savedConfig = await loadConfig(supabase);
-    console.log("[coupon-config PUT] saved issuanceLimit.max =", savedConfig.issuanceLimit?.max);
-    return NextResponse.json(savedConfig);
+    // Return the saved values directly to avoid read-after-write stale data.
+    // Only re-query for fresh issuance counts and history.
+    const todayMidnightUtc = new Date();
+    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+
+    let campaignCountQuery = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
+    if (issuanceLimit.campaignStartDate) {
+      campaignCountQuery = campaignCountQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
+    }
+    if (issuanceLimit.campaignEndDate) {
+      const end = new Date(`${issuanceLimit.campaignEndDate}T00:00:00.000Z`);
+      if (!Number.isNaN(end.getTime())) {
+        end.setUTCDate(end.getUTCDate() + 1);
+        campaignCountQuery = campaignCountQuery.lt("created_at", end.toISOString());
+      }
+    }
+
+    const [dailyCountResult, campaignCountResult, historyResult] = await Promise.all([
+      supabase.from("wallet_coupons").select("*", { count: "exact", head: true }).gte("created_at", todayMidnightUtc.toISOString()),
+      campaignCountQuery,
+      supabase.from("coupon_config_history").select("id,changed_by,changes,created_at").order("created_at", { ascending: false }).limit(10),
+    ]);
+
+    const dailyIssued = dailyCountResult.count ?? 0;
+    const campaignIssued = campaignCountResult.count ?? 0;
+    const currentIssued = issuanceLimit.type === "campaign" ? campaignIssued : dailyIssued;
+    const savedRewardTiers = ensureTierQrValues(rewardTiers);
+
+    console.log("[coupon-config PUT] returning saved issuanceLimit.max =", issuanceLimit.max);
+    return NextResponse.json({
+      issuanceLimit,
+      rewardTiers: savedRewardTiers,
+      issuanceStats: {
+        dailyIssued,
+        campaignIssued,
+        currentIssued,
+        percentUsed: issuanceLimit.max > 0 ? Math.min(100, Math.round((currentIssued / issuanceLimit.max) * 100)) : 0,
+        completedAt: null,
+      },
+      history: historyResult.error ? [] : historyResult.data ?? [],
+    });
   } catch (error) {
     console.error("Admin coupon-config PUT route error", error);
     return NextResponse.json({ error: "Failed to save coupon settings." }, { status: 500 });
