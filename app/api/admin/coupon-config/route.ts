@@ -208,18 +208,24 @@ export async function PUT(req: NextRequest) {
     const supabase = getServiceSupabaseOrThrow();
     const before = await loadConfig(supabase).catch(() => null);
 
+    const savedTiers = ensureTierQrValues(rewardTiers);
     const [limitResult, tiersResult] = await Promise.all([
       supabase
         .from("coupon_config")
-        .update({ value: issuanceLimit })
-        .eq("key", COUPON_CONFIG_KEYS.issuanceLimit)
-        .select("key"),
+        .upsert({ key: COUPON_CONFIG_KEYS.issuanceLimit, value: issuanceLimit }, { onConflict: "key" })
+        .select("key,value"),
       supabase
         .from("coupon_config")
-        .update({ value: ensureTierQrValues(rewardTiers) })
-        .eq("key", COUPON_CONFIG_KEYS.rewardTiers)
-        .select("key"),
+        .upsert({ key: COUPON_CONFIG_KEYS.rewardTiers, value: savedTiers }, { onConflict: "key" })
+        .select("key,value"),
     ]);
+
+    console.log("[coupon-config PUT] upsert results", {
+      limitData: limitResult.data,
+      tiersData: tiersResult.data,
+      limitError: limitResult.error,
+      tiersError: tiersResult.error,
+    });
 
     if (limitResult.error || tiersResult.error) {
       const err = limitResult.error ?? tiersResult.error;
@@ -227,25 +233,9 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Failed to save coupon settings." }, { status: 500 });
     }
 
-    console.log("[coupon-config PUT] update results", {
-      limitData: limitResult.data,
-      tiersData: tiersResult.data,
-      limitError: limitResult.error,
-      tiersError: tiersResult.error,
-    });
-
     if (!limitResult.data?.length || !tiersResult.data?.length) {
-      // Rows don't exist yet — insert them (first-time setup)
-      const insertRows = [
-        ...(!limitResult.data?.length ? [{ key: COUPON_CONFIG_KEYS.issuanceLimit, value: issuanceLimit }] : []),
-        ...(!tiersResult.data?.length ? [{ key: COUPON_CONFIG_KEYS.rewardTiers, value: ensureTierQrValues(rewardTiers) }] : []),
-      ];
-      console.log("[coupon-config PUT] falling back to insert", insertRows.map((r) => r.key));
-      const insertResult = await supabase.from("coupon_config").insert(insertRows);
-      if (insertResult.error) {
-        console.error("Coupon config insert failed", insertResult.error);
-        return NextResponse.json({ error: "Failed to save coupon settings." }, { status: 500 });
-      }
+      console.error("[coupon-config PUT] upsert returned no rows — check DB permissions");
+      return NextResponse.json({ error: "Failed to save coupon settings (no rows affected)." }, { status: 500 });
     }
 
     await supabase.from("coupon_config_history").insert([{
