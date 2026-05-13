@@ -16,8 +16,9 @@ export default function LoginPage({
 }) {
   const nextPath = normalizeNextPath(searchParams?.next);
   const session = getPortalSessionFromCookies();
+  const adminLoginRequested = nextPath.startsWith("/admin");
 
-  if (session) {
+  if (session && !adminLoginRequested) {
     redirect(session.role === "admin" ? "/admin" : nextPath || "/redeem");
   }
 

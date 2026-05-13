@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         role: "admin" as const,
       },
     });
-    writePortalSession(response, { role: "admin" });
+    writePortalSession(response, { role: "admin", adminEntryIssuedAt: Date.now() });
     return response;
   }
 

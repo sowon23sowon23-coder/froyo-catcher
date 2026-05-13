@@ -5,6 +5,7 @@ import type { NextRequest, NextResponse } from "next/server";
 import type { PortalRole } from "./couponMvp";
 
 export const PORTAL_SESSION_COOKIE = "yl_portal_session";
+export const ADMIN_PAGE_ENTRY_WINDOW_SECONDS = 10;
 
 export type PortalSession = {
   role: PortalRole;
@@ -12,6 +13,7 @@ export type PortalSession = {
   storeName?: string;
   staffId?: string;
   staffName?: string;
+  adminEntryIssuedAt?: number;
   exp: number;
 };
 
@@ -65,10 +67,16 @@ export function parsePortalSession(cookieValue?: string | null): PortalSession |
       storeName: parsed.storeName ? String(parsed.storeName) : undefined,
       staffId: parsed.staffId ? String(parsed.staffId) : undefined,
       staffName: parsed.staffName ? String(parsed.staffName) : undefined,
+      adminEntryIssuedAt: Number.isFinite(Number(parsed.adminEntryIssuedAt)) ? Number(parsed.adminEntryIssuedAt) : undefined,
     };
   } catch {
     return null;
   }
+}
+
+export function isFreshAdminPageEntry(session: PortalSession | null) {
+  if (!session || session.role !== "admin" || !session.adminEntryIssuedAt) return false;
+  return Date.now() - session.adminEntryIssuedAt <= ADMIN_PAGE_ENTRY_WINDOW_SECONDS * 1000;
 }
 
 export function writePortalSession(response: NextResponse, session: Omit<PortalSession, "exp">) {

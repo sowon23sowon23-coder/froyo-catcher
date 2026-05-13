@@ -11,6 +11,32 @@ function escapeCsv(value: string | number | null | undefined) {
   return normalized;
 }
 
+function parseDate(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return value;
+}
+
+function getDateRange(req: NextRequest) {
+  const mode = req.nextUrl.searchParams.get("mode");
+  const dateParam = parseDate(req.nextUrl.searchParams.get("date"));
+  const startParam = parseDate(req.nextUrl.searchParams.get("startDate"));
+  const endParam = parseDate(req.nextUrl.searchParams.get("endDate"));
+
+  const rangeStart = mode === "range" ? startParam : dateParam;
+  const rangeEnd = mode === "range" ? endParam : dateParam;
+  if (!rangeStart || !rangeEnd) return null;
+
+  const start = new Date(`${rangeStart}T00:00:00.000Z`);
+  const end = new Date(`${rangeEnd}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  end.setUTCDate(end.getUTCDate() + 1);
+  if (start.getTime() >= end.getTime()) return null;
+
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
 export async function GET(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) {
@@ -23,13 +49,19 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = getServiceSupabaseOrThrow();
+    const dateRange = getDateRange(req);
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
-    const result = await supabase
+    let query = supabase
       .from("redeem_logs")
       .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(from, to);
+      .order("created_at", { ascending: false });
+
+    if (dateRange) {
+      query = query.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
+    }
+
+    const result = await query.range(from, to);
 
     if (result.error) {
       console.error("Failed to load redeem logs", result.error);

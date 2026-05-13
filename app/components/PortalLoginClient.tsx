@@ -142,17 +142,6 @@ export default function PortalLoginClient({ nextPath }: { nextPath: string }) {
             {loading ? "Signing in..." : "Sign In"}
           </button>
 
-          <div className="mt-5 rounded-2xl bg-[#fff7ef] px-4 py-4 text-sm font-semibold text-[#7e5c48]">
-            Sample credentials
-            <br />
-            {adminOnly ? "Admin password: `ADMIN_PANEL_TOKEN`" : "Staff: `storeId=pohang_01`, `staffId=staff_02`"}
-            {!adminOnly ? (
-              <>
-                <br />
-                Admin password: `ADMIN_PANEL_TOKEN`
-              </>
-            ) : null}
-          </div>
         </div>
       </div>
     </main>

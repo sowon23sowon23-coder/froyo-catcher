@@ -1479,22 +1479,11 @@ export default function Page() {
           />
           <div className="relative w-full max-w-sm rounded-3xl border border-[var(--yl-card-border)] bg-white p-5 shadow-[0_24px_50px_rgba(150,9,83,0.28)]">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">Tools</p>
-            <h2 className="mt-1 text-2xl font-black text-[var(--yl-ink-strong)]">Admin / Feedback</h2>
+            <h2 className="mt-1 text-2xl font-black text-[var(--yl-ink-strong)]">Feedback</h2>
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-              Choose where to go.
+              Share a note with the team.
             </p>
             <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setToolsOpen(false);
-                  trackEvent({ action: "admin_open_click", category: "engagement" });
-                  window.location.href = "/admin";
-                }}
-                className="w-full rounded-xl bg-[var(--yl-primary)] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5"
-              >
-                Open Admin
-              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -1502,7 +1491,7 @@ export default function Page() {
                   setFeedbackNotice(null);
                   setFeedbackOpen(true);
                 }}
-                className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-3 text-sm font-black text-[var(--yl-primary)] transition hover:-translate-y-0.5"
+                className="w-full rounded-xl bg-[var(--yl-primary)] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5"
               >
                 Send Feedback
               </button>

@@ -24,6 +24,7 @@ type DashboardStats = {
 };
 
 type GameAnalytics = {
+  filter?: { mode: "latest" | "day" | "range"; date: string | null; startDate: string | null; endDate: string | null };
   totalSessions: number;
   avgScore: number;
   avgPlayTimeSec: number | null;
@@ -47,6 +48,7 @@ type CouponListRow = {
 };
 
 type StoreStats = {
+  filter?: { mode: "latest" | "day" | "range"; date: string | null; startDate: string | null; endDate: string | null };
   totals: { issued: number; redeemed: number; usageRate: number };
   statusCounts: { unused: number; used: number; expired: number };
   storeUsage: Array<{ storeId: string; count: number }>;
@@ -78,6 +80,35 @@ type NavItem = "dashboard" | "coupon" | "couponSettings" | "game" | "users" | "f
 type DashboardFilter = { mode: "latest" | "day" | "range"; date: string; startDate: string; endDate: string };
 
 const DEFAULT_MANUAL_DISCOUNT_PERCENT = 3;
+
+function buildPeriodQuery(filter: DashboardFilter) {
+  const params = new URLSearchParams();
+  if (filter.mode === "day" && filter.date) {
+    params.set("mode", "day");
+    params.set("date", filter.date);
+  }
+  if (filter.mode === "range" && filter.startDate && filter.endDate) {
+    params.set("mode", "range");
+    params.set("startDate", filter.startDate);
+    params.set("endDate", filter.endDate);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function buildPeriodCsvHref(path: string, filter: DashboardFilter) {
+  const params = new URLSearchParams({ format: "csv" });
+  if (filter.mode === "day" && filter.date) {
+    params.set("mode", "day");
+    params.set("date", filter.date);
+  }
+  if (filter.mode === "range" && filter.startDate && filter.endDate) {
+    params.set("mode", "range");
+    params.set("startDate", filter.startDate);
+    params.set("endDate", filter.endDate);
+  }
+  return `${path}?${params.toString()}`;
+}
 
 // ??? Main Component ???????????????????????????????????????????????????????????
 
@@ -131,17 +162,7 @@ export default function AdminDashboardClient() {
   const loadDashboard = async () => {
     setDashLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (dashboardFilter.mode === "day" && dashboardFilter.date) {
-        params.set("mode", "day");
-        params.set("date", dashboardFilter.date);
-      }
-      if (dashboardFilter.mode === "range" && dashboardFilter.startDate && dashboardFilter.endDate) {
-        params.set("mode", "range");
-        params.set("startDate", dashboardFilter.startDate);
-        params.set("endDate", dashboardFilter.endDate);
-      }
-      const query = params.toString() ? `?${params.toString()}` : "";
+      const query = buildPeriodQuery(dashboardFilter);
       const res = await fetch(`/api/admin/dashboard-stats${query}`, { cache: "no-store" });
       setDashStats((await res.json()) as DashboardStats);
       loadedRef.current.dashboard = true;
@@ -151,7 +172,8 @@ export default function AdminDashboardClient() {
   const loadGame = async () => {
     setGameLoading(true);
     try {
-      const res = await fetch("/api/admin/game-analytics", { cache: "no-store" });
+      const query = buildPeriodQuery(dashboardFilter);
+      const res = await fetch(`/api/admin/game-analytics${query}`, { cache: "no-store" });
       setGameData((await res.json()) as GameAnalytics);
       loadedRef.current.game = true;
     } finally { setGameLoading(false); }
@@ -181,7 +203,8 @@ export default function AdminDashboardClient() {
   const loadStore = async () => {
     setStoreLoading(true);
     try {
-      const res = await fetch("/api/admin/stats", { cache: "no-store" });
+      const query = buildPeriodQuery(dashboardFilter);
+      const res = await fetch(`/api/admin/stats${query}`, { cache: "no-store" });
       setStoreStats((await res.json()) as StoreStats);
       loadedRef.current.logs = true;
     } finally { setStoreLoading(false); }
@@ -324,10 +347,16 @@ export default function AdminDashboardClient() {
       void loadDashboard();
       return;
     }
+    if (nav === "game") {
+      void loadGame();
+      return;
+    }
+    if (nav === "logs") {
+      void loadStore();
+      return;
+    }
     if (!loadedRef.current[nav]) {
-      if (nav === "game") void loadGame();
       if (nav === "couponSettings") void loadCouponSettings();
-      if (nav === "logs") void loadStore();
       if (nav === "feedback") void loadFeedback();
     }
   }, [nav, dashboardFilter]);
@@ -337,6 +366,19 @@ export default function AdminDashboardClient() {
     const t = window.setTimeout(() => setNotice(null), 2500);
     return () => window.clearTimeout(t);
   }, [notice]);
+
+  useEffect(() => {
+    const clearAdminSession = () => {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon("/api/auth/logout");
+        return;
+      }
+      void fetch("/api/auth/logout", { method: "POST", keepalive: true }).catch(() => undefined);
+    };
+
+    window.addEventListener("pagehide", clearAdminSession);
+    return () => window.removeEventListener("pagehide", clearAdminSession);
+  }, []);
 
   // ?? Nav config ???????????????????????????????????????????????????????????????
 
@@ -411,10 +453,10 @@ export default function AdminDashboardClient() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadDashboard} />}
           {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
-          {nav === "game" && <GameSection data={gameData} loading={gameLoading} onRefresh={loadGame} />}
+          {nav === "game" && <GameSection data={gameData} loading={gameLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadGame} />}
           {nav === "users" && <UserSection query={userQuery} results={userResults} loading={userSearchLoading} expiringId={expiringId} onQueryChange={setUserQuery} onSearch={searchUsers} onExpire={expireWalletCoupon} />}
           {nav === "feedback" && <FeedbackSection rows={feedbackRows} loading={feedbackLoading} onRefresh={loadFeedback} />}
-          {nav === "logs" && <LogsSection data={storeStats} loading={storeLoading} onRefresh={loadStore} />}
+          {nav === "logs" && <LogsSection data={storeStats} loading={storeLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadStore} />}
         </main>
       </div>
     </div>
@@ -437,66 +479,15 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
       : filter.mode === "range" && filter.startDate && filter.endDate
         ? `Date range: ${filter.startDate} to ${filter.endDate}`
         : "Latest dashboard data";
-  const setMode = (mode: DashboardFilter["mode"]) => onFilterChange({ ...filter, mode });
-  const clearFilter = () => onFilterChange({ mode: "latest", date: "", startDate: "", endDate: "" });
 
   return (
     <SectionShell title="Dashboard" subtitle={rangeLabel} onRefresh={onRefresh} loading={loading} csvHref={undefined}>
-      <div className="mb-5 rounded-[1.6rem] border border-[#f0ddd8] bg-white p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Time Period</span>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setMode("day")} className={`rounded-2xl border px-4 py-2.5 text-sm font-black ${filter.mode === "day" ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Single Day</button>
-              <button type="button" onClick={() => setMode("range")} className={`rounded-2xl border px-4 py-2.5 text-sm font-black ${filter.mode === "range" ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Date Range</button>
-            </div>
-          </div>
-          {filter.mode === "day" ? (
-            <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Date</span>
-              <input
-                type="date"
-                value={filter.date}
-                onChange={(event) => onFilterChange({ ...filter, date: event.target.value })}
-                className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
-              />
-            </label>
-          ) : null}
-          {filter.mode === "range" ? (
-            <>
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Start Date</span>
-                <input
-                  type="date"
-                  value={filter.startDate}
-                  onChange={(event) => onFilterChange({ ...filter, startDate: event.target.value })}
-                  className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">End Date</span>
-                <input
-                  type="date"
-                  value={filter.endDate}
-                  onChange={(event) => onFilterChange({ ...filter, endDate: event.target.value })}
-                  className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
-                />
-              </label>
-            </>
-          ) : null}
-          <button
-            type="button"
-            onClick={clearFilter}
-            disabled={!hasFilter || loading}
-            className="rounded-2xl border border-[#ecd9d2] px-4 py-2.5 text-sm font-black text-[#764a56] disabled:opacity-50"
-          >
-            Show Latest
-          </button>
-        </div>
-        <p className="mt-3 text-xs font-semibold text-[#9a6f75]">
-          Choose a single day or date range to filter coupon issuance, game sessions, conversion funnel, and recent logs.
-        </p>
-      </div>
+      <PeriodFilter
+        filter={filter}
+        loading={loading}
+        onFilterChange={onFilterChange}
+        description="Choose a single day or date range to filter coupon issuance, game sessions, conversion funnel, and recent logs."
+      />
       {loading || !data ? <LoadingCard /> : (
         <>
           {/* KPI row */}
@@ -566,6 +557,73 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
         </>
       )}
     </SectionShell>
+  );
+}
+
+function PeriodFilter({ filter, loading, onFilterChange, description }: {
+  filter: DashboardFilter;
+  loading: boolean;
+  onFilterChange: (value: DashboardFilter) => void;
+  description: string;
+}) {
+  const hasFilter = filter.mode === "day" ? Boolean(filter.date) : filter.mode === "range" ? Boolean(filter.startDate && filter.endDate) : false;
+  const setMode = (mode: DashboardFilter["mode"]) => onFilterChange({ ...filter, mode });
+  const clearFilter = () => onFilterChange({ mode: "latest", date: "", startDate: "", endDate: "" });
+
+  return (
+    <div className="mb-5 rounded-[1.6rem] border border-[#f0ddd8] bg-white p-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Time Period</span>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setMode("day")} className={`rounded-2xl border px-4 py-2.5 text-sm font-black ${filter.mode === "day" ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Single Day</button>
+            <button type="button" onClick={() => setMode("range")} className={`rounded-2xl border px-4 py-2.5 text-sm font-black ${filter.mode === "range" ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]" : "border-[#edd9d5] text-[#8a6670]"}`}>Date Range</button>
+          </div>
+        </div>
+        {filter.mode === "day" ? (
+          <label className="block">
+            <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Date</span>
+            <input
+              type="date"
+              value={filter.date}
+              onChange={(event) => onFilterChange({ ...filter, date: event.target.value })}
+              className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+            />
+          </label>
+        ) : null}
+        {filter.mode === "range" ? (
+          <>
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Start Date</span>
+              <input
+                type="date"
+                value={filter.startDate}
+                onChange={(event) => onFilterChange({ ...filter, startDate: event.target.value })}
+                className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">End Date</span>
+              <input
+                type="date"
+                value={filter.endDate}
+                onChange={(event) => onFilterChange({ ...filter, endDate: event.target.value })}
+                className="mt-2 rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+              />
+            </label>
+          </>
+        ) : null}
+        <button
+          type="button"
+          onClick={clearFilter}
+          disabled={!hasFilter || loading}
+          className="rounded-2xl border border-[#ecd9d2] px-4 py-2.5 text-sm font-black text-[#764a56] disabled:opacity-50"
+        >
+          Show Latest
+        </button>
+      </div>
+      <p className="mt-3 text-xs font-semibold text-[#9a6f75]">{description}</p>
+    </div>
   );
 }
 
@@ -909,9 +967,29 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   );
 }
 
-function GameSection({ data, loading, onRefresh }: { data: GameAnalytics | null; loading: boolean; onRefresh: () => void }) {
+function GameSection({ data, loading, filter, onFilterChange, onRefresh }: {
+  data: GameAnalytics | null;
+  loading: boolean;
+  filter: DashboardFilter;
+  onFilterChange: (value: DashboardFilter) => void;
+  onRefresh: () => void;
+}) {
+  const hasFilter = filter.mode === "day" ? Boolean(filter.date) : filter.mode === "range" ? Boolean(filter.startDate && filter.endDate) : false;
+  const subtitle =
+    filter.mode === "day" && filter.date
+      ? `Game metrics for ${filter.date}`
+      : filter.mode === "range" && filter.startDate && filter.endDate
+        ? `Game metrics from ${filter.startDate} to ${filter.endDate}`
+        : "Session-based gameplay metrics";
+
   return (
-    <SectionShell title="Game Analytics" subtitle="Session-based gameplay metrics" onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+    <SectionShell title="Game Analytics" subtitle={subtitle} onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+      <PeriodFilter
+        filter={filter}
+        loading={loading}
+        onFilterChange={onFilterChange}
+        description="Choose a single day or date range to filter game sessions, scores, coupon conversion, and recent plays."
+      />
       {loading || !data ? <LoadingCard /> : data.totalSessions === 0 ? (
         <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-10 text-center">
           <p className="text-4xl">Game</p>
@@ -921,7 +999,7 @@ function GameSection({ data, loading, onRefresh }: { data: GameAnalytics | null;
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Total Sessions" value={String(data.totalSessions)} sub="Cumulative" />
+            <KpiCard label="Total Sessions" value={String(data.totalSessions)} sub={hasFilter ? "Selected period" : "Cumulative"} />
             <KpiCard label="Average Score" value={String(data.avgScore)} sub="pts" color="orange" />
             <KpiCard label="Average Play Time" value={data.avgPlayTimeSec != null ? `${data.avgPlayTimeSec}s` : "-"} sub="" />
             <KpiCard label="Coupon Conversion Rate" value={`${data.couponIssuedRate}%`} sub={`${data.couponIssuedCount} issued`} color="green" />
@@ -930,7 +1008,7 @@ function GameSection({ data, loading, onRefresh }: { data: GameAnalytics | null;
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             {/* Sessions by day */}
             <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Daily Sessions (14 Days)</p>
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">{hasFilter ? "Daily Sessions" : "Daily Sessions (14 Days)"}</p>
               <MiniBarChart series={data.sessionsByDay} color="bg-[#a78bfa]" />
             </div>
 
@@ -1120,9 +1198,28 @@ function FeedbackSection({ rows, loading, onRefresh }: { rows: FeedbackRow[]; lo
 
 // ??? Section: Logs ????????????????????????????????????????????????????????????
 
-function LogsSection({ data, loading, onRefresh }: { data: StoreStats | null; loading: boolean; onRefresh: () => void }) {
+function LogsSection({ data, loading, filter, onFilterChange, onRefresh }: {
+  data: StoreStats | null;
+  loading: boolean;
+  filter: DashboardFilter;
+  onFilterChange: (value: DashboardFilter) => void;
+  onRefresh: () => void;
+}) {
+  const subtitle =
+    filter.mode === "day" && filter.date
+      ? `Coupon redemption logs for ${filter.date}`
+      : filter.mode === "range" && filter.startDate && filter.endDate
+        ? `Coupon redemption logs from ${filter.startDate} to ${filter.endDate}`
+        : "Coupon redemption processing logs";
+
   return (
-    <SectionShell title="Logs" subtitle="Coupon redemption processing logs" onRefresh={onRefresh} loading={loading} csvHref="/api/admin/redeem-logs?format=csv">
+    <SectionShell title="Logs" subtitle={subtitle} onRefresh={onRefresh} loading={loading} csvHref={buildPeriodCsvHref("/api/admin/redeem-logs", filter)}>
+      <PeriodFilter
+        filter={filter}
+        loading={loading}
+        onFilterChange={onFilterChange}
+        description="Choose a single day or date range to filter coupon totals, redemption charts, store usage, and processing logs."
+      />
       {loading || !data ? <LoadingCard /> : (
         <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
           {data.recentLogs.length === 0 ? (
