@@ -37,14 +37,14 @@ export default function HomeScreen({
   todayBestScore,
   onStart,
   onOpenLeaderboard,
-  onOpenAdmin,
+  onOpenFeedback,
   onSwitchAccount,
 }: {
   nickname?: string;
   todayBestScore?: number;
   onStart: (character: CharId) => void;
   onOpenLeaderboard: () => void;
-  onOpenAdmin: () => void;
+  onOpenFeedback: () => void;
   onSwitchAccount: () => void;
 }) {
   const [character, setCharacter] = useState<CharId>("green");
@@ -177,12 +177,13 @@ export default function HomeScreen({
           </div>
           <button
             type="button"
-            onClick={onOpenAdmin}
+            onClick={onOpenFeedback}
             aria-label="Open feedback"
             title="Feedback"
-            className="grid h-9 w-9 place-items-center rounded-full border border-[var(--yl-card-border)] bg-white text-base shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+            className="flex h-9 items-center gap-1.5 rounded-full border border-[var(--yl-card-border)] bg-white px-3 text-xs font-black text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
           >
-            🛠️
+            <span className="text-base leading-none" aria-hidden="true">🛠️</span>
+            <span>Feedback</span>
           </button>
         </header>
 

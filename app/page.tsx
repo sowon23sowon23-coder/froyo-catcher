@@ -386,7 +386,6 @@ export default function Page() {
   const [myRank, setMyRank] = useState<number | undefined>(undefined);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [toolsOpen, setToolsOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -1321,9 +1320,10 @@ export default function Page() {
                   setStartSignal((n) => n + 1);
                 }}
                 onOpenLeaderboard={openLeaderboard}
-                onOpenAdmin={() => {
-                  trackEvent({ action: "tools_open_click", category: "engagement" });
-                  setToolsOpen(true);
+                onOpenFeedback={() => {
+                  trackEvent({ action: "feedback_open_click", category: "engagement" });
+                  setFeedbackNotice(null);
+                  setFeedbackOpen(true);
                 }}
                 onSwitchAccount={switchAccount}
               />
@@ -1470,35 +1470,6 @@ export default function Page() {
           </div>
         </div>
       ) : null}
-
-      {toolsOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-[#2b0d1f]/45 backdrop-blur-[2px]"
-            onClick={() => setToolsOpen(false)}
-          />
-          <div className="relative w-full max-w-sm rounded-3xl border border-[var(--yl-card-border)] bg-white p-5 shadow-[0_24px_50px_rgba(150,9,83,0.28)]">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--yl-primary)]">Tools</p>
-            <h2 className="mt-1 text-2xl font-black text-[var(--yl-ink-strong)]">Feedback</h2>
-            <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-              Share a note with the team.
-            </p>
-            <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setToolsOpen(false);
-                  setFeedbackNotice(null);
-                  setFeedbackOpen(true);
-                }}
-                className="w-full rounded-xl bg-[var(--yl-primary)] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5"
-              >
-                Send Feedback
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {feedbackOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
