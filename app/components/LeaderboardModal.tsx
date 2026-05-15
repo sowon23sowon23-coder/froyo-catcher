@@ -2,25 +2,6 @@
 
 import { useEffect } from "react";
 
-function SkeletonRow() {
-  return (
-    <div className="grid grid-cols-[52px_1fr_70px_84px] border-t border-[#f9d7e8] px-4 py-3">
-      <div className="flex items-center">
-        <div className="h-3.5 w-5 animate-pulse rounded bg-[#f0d6e8]" />
-      </div>
-      <div className="flex items-center">
-        <div className="h-3.5 w-28 animate-pulse rounded bg-[#f0d6e8]" />
-      </div>
-      <div className="flex items-center">
-        <div className="h-3.5 w-10 animate-pulse rounded bg-[#f0d6e8]" />
-      </div>
-      <div className="flex items-center justify-end">
-        <div className="h-3.5 w-9 animate-pulse rounded bg-[#f0d6e8]" />
-      </div>
-    </div>
-  );
-}
-
 type CharId = "green" | "berry" | "sprinkle";
 
 export type LeaderRow = {
@@ -89,7 +70,7 @@ export default function LeaderboardModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-[#2b0d1f]/45 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-[#2b0d1f]/45" onClick={onClose} />
 
       <div className="relative w-full max-w-md overflow-hidden rounded-[1.7rem] border border-[var(--yl-card-border)] bg-white shadow-[0_24px_50px_rgba(150,9,83,0.28)]">
         <div className="bg-[linear-gradient(135deg,#fff1f8,#f8c8df)] px-5 py-4">
@@ -133,6 +114,18 @@ export default function LeaderboardModal({
         </div>
 
         <div className="px-5 pb-5 pt-4">
+          {loading ? (
+            <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-[var(--yl-card-border)] bg-white px-6 py-10 text-center">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#f5c9dd] border-t-[var(--yl-primary)]" />
+              <p className="mt-4 text-sm font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+                Loading
+              </p>
+              <p className="mt-1 text-sm font-bold text-[var(--yl-ink-muted)]">
+                Getting the latest leaderboard.
+              </p>
+            </div>
+          ) : (
+            <>
           {(myNickname || myScore !== undefined) && (
             <div className="mb-3 rounded-2xl border border-[var(--yl-card-border)] bg-[var(--yl-card-bg)] px-4 py-3">
               <p className="text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-primary)]">
@@ -159,13 +152,7 @@ export default function LeaderboardModal({
               <div className="text-right">SCORE</div>
             </div>
 
-            {loading && mergedRows.length === 0 ? (
-              <div className="bg-white">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <SkeletonRow key={i} />
-                ))}
-              </div>
-            ) : mergedRows.length === 0 ? (
+            {mergedRows.length === 0 ? (
               <div className="px-4 py-6 text-sm font-semibold text-[#8b6178]">No scores yet.</div>
             ) : (
               <div className="max-h-[360px] overflow-auto bg-white">
@@ -220,6 +207,8 @@ export default function LeaderboardModal({
           >
             Back
           </button>
+            </>
+          )}
         </div>
       </div>
     </div>
