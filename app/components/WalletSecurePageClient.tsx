@@ -360,7 +360,7 @@ function ActiveCouponCard({
               <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
                 {!canActivateToday
                   ? "Daily use limit reached. Come back tomorrow."
-                  : "Staff must tap Use before the QR appears."}
+                  : 'Press the "Use" button only when directed to do so by the emaployee.'}
               </p>
             </div>
             <span
@@ -493,7 +493,7 @@ function CouponPolicyCard() {
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Redeeming at the Store</p>
           <ul className="mb-4 list-inside list-disc space-y-1">
             <li>At checkout, open this wallet and show your coupon to a staff member.</li>
-            <li>Ask the staff to tap <span className="font-black text-[var(--yl-ink-strong)]">Use</span> — a live QR code will appear.</li>
+            <li>Press the "Use" button only when directed to do so by the emaployee.</li>
             <li>The QR is valid for <span className="font-black text-[var(--yl-ink-strong)]">20 seconds</span> for the staff to scan and apply your discount.</li>
             <li>Once used, the coupon cannot be reused.</li>
           </ul>
@@ -991,7 +991,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
             </Link>
           </div>
           <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-            {nickname ? `${nickname}, store staff should tap Use to generate a live QR coupon.` : "Store staff should tap Use to generate a live QR coupon."}
+            Press the "Use" button only when directed to do so by the emaployee.
           </p>
         </header>
 
