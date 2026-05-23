@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getServiceSupabaseOrThrow } from "../../../../lib/couponData";
+import { getDallasDayStart } from "../../../../lib/dallasTime";
 
 const expireWalletCouponSchema = z.object({
   couponId: z.number().int().positive(),
@@ -36,8 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const entryId = couponLookup.data.entry_id;
-    const todayMidnightUtc = new Date();
-    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+    const todayMidnightDallas = getDallasDayStart();
 
     // Attempt the update first (conditional on status='active').
     // This acts as a lightweight lock: only one concurrent caller can flip a
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         .select("id", { count: "exact", head: true })
         .eq("entry_id", entryId)
         .eq("status", "expired")
-        .gte("created_at", todayMidnightUtc.toISOString());
+        .gte("created_at", todayMidnightDallas.toISOString());
 
       if (!activatedToday.error && (activatedToday.count ?? 0) > 1) {
         // Daily limit exceeded — revert this coupon back to active.

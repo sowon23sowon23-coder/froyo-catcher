@@ -10,6 +10,7 @@ import { formatCouponLabel, resolveCouponReward, type CouponGameMode, type Walle
 import { COUPON_SCORE_THRESHOLD } from "./lib/couponMvp";
 import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
+import { getDallasDayKey, getDallasDayStart } from "./lib/dallasTime";
 
 type CharId = "green" | "berry" | "sprinkle";
 type Phase = "login" | "switchAccount" | "home" | "game";
@@ -224,7 +225,7 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
       .from("leaderboard_best_v2")
       .select("score,nickname_display,character,store,updated_at")
       .eq("nickname_key", key)
-      .gte("updated_at", startOfTodayLocalISO())
+      .gte("updated_at", startOfGameDayISO())
       .order("score", { ascending: false })
       .order("updated_at", { ascending: true })
       .limit(1);
@@ -244,7 +245,7 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
             .from("leaderboard_best_v2")
             .select("score,nickname_display,store,updated_at")
             .eq("nickname_key", key)
-            .gte("updated_at", startOfTodayLocalISO())
+            .gte("updated_at", startOfGameDayISO())
             .order("score", { ascending: false })
             .order("updated_at", { ascending: true })
             .limit(1);
@@ -258,7 +259,7 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
             .from("leaderboard_best_v2")
             .select("score,nickname_display,character,updated_at")
             .eq("nickname_key", key)
-            .gte("updated_at", startOfTodayLocalISO())
+            .gte("updated_at", startOfGameDayISO())
             .order("score", { ascending: false })
             .order("updated_at", { ascending: true })
             .limit(1);
@@ -272,7 +273,7 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
             .from("leaderboard_best_v2")
             .select("score,nickname_display,updated_at")
             .eq("nickname_key", key)
-            .gte("updated_at", startOfTodayLocalISO())
+            .gte("updated_at", startOfGameDayISO())
             .order("score", { ascending: false })
             .order("updated_at", { ascending: true })
             .limit(1);
@@ -309,14 +310,12 @@ async function fetchMyTodayScore(nicknameDisplay: string, selectedStore: string)
   }
 }
 
-function startOfTodayLocalISO() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+function startOfGameDayISO() {
+  return getDallasDayStart().toISOString();
 }
 
 function todayBestStorageKey(nickname: string, store: string) {
-  return `todayBest:${normalizeNick(nickname || "guest")}:${store}:${startOfTodayLocalISO().slice(0, 10)}`;
+  return `todayBest:${normalizeNick(nickname || "guest")}:${store}:${getDallasDayKey()}`;
 }
 
 function allTimeBestStorageKey(nickname: string, store: string) {
@@ -577,7 +576,7 @@ export default function Page() {
     });
 
   const fetchTop20 = async (m: LeaderMode, store: string) => {
-    const todayFrom = m === "today" ? startOfTodayLocalISO() : "";
+    const todayFrom = m === "today" ? startOfGameDayISO() : "";
     const requestKey = `${m}|${store}|${todayFrom}`;
 
     if (leaderboardInFlightKeyRef.current === requestKey) {
@@ -749,7 +748,7 @@ export default function Page() {
       }
 
       if (m === "today") {
-        query = query.gte("updated_at", startOfTodayLocalISO());
+        query = query.gte("updated_at", startOfGameDayISO());
       }
 
       let { count, error } = await query;
@@ -765,7 +764,7 @@ export default function Page() {
           fallbackQuery = fallbackQuery.eq("store", store);
         }
         if (m === "today") {
-          fallbackQuery = fallbackQuery.gte("updated_at", startOfTodayLocalISO());
+          fallbackQuery = fallbackQuery.gte("updated_at", startOfGameDayISO());
         }
 
         const result = await fallbackQuery;
@@ -1011,9 +1010,7 @@ export default function Page() {
     contactType: EntryContactType,
     contactValue: string,
     nickname: string,
-    store: string,
-    pin: string,
-    authMode: LoginPayload["loginMode"]
+    store: string
   ) => {
     const res = await fetch("/api/entry/register", {
       method: "POST",
@@ -1022,8 +1019,6 @@ export default function Page() {
         contactType,
         contactValue,
         nickname: nickname.trim() || null,
-        pin,
-        authMode,
         store: store.trim() || null,
         rememberMe: true,
       }),
@@ -1166,21 +1161,13 @@ export default function Page() {
         payload.contactType,
         payload.contactValue,
         trimmed,
-        finalStore,
-        payload.pin,
-        payload.loginMode
+        finalStore
       );
     } catch (err) {
       console.error(err);
       const message = (err as Error)?.message || "";
       if (message.includes("Nickname is already in use")) {
         setLoginError("This nickname is already in use. Please choose a different nickname.");
-      } else if (message.includes("Nickname was not found")) {
-        setLoginError("We couldn't find that nickname. Choose New to create it first.");
-      } else if (message.includes("Invalid PIN")) {
-        setLoginError("That PIN does not match this nickname.");
-      } else if (message.includes("PIN must")) {
-        setLoginError("PIN must be exactly 4 digits.");
       } else if (message.includes("Invalid contact value")) {
         setLoginError("Login could not be prepared. Please try a different nickname.");
       } else if (message.includes("Too many requests")) {

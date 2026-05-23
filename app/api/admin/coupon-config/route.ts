@@ -10,6 +10,7 @@ import {
   type CouponRewardTierConfig,
 } from "../../../lib/coupons";
 import { requirePortalRole } from "../../../lib/portalAuth";
+import { getDallasDayStart } from "../../../lib/dallasTime";
 
 export const dynamic = "force-dynamic";
 
@@ -75,9 +76,8 @@ async function loadConfig(supabase: any) {
   const rewardTiers = configuredTiers.length > 0 ? ensureTierQrValues(configuredTiers) : getDefaultRewardTiers();
 
   let dailyQuery = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
-  const todayMidnightUtc = new Date();
-  todayMidnightUtc.setUTCHours(0, 0, 0, 0);
-  dailyQuery = dailyQuery.gte("created_at", todayMidnightUtc.toISOString());
+  const todayMidnightDallas = getDallasDayStart();
+  dailyQuery = dailyQuery.gte("created_at", todayMidnightDallas.toISOString());
   let campaignQuery = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
   if (issuanceLimit?.campaignStartDate) {
     campaignQuery = campaignQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
@@ -112,7 +112,7 @@ async function loadConfig(supabase: any) {
       .order("created_at", { ascending: true })
       .range(issuanceLimit.max - 1, issuanceLimit.max - 1);
     if (issuanceLimit.type === "daily") {
-      completionQuery = completionQuery.gte("created_at", todayMidnightUtc.toISOString());
+      completionQuery = completionQuery.gte("created_at", todayMidnightDallas.toISOString());
     } else {
       if (issuanceLimit.campaignStartDate) {
         completionQuery = completionQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
@@ -248,8 +248,7 @@ export async function PUT(req: NextRequest) {
 
     // Return the saved values directly to avoid read-after-write stale data.
     // Only re-query for fresh issuance counts and history.
-    const todayMidnightUtc = new Date();
-    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+    const todayMidnightDallas = getDallasDayStart();
 
     let campaignCountQuery = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
     if (issuanceLimit.campaignStartDate) {
@@ -264,7 +263,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const [dailyCountResult, campaignCountResult, historyResult] = await Promise.all([
-      supabase.from("wallet_coupons").select("*", { count: "exact", head: true }).gte("created_at", todayMidnightUtc.toISOString()),
+      supabase.from("wallet_coupons").select("*", { count: "exact", head: true }).gte("created_at", todayMidnightDallas.toISOString()),
       campaignCountQuery,
       supabase.from("coupon_config_history").select("id,changed_by,changes,created_at").order("created_at", { ascending: false }).limit(10),
     ]);

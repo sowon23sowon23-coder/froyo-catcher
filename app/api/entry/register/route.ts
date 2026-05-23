@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createHash, timingSafeEqual } from "crypto";
 import { normalizeEmail, normalizeUsPhone, type EntryContactType } from "../../../lib/entry";
 import { createEntrySessionToken, ENTRY_SESSION_COOKIE } from "../../../lib/entrySession";
 
@@ -8,8 +7,6 @@ type RegisterEntryBody = {
   contactType?: EntryContactType;
   contactValue?: string;
   nickname?: string | null;
-  pin?: string | null;
-  authMode?: "existing" | "new";
   store?: string | null;
   rememberMe?: boolean;
 };
@@ -46,31 +43,6 @@ function isUndefinedTable(error: { code?: string } | null | undefined) {
 
 function normalizeNicknameKey(raw: string) {
   return raw.trim().toLowerCase();
-}
-
-function getPinSecret() {
-  return (
-    process.env.ENTRY_PIN_SECRET ||
-    process.env.ENTRY_SESSION_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    ""
-  );
-}
-
-function hashEntryPin(nicknameKey: string, pin: string) {
-  const secret = getPinSecret();
-  return createHash("sha256")
-    .update(`${secret}:${nicknameKey}:${pin}`)
-    .digest("hex");
-}
-
-function isPinHashMatch(expectedHash: string | null | undefined, actualHash: string) {
-  if (!expectedHash) return false;
-  const expected = Buffer.from(expectedHash, "hex");
-  const actual = Buffer.from(actualHash, "hex");
-  if (expected.length !== actual.length) return false;
-  return timingSafeEqual(expected, actual);
 }
 
 async function migrateLeaderboardNickname(
@@ -254,12 +226,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Nickname must be 2-12 characters." }, { status: 400 });
   }
   const nicknameKey = normalizeNicknameKey(nickname);
-  const pin = String(body.pin || "").trim();
-  if (!/^\d{4}$/.test(pin)) {
-    return NextResponse.json({ error: "PIN must be exactly 4 digits." }, { status: 400 });
-  }
-  const authMode = body.authMode === "new" ? "new" : "existing";
-  const pinHash = hashEntryPin(nicknameKey, pin);
   const store = String(body.store || "").trim();
   const rememberMe = body.rememberMe !== false;
 
@@ -292,26 +258,12 @@ export async function POST(req: NextRequest) {
 
   const nicknameOwner = await supabase
     .from("entries")
-    .select("id,contact_type,contact_value,nickname_key,nickname_display,pin_hash")
+    .select("id,contact_type,contact_value,nickname_key,nickname_display")
     .eq("nickname_key", nicknameKey)
     .maybeSingle();
 
   if (nicknameOwner.error && !isNoRowsError(nicknameOwner.error.message)) {
     return NextResponse.json({ error: nicknameOwner.error.message || "Failed to verify nickname." }, { status: 500 });
-  }
-
-  if (authMode === "new" && nicknameOwner.data?.id) {
-    return NextResponse.json({ error: "Nickname is already in use." }, { status: 409 });
-  }
-
-  if (authMode === "existing") {
-    if (!nicknameOwner.data?.id) {
-      return NextResponse.json({ error: "Nickname was not found. Create it first." }, { status: 404 });
-    }
-
-    if (nicknameOwner.data.pin_hash && !isPinHashMatch(String(nicknameOwner.data.pin_hash), pinHash)) {
-      return NextResponse.json({ error: "Invalid PIN." }, { status: 401 });
-    }
   }
 
   const consentAt = new Date().toISOString();
@@ -345,7 +297,7 @@ export async function POST(req: NextRequest) {
     return res;
   };
 
-  if (authMode === "existing" && nicknameOwner.data?.id) {
+  if (nicknameOwner.data?.id) {
     const sessionContactType = String(nicknameOwner.data.contact_type || "") as EntryContactType;
     const sessionContactValue = String(nicknameOwner.data.contact_value || "").trim();
     const patch: Record<string, unknown> = {
@@ -353,9 +305,6 @@ export async function POST(req: NextRequest) {
       nickname_display: nickname || null,
       store: store || null,
     };
-    if (!nicknameOwner.data.pin_hash) {
-      patch.pin_hash = pinHash;
-    }
 
     const updateResult = await supabase.from("entries").update(patch).eq("id", nicknameOwner.data.id);
     if (updateResult.error) {
@@ -376,13 +325,11 @@ export async function POST(req: NextRequest) {
         consent_at: consentAt,
         nickname_key: nicknameKey,
         nickname_display: nickname || null,
-        pin_hash: pinHash,
         store: store || null,
       },
       {
         consent_at: consentAt,
         nickname_key: nicknameKey,
-        pin_hash: pinHash,
       },
     ];
 
@@ -425,7 +372,6 @@ export async function POST(req: NextRequest) {
       consent_at: consentAt,
       nickname_key: nicknameKey,
       nickname_display: nickname || null,
-      pin_hash: pinHash,
       store: store || null,
     },
     {
@@ -433,7 +379,6 @@ export async function POST(req: NextRequest) {
       contact_value: normalizedContact,
       consent_at: consentAt,
       nickname_key: nicknameKey,
-      pin_hash: pinHash,
     },
   ];
 

@@ -3,6 +3,7 @@ import { getCouponState, getWalletCouponStatus, resolveCouponReward } from "../.
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { getServerSupabase } from "../../../lib/serverSupabase";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
+import { getDallasDayStart, getNextDallasDayStart } from "../../../lib/dallasTime";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuthenticatedEntry(req);
@@ -68,8 +69,7 @@ export async function GET(req: NextRequest) {
     };
   }
 
-  const todayMidnightUtc = new Date();
-  todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+  const todayMidnightDallas = getDallasDayStart();
 
   const rows = await supabase
     .from("wallet_coupons")
@@ -109,19 +109,15 @@ export async function GET(req: NextRequest) {
   });
 
   // canActivateToday: false if the user already activated or redeemed a coupon today.
-  const todayIso = todayMidnightUtc.toISOString();
+  const todayIso = todayMidnightDallas.toISOString();
   const activatedTodayCount = (rows.data ?? []).filter(
     (row) =>
       (row.status === "expired" && row.created_at >= todayIso) ||
       (row.status === "redeemed" && row.redeemed_at && row.redeemed_at >= todayIso)
   ).length;
 
-  // nextIssuanceAt: when the 24h rolling issuance window reopens (null = can issue now)
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const latestIssuedRow = (rows.data ?? []).find((row) => row.created_at >= twentyFourHoursAgo);
-  const nextIssuanceAt = latestIssuedRow
-    ? new Date(new Date(latestIssuedRow.created_at).getTime() + 24 * 60 * 60 * 1000).toISOString()
-    : null;
+  const latestIssuedRow = (rows.data ?? []).find((row) => row.created_at >= todayIso);
+  const nextIssuanceAt = latestIssuedRow ? getNextDallasDayStart().toISOString() : null;
 
   return NextResponse.json({
     nickname: entry.nickname,

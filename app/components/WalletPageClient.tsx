@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { type WalletCoupon } from "../lib/coupons";
+import { getDallasDayKey, getDallasDayStart, getNextDallasDayStart } from "../lib/dallasTime";
 
 const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 const WALLET_REFRESH_INTERVAL_MS = 10000;
@@ -132,14 +133,11 @@ function countdownBgClass(ms: number): string {
 
 function isUsedToday(coupon: WalletCoupon): boolean {
   if (coupon.status !== "redeemed" || !coupon.redeemedAt) return false;
-  return new Date(coupon.redeemedAt).toDateString() === new Date().toDateString();
+  return getDallasDayKey(new Date(coupon.redeemedAt)) === getDallasDayKey();
 }
 
 function getMsUntilMidnight(): number {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  return Math.max(0, midnight.getTime() - now.getTime());
+  return Math.max(0, getNextDallasDayStart().getTime() - Date.now());
 }
 
 function CouponCard({
@@ -323,7 +321,7 @@ function CouponCard({
                   Locked for today
                 </p>
                 <p className="mt-1 text-xs font-semibold text-[#4338ca]">
-                  You've already used a coupon today. This one is saved and will be ready to use after midnight.
+                  You've already used a coupon today. This one is saved and will be ready to use after midnight Dallas time.
                 </p>
               </div>
             </div>
@@ -633,17 +631,18 @@ export default function WalletPageClient({ initialTab }: { initialTab?: string }
     [historyCoupons]
   );
 
-  const lastCouponCreatedAt = useMemo(() => {
+  const hasCouponToday = useMemo(() => {
     const all = [...activeCoupons, ...historyCoupons];
-    if (all.length === 0) return null;
-    return all.reduce((a, b) =>
-      new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b
-    ).createdAt;
+    const gameDayStartMs = getDallasDayStart().getTime();
+    return all.some((coupon) => {
+      const createdAt = new Date(coupon.createdAt).getTime();
+      return Number.isFinite(createdAt) && createdAt >= gameDayStartMs;
+    });
   }, [activeCoupons, historyCoupons]);
 
   const nextIssuanceAt = useMemo(
-    () => (lastCouponCreatedAt ? new Date(lastCouponCreatedAt).getTime() + 24 * 60 * 60 * 1000 : null),
-    [lastCouponCreatedAt]
+    () => (hasCouponToday ? getNextDallasDayStart().getTime() : null),
+    [hasCouponToday]
   );
 
   const [nextCouponMs, setNextCouponMs] = useState(() =>

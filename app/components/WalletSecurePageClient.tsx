@@ -14,6 +14,7 @@ import {
   getWalletCouponStatus,
   type WalletCoupon,
 } from "../lib/coupons";
+import { getDallasDayKey, getDallasDayStart, getNextDallasDayStart } from "../lib/dallasTime";
 
 const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 const WALLET_REFRESH_INTERVAL_MS = 10000;
@@ -246,10 +247,7 @@ function pad(n: number) {
 }
 
 function getMsUntilMidnight(): number {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  return Math.max(0, midnight.getTime() - now.getTime());
+  return Math.max(0, getNextDallasDayStart().getTime() - Date.now());
 }
 
 function use24hCountdown(nextIssuanceAt: string | null) {
@@ -682,13 +680,13 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
             setError(null);
             // Compute nextIssuanceAt from local coupons as fallback
             const allLocal = [...nextActive, ...nextHistory];
-            const twentyFourHoursAgoMs = Date.now() - 24 * 60 * 60 * 1000;
+            const gameDayStartMs = getDallasDayStart().getTime();
             const localLatest = allLocal.length > 0
               ? allLocal.reduce((a, b) => new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b)
               : null;
             setNextIssuanceAt(
-              localLatest && new Date(localLatest.createdAt).getTime() >= twentyFourHoursAgoMs
-                ? new Date(new Date(localLatest.createdAt).getTime() + 24 * 60 * 60 * 1000).toISOString()
+              localLatest && new Date(localLatest.createdAt).getTime() >= gameDayStartMs
+                ? getNextDallasDayStart().toISOString()
                 : null
             );
             return;
@@ -746,15 +744,12 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
         // The server may lag when a coupon was just issued, so we take whichever
         // value is later: the server's or the one derived from local+server data.
         const allKnownCoupons = [...reconciled.activeCoupons, ...nextHistory];
-        const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-        const latestWithin24hMs = allKnownCoupons.reduce<number | null>((best, c) => {
+        const gameDayStartMs = getDallasDayStart().getTime();
+        const hasCouponToday = allKnownCoupons.some((c) => {
           const t = new Date(c.createdAt).getTime();
-          if (!Number.isFinite(t) || t < cutoffMs) return best;
-          return best === null || t > best ? t : best;
-        }, null);
-        const derivedNextIssuanceAt = latestWithin24hMs
-          ? new Date(latestWithin24hMs + 24 * 60 * 60 * 1000).toISOString()
-          : null;
+          return Number.isFinite(t) && t >= gameDayStartMs;
+        });
+        const derivedNextIssuanceAt = hasCouponToday ? getNextDallasDayStart().toISOString() : null;
         const serverNextIssuanceAt = typeof json.nextIssuanceAt === "string" ? json.nextIssuanceAt : null;
         setNextIssuanceAt(
           serverNextIssuanceAt && derivedNextIssuanceAt
@@ -915,13 +910,13 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   // If the expire API call was delayed or failed, the server may still return
   // canActivateToday:true even though the user already activated a coupon today.
   const usedTodayLocal = useMemo(() => {
-    const todayStr = new Date().toDateString();
+    const todayStr = getDallasDayKey();
     return historyCoupons.some((c) => {
       if (c.status === "redeemed" && c.redeemedAt) {
-        return new Date(c.redeemedAt).toDateString() === todayStr;
+        return getDallasDayKey(new Date(c.redeemedAt)) === todayStr;
       }
       if (c.status === "expired" && c.createdAt) {
-        return new Date(c.createdAt).toDateString() === todayStr;
+        return getDallasDayKey(new Date(c.createdAt)) === todayStr;
       }
       return false;
     });

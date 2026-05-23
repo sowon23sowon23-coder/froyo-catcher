@@ -4,6 +4,7 @@ import { getServiceSupabaseOrThrow } from "../../../lib/couponData";
 import { buildChartSeries, getCouponStatus } from "../../../lib/couponMvp";
 import { COUPON_CONFIG_KEYS, type CouponIssuanceLimitConfig } from "../../../lib/coupons";
 import { requirePortalRole } from "../../../lib/portalAuth";
+import { getDallasDayStart } from "../../../lib/dallasTime";
 
 export const dynamic = "force-dynamic";
 
@@ -128,8 +129,7 @@ export async function GET(req: NextRequest) {
     const rawIssuanceLimit = couponConfigResult.data?.value as Partial<CouponIssuanceLimitConfig> | null | undefined;
     const limitType = rawIssuanceLimit?.type === "campaign" ? "campaign" : rawIssuanceLimit?.type === "daily" ? "daily" : null;
     const limitMax = Number(rawIssuanceLimit?.max);
-    const todayMidnightUtc = new Date();
-    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
+    const todayMidnightDallas = getDallasDayStart();
     const issuanceLimit = limitType && Number.isInteger(limitMax) && limitMax > 0
       ? {
           type: limitType,
@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
             ? issued
             : coupons.filter((coupon) => {
                 const createdAt = new Date(String(coupon.created_at || "")).getTime();
-                return Number.isFinite(createdAt) && createdAt >= todayMidnightUtc.getTime();
+                return Number.isFinite(createdAt) && createdAt >= todayMidnightDallas.getTime();
               }).length,
           stopOnReach: rawIssuanceLimit?.stopOnReach !== false,
         }

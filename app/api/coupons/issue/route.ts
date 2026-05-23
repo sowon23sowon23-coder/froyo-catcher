@@ -13,6 +13,7 @@ import {
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 import { COUPON_SCORE_THRESHOLD, createCouponCode } from "../../../lib/couponMvp";
+import { getDallasDayKey, getDallasDayStart } from "../../../lib/dallasTime";
 
 async function createUniqueRedeemToken(supabase: any) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -83,9 +84,7 @@ async function getCurrentIssuanceCount(supabase: any, config: CouponIssuanceLimi
   let query = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
 
   if (config.type === "daily") {
-    const todayMidnightUtc = new Date();
-    todayMidnightUtc.setUTCHours(0, 0, 0, 0);
-    query = query.gte("created_at", todayMidnightUtc.toISOString());
+    query = query.gte("created_at", getDallasDayStart().toISOString());
   } else {
     if (config.campaignStartDate) {
       query = query.gte("created_at", `${config.campaignStartDate}T00:00:00.000Z`);
@@ -211,7 +210,7 @@ export async function POST(req: NextRequest) {
       });
     }
     if (issuanceLimit?.type === "campaign") {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getDallasDayKey();
       if (issuanceLimit.campaignStartDate && today < issuanceLimit.campaignStartDate) {
         return NextResponse.json({
           eligible: true,
@@ -244,13 +243,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const gameDayStart = getDallasDayStart();
 
     const todayCouponResult = await supabase
       .from("wallet_coupons")
       .select("id,reward_type,status,expires_at,redeemed_at")
       .eq("entry_id", entry.id)
-      .gte("created_at", twentyFourHoursAgo.toISOString())
+      .gte("created_at", gameDayStart.toISOString())
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
