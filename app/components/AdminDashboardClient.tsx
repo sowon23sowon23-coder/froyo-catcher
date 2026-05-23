@@ -113,7 +113,7 @@ function buildPeriodCsvHref(path: string, filter: DashboardFilter) {
 // ??? Main Component ???????????????????????????????????????????????????????????
 
 export default function AdminDashboardClient() {
-  const NAV_ITEMS: NavItem[] = ["dashboard", "coupon", "couponSettings", "game", "users", "feedback", "logs"];
+  const NAV_ITEMS: NavItem[] = ["dashboard", "game", "users", "coupon", "logs", "feedback", "couponSettings"];
   const savedNav = typeof window !== "undefined" ? localStorage.getItem("adminNav") : null;
   const [nav, setNav] = useState<NavItem>(NAV_ITEMS.includes(savedNav as NavItem) ? (savedNav as NavItem) : "dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -356,6 +356,7 @@ export default function AdminDashboardClient() {
       return;
     }
     if (!loadedRef.current[nav]) {
+      if (nav === "coupon") void loadCoupons();
       if (nav === "couponSettings") void loadCouponSettings();
       if (nav === "feedback") void loadFeedback();
     }
@@ -384,11 +385,12 @@ export default function AdminDashboardClient() {
 
   const navItems: { id: NavItem; label: string; icon: string }[] = [
     { id: "dashboard", label: "Dashboard", icon: "#" },
-    { id: "couponSettings", label: "Coupon Settings", icon: "*" },
-    { id: "game", label: "Game Analytics", icon: "G" },
-    { id: "users", label: "User Search", icon: "@" },
+    { id: "game", label: "Games", icon: "G" },
+    { id: "users", label: "Players", icon: "@" },
+    { id: "coupon", label: "Coupons", icon: "%" },
+    { id: "logs", label: "Coupon Logs", icon: "=" },
     { id: "feedback", label: "Feedback", icon: "~" },
-    { id: "logs", label: "Logs", icon: "=" },
+    { id: "couponSettings", label: "Coupon Settings", icon: "*" },
   ];
 
   // ?? Render ???????????????????????????????????????????????????????????????????
@@ -452,11 +454,12 @@ export default function AdminDashboardClient() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadDashboard} />}
-          {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
           {nav === "game" && <GameSection data={gameData} loading={gameLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadGame} />}
           {nav === "users" && <UserSection query={userQuery} results={userResults} loading={userSearchLoading} expiringId={expiringId} onQueryChange={setUserQuery} onSearch={searchUsers} onExpire={expireWalletCoupon} />}
-          {nav === "feedback" && <FeedbackSection rows={feedbackRows} loading={feedbackLoading} onRefresh={loadFeedback} />}
+          {nav === "coupon" && <CouponSection coupons={coupons} loading={couponLoading} creating={creating} userId={userId} discountPercent={discountPercent} onUserIdChange={setUserId} onDiscountPercentChange={setDiscountPercent} onCreateCoupon={createCoupon} onRefresh={loadCoupons} />}
           {nav === "logs" && <LogsSection data={storeStats} loading={storeLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadStore} />}
+          {nav === "feedback" && <FeedbackSection rows={feedbackRows} loading={feedbackLoading} onRefresh={loadFeedback} />}
+          {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
         </main>
       </div>
     </div>
@@ -638,7 +641,7 @@ function CouponSection({ coupons, loading, creating, userId, discountPercent, on
   onCreateCoupon: () => void; onRefresh: () => void;
 }) {
   return (
-    <SectionShell title="Coupon Management" subtitle="Manual issuance and recent coupon activity" onRefresh={onRefresh} loading={loading} csvHref="/api/admin/redeem-logs?format=csv">
+    <SectionShell title="Coupons" subtitle="Manual issuance and recent coupon activity" onRefresh={onRefresh} loading={loading} csvHref="/api/admin/redeem-logs?format=csv">
       <div className="grid gap-5 xl:grid-cols-[320px_1fr]">
         {/* Manual issue */}
         <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
@@ -983,7 +986,7 @@ function GameSection({ data, loading, filter, onFilterChange, onRefresh }: {
         : "Session-based gameplay metrics";
 
   return (
-    <SectionShell title="Game Analytics" subtitle={subtitle} onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+    <SectionShell title="Games" subtitle={subtitle} onRefresh={onRefresh} loading={loading} csvHref={undefined}>
       <PeriodFilter
         filter={filter}
         loading={loading}
@@ -1116,7 +1119,7 @@ function UserSection({ query, results, loading, expiringId, onQueryChange, onSea
   onExpire: (couponId: number, entryId: number) => void;
 }) {
   return (
-    <SectionShell title="User Search" subtitle="Look up users and coupons by nickname" onRefresh={onSearch} loading={loading} csvHref={undefined}>
+    <SectionShell title="Players" subtitle="Look up players and wallet coupons by nickname" onRefresh={onSearch} loading={loading} csvHref={undefined}>
       <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
         <div className="flex gap-3">
           <input value={query} onChange={(e) => onQueryChange(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onSearch(); }}
@@ -1213,7 +1216,7 @@ function LogsSection({ data, loading, filter, onFilterChange, onRefresh }: {
         : "Coupon redemption processing logs";
 
   return (
-    <SectionShell title="Logs" subtitle={subtitle} onRefresh={onRefresh} loading={loading} csvHref={buildPeriodCsvHref("/api/admin/redeem-logs", filter)}>
+    <SectionShell title="Coupon Logs" subtitle={subtitle} onRefresh={onRefresh} loading={loading} csvHref={buildPeriodCsvHref("/api/admin/redeem-logs", filter)}>
       <PeriodFilter
         filter={filter}
         loading={loading}
