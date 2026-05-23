@@ -1,44 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
-import { getContactValidationError, normalizeEmail, normalizeUsPhone, type EntryContactType } from "../lib/entry";
-
-const EMAIL_DOMAINS = [
-  "gmail.com",
-  "yahoo.com",
-  "outlook.com",
-  "hotmail.com",
-  "icloud.com",
-  "naver.com",
-  "daum.net",
-] as const;
-
-const CUSTOM_EMAIL_DOMAIN = "__custom__";
-
-function formatUsPhoneInput(raw: string) {
-  let digits = raw.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("1")) {
-    digits = digits.slice(1);
-  }
-  digits = digits.slice(0, 10);
-
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-}
-
-function splitUsPhoneParts(raw: string) {
-  let digits = raw.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("1")) {
-    digits = digits.slice(1);
-  }
-  digits = digits.slice(0, 10);
-  return {
-    area: digits.slice(0, 3),
-    prefix: digits.slice(3, 6),
-    line: digits.slice(6, 10),
-  };
-}
+import { type EntryContactType } from "../lib/entry";
 
 export type LoginPayload = {
   nickname: string;
@@ -46,10 +9,19 @@ export type LoginPayload = {
   contactValue: string;
 };
 
+function buildInternalContactValue(nickname: string) {
+  const slug = Array.from(nickname.trim().toLowerCase())
+    .map((char) => char.codePointAt(0)?.toString(36) ?? "")
+    .filter(Boolean)
+    .join(".")
+    .slice(0, 48)
+    .replace(/\.$/, "");
+
+  return `${slug || "player"}@froyo.local`;
+}
+
 export default function LoginScreen({
   initialNickname = "",
-  initialContactType = "phone",
-  initialContactValue = "",
   onLogin,
   submitError = null,
   loading = false,
@@ -68,66 +40,11 @@ export default function LoginScreen({
   onCancel?: () => void;
 }) {
   const [nickname, setNickname] = useState(initialNickname);
-  const [contactType, setContactType] = useState<EntryContactType>(initialContactType);
-  const [contactValue, setContactValue] = useState(initialContactValue);
-  const [emailDomainSelect, setEmailDomainSelect] = useState<string>(EMAIL_DOMAINS[0]);
-  const [customEmailDomain, setCustomEmailDomain] = useState("");
-  const [phoneArea, setPhoneArea] = useState("");
-  const [phonePrefix, setPhonePrefix] = useState("");
-  const [phoneLine, setPhoneLine] = useState("");
   const [nicknameError, setNicknameError] = useState<string | null>(null);
-  const [contactError, setContactError] = useState<string | null>(null);
 
   useEffect(() => {
     setNickname(initialNickname);
   }, [initialNickname]);
-
-  useEffect(() => {
-    setContactType(initialContactType);
-  }, [initialContactType]);
-
-  useEffect(() => {
-    if (initialContactType === "phone") {
-      const parts = splitUsPhoneParts(initialContactValue);
-      setPhoneArea(parts.area);
-      setPhonePrefix(parts.prefix);
-      setPhoneLine(parts.line);
-      setContactValue(formatUsPhoneInput(initialContactValue));
-      return;
-    }
-
-    setContactValue(initialContactValue);
-
-    const [localPartRaw = "", domainRaw = ""] = initialContactValue.split("@");
-    const localPart = localPartRaw.trim();
-    const domain = domainRaw.trim().toLowerCase();
-
-    if (localPart) setContactValue(localPart);
-    if (domain && EMAIL_DOMAINS.includes(domain as (typeof EMAIL_DOMAINS)[number])) {
-      setEmailDomainSelect(domain);
-      setCustomEmailDomain("");
-      return;
-    }
-    if (domain) {
-      setEmailDomainSelect(CUSTOM_EMAIL_DOMAIN);
-      setCustomEmailDomain(domain);
-    }
-  }, [initialContactValue]);
-
-  const handleContactBlur = () => {
-    const err = getContactValidationError(contactType, getRawContact());
-    setContactError(err);
-  };
-
-  const getRawContact = () => {
-    if (contactType === "phone") {
-      return `${phoneArea}-${phonePrefix}-${phoneLine}`.trim();
-    }
-    const local = contactValue.trim();
-    const domain =
-      emailDomainSelect === CUSTOM_EMAIL_DOMAIN ? customEmailDomain.trim() : emailDomainSelect.trim();
-    return `${local}@${domain}`;
-  };
 
   const buildPayload = (): LoginPayload | null => {
     const trimmed = nickname.trim();
@@ -136,31 +53,11 @@ export default function LoginScreen({
       return null;
     }
 
-    const contactTypeForSubmit = mode === "switch" ? initialContactType : contactType;
-    const rawContact = mode === "switch" ? initialContactValue.trim() : getRawContact();
-    const contactValidationError = getContactValidationError(contactTypeForSubmit, rawContact);
-    if (contactValidationError) {
-      setContactError(contactValidationError);
-      return null;
-    }
-
-    const normalizedContact =
-      contactTypeForSubmit === "phone" ? normalizeUsPhone(rawContact) : normalizeEmail(rawContact);
-    if (!normalizedContact) {
-      setContactError(
-        contactTypeForSubmit === "phone"
-          ? "Enter a valid US phone number."
-          : "Enter a valid email address.",
-      );
-      return null;
-    }
-
     setNicknameError(null);
-    setContactError(null);
     return {
       nickname: trimmed,
-      contactType: contactTypeForSubmit,
-      contactValue: normalizedContact,
+      contactType: "email",
+      contactValue: buildInternalContactValue(trimmed),
     };
   };
 
@@ -168,19 +65,6 @@ export default function LoginScreen({
     const payload = buildPayload();
     if (!payload) return;
     onLogin(payload);
-  };
-
-  const onPhonePartChange = (part: "area" | "prefix" | "line", value: string) => {
-    const digits = value.replace(/\D/g, "");
-    if (part === "area") {
-      setPhoneArea(digits.slice(0, 3));
-      return;
-    }
-    if (part === "prefix") {
-      setPhonePrefix(digits.slice(0, 3));
-      return;
-    }
-    setPhoneLine(digits.slice(0, 4));
   };
 
   return (
@@ -197,8 +81,8 @@ export default function LoginScreen({
             <h1 className="mt-1 text-[2rem] font-black leading-[1.05] text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
               {mode === "switch"
-                ? "Switch nickname with a new nickname and contact."
-                : "Enter your nickname and coupon contact to continue."}
+                ? "Enter a new nickname to switch your player name."
+                : "Enter your nickname to continue."}
             </p>
             {mode === "switch" && currentAccount ? (
               <p className="mt-2 text-sm font-black text-[var(--yl-primary)]">
@@ -223,173 +107,10 @@ export default function LoginScreen({
                 placeholder="2-12 characters"
                 className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-white px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
               />
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold text-[var(--yl-ink-muted)]">
-                  One nickname is bound to one contact.
-                </p>
-              </div>
+              <p className="mt-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+                This nickname will appear on the leaderboard.
+              </p>
               {nicknameError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{nicknameError}</p> : null}
-            </div>
-
-            <div className="rounded-2xl border border-[var(--yl-card-border)] bg-white p-4">
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">Contact (Coupon)</p>
-              {mode === "switch" ? (
-                <div className="mt-3 rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2.5">
-                  <p className="text-sm font-bold text-[var(--yl-ink-strong)]">
-                    {initialContactType === "phone" ? "Phone" : "Email"}: {initialContactValue}
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
-                    Contact is locked in Switch Nickname mode.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="mt-2 inline-flex rounded-xl bg-[#fdeaf4] p-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                    setContactType("phone");
-                    setContactValue("");
-                    setPhoneArea("");
-                    setPhonePrefix("");
-                    setPhoneLine("");
-                    setEmailDomainSelect(EMAIL_DOMAINS[0]);
-                    setCustomEmailDomain("");
-                    if (contactError) setContactError(null);
-                      }}
-                      className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-[0.08em] ${
-                        contactType === "phone"
-                          ? "bg-[var(--yl-primary)] text-white shadow-[0_6px_14px_rgba(150,9,83,0.24)]"
-                          : "text-[var(--yl-ink-muted)]"
-                      }`}
-                    >
-                      Phone
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setContactType("email");
-                        setContactValue("");
-                        setEmailDomainSelect(EMAIL_DOMAINS[0]);
-                        setCustomEmailDomain("");
-                        if (contactError) setContactError(null);
-                      }}
-                      className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-[0.08em] ${
-                        contactType === "email"
-                          ? "bg-[var(--yl-primary)] text-white shadow-[0_6px_14px_rgba(150,9,83,0.24)]"
-                          : "text-[var(--yl-ink-muted)]"
-                      }`}
-                    >
-                      Email
-                    </button>
-                  </div>
-
-                  {contactType === "phone" ? (
-                    <div className="mt-3 grid grid-cols-[1fr_auto_1fr_auto_1.2fr] items-center gap-1.5 sm:gap-2">
-                      <input
-                        value={phoneArea}
-                        onChange={(e) => {
-                          onPhonePartChange("area", e.target.value);
-                          if (contactError) setContactError(null);
-                        }}
-                        onBlur={handleContactBlur}
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={3}
-                        placeholder="213"
-                        className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-1.5 py-2 text-center text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)] sm:px-2 sm:py-2.5 sm:text-base"
-                      />
-                      <span className="text-base font-black text-[var(--yl-ink-muted)]">-</span>
-                      <input
-                        value={phonePrefix}
-                        onChange={(e) => {
-                          onPhonePartChange("prefix", e.target.value);
-                          if (contactError) setContactError(null);
-                        }}
-                        onBlur={handleContactBlur}
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={3}
-                        placeholder="555"
-                        className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-1.5 py-2 text-center text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)] sm:px-2 sm:py-2.5 sm:text-base"
-                      />
-                      <span className="text-base font-black text-[var(--yl-ink-muted)]">-</span>
-                      <input
-                        value={phoneLine}
-                        onChange={(e) => {
-                          onPhonePartChange("line", e.target.value);
-                          if (contactError) setContactError(null);
-                        }}
-                        onBlur={handleContactBlur}
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={4}
-                        placeholder="1234"
-                        className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-1.5 py-2 text-center text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)] sm:px-2 sm:py-2.5 sm:text-base"
-                      />
-                    </div>
-                  ) : (
-                    <div className="mt-3 grid gap-2">
-                      <div className="grid grid-cols-[1fr_auto_140px] items-center gap-2 sm:grid-cols-[1fr_auto_150px]">
-                        <input
-                          value={contactValue}
-                          onChange={(e) => {
-                            setContactValue(e.target.value.replace("@", ""));
-                            if (contactError) setContactError(null);
-                          }}
-                          onBlur={handleContactBlur}
-                          type="text"
-                          inputMode="email"
-                          maxLength={64}
-                          placeholder="username"
-                          className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-                        />
-                        <span className="text-base font-black text-[var(--yl-ink-muted)]">@</span>
-                        <select
-                          value={emailDomainSelect}
-                          onChange={(e) => {
-                            setEmailDomainSelect(e.target.value);
-                            if (contactError) setContactError(null);
-                          }}
-                          onBlur={handleContactBlur}
-                          className="rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-2.5 py-2.5 text-sm font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-                        >
-                          {EMAIL_DOMAINS.map((domain) => (
-                            <option key={domain} value={domain}>
-                              {domain}
-                            </option>
-                          ))}
-                          <option value={CUSTOM_EMAIL_DOMAIN}>Custom</option>
-                        </select>
-                      </div>
-                      {emailDomainSelect === CUSTOM_EMAIL_DOMAIN && (
-                        <input
-                          value={customEmailDomain}
-                          onChange={(e) => {
-                            setCustomEmailDomain(e.target.value.toLowerCase().replace(/^@+/, ""));
-                            if (contactError) setContactError(null);
-                          }}
-                          onBlur={handleContactBlur}
-                          type="text"
-                          inputMode="email"
-                          maxLength={120}
-                          placeholder="example.com"
-                          className="w-full rounded-xl border border-[var(--yl-card-border)] bg-[#fff9fc] px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {contactError ? (
-                    <p className="mt-2 rounded-lg border border-[#f3bad5] bg-[#fff2f8] px-2.5 py-1.5 text-sm font-bold text-[var(--yl-primary-soft)]">
-                      {contactError}
-                    </p>
-                  ) : null}
-                  <p className="mt-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
-                    Used only for digital coupon notification.
-                  </p>
-                </>
-              )}
             </div>
 
             <button
@@ -420,5 +141,3 @@ export default function LoginScreen({
     </main>
   );
 }
-
-
