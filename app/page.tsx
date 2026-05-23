@@ -1011,7 +1011,9 @@ export default function Page() {
     contactType: EntryContactType,
     contactValue: string,
     nickname: string,
-    store: string
+    store: string,
+    pin: string,
+    authMode: LoginPayload["loginMode"]
   ) => {
     const res = await fetch("/api/entry/register", {
       method: "POST",
@@ -1020,15 +1022,26 @@ export default function Page() {
         contactType,
         contactValue,
         nickname: nickname.trim() || null,
+        pin,
+        authMode,
         store: store.trim() || null,
         rememberMe: true,
       }),
     });
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      contactType?: EntryContactType;
+      contactValue?: string;
+    };
 
     if (!res.ok) {
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
       throw new Error(json.error || "Failed to save contact info.");
     }
+
+    return {
+      contactType: json.contactType || contactType,
+      contactValue: json.contactValue || contactValue,
+    };
   };
 
   const syncEntryScore = async (
@@ -1147,18 +1160,27 @@ export default function Page() {
       clearClientAuthState();
     }
 
+    let sessionContact: { contactType: EntryContactType; contactValue: string };
     try {
-      await upsertEntryContact(
+      sessionContact = await upsertEntryContact(
         payload.contactType,
         payload.contactValue,
         trimmed,
-        finalStore
+        finalStore,
+        payload.pin,
+        payload.loginMode
       );
     } catch (err) {
       console.error(err);
       const message = (err as Error)?.message || "";
       if (message.includes("Nickname is already in use")) {
         setLoginError("This nickname is already in use. Please choose a different nickname.");
+      } else if (message.includes("Nickname was not found")) {
+        setLoginError("We couldn't find that nickname. Choose New to create it first.");
+      } else if (message.includes("Invalid PIN")) {
+        setLoginError("That PIN does not match this nickname.");
+      } else if (message.includes("PIN must")) {
+        setLoginError("PIN must be exactly 4 digits.");
       } else if (message.includes("Invalid contact value")) {
         setLoginError("Login could not be prepared. Please try a different nickname.");
       } else if (message.includes("Too many requests")) {
@@ -1181,16 +1203,16 @@ export default function Page() {
       SESSION_AUTH_STORAGE_KEY,
       JSON.stringify({
         nickname: trimmed,
-        contactType: payload.contactType,
-        contactValue: payload.contactValue,
+        contactType: sessionContact.contactType,
+        contactValue: sessionContact.contactValue,
       } satisfies SessionAuthSnapshot)
     );
     localStorage.setItem("nickname", trimmed);
-    localStorage.setItem("entryContactType", payload.contactType);
-    localStorage.setItem("entryContactValue", payload.contactValue);
+    localStorage.setItem("entryContactType", sessionContact.contactType);
+    localStorage.setItem("entryContactValue", sessionContact.contactValue);
     setAuthNick(trimmed);
-    setAuthContactType(payload.contactType);
-    setAuthContactValue(payload.contactValue);
+    setAuthContactType(sessionContact.contactType);
+    setAuthContactValue(sessionContact.contactValue);
     setLastNick(trimmed);
     setLoginError(null);
     setLoginLoading(false);
