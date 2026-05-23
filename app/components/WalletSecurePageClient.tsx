@@ -19,6 +19,17 @@ const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 const WALLET_REFRESH_INTERVAL_MS = 10000;
 const QR_LOADING_MS = 2500;
 const QR_ACTIVE_MS = 20000;
+const COUPON_RULES = [
+  "Participation is limited to users with valid accounts; one account per person.",
+  "Coupons have no cash value and cannot be exchanged for cash or credit.",
+  "Coupons are non-transferable, non-resaleable, and may not be shared.",
+  "Lost, expired, or unused coupons will not be replaced or reissued.",
+  "Coupons must be redeemed in-store only and within the 24-hour validity period.",
+  "Coupons are valid on weighted items only.",
+  "Excludes Swirl To-Go, online orders, third-party delivery, catering, and gift cards.",
+  "Coupons are not valid with any other offer, discount, or promotion.",
+  "QR codes are time-sensitive (20 seconds) and cannot be saved, duplicated, or reused.",
+];
 
 type WalletResponse = {
   nickname?: string;
@@ -506,6 +517,13 @@ function CouponPolicyCard() {
             <span className="rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">150+ pts → 15% OFF</span>
             <span className="col-span-2 rounded-lg bg-[#fff0f6] px-2 py-1 text-center font-black text-[var(--yl-primary)]">200+ pts → 20% OFF</span>
           </div>
+
+          <p className="mb-2 mt-4 font-black text-[var(--yl-ink-strong)]">Coupon Rules</p>
+          <ul className="list-inside list-disc space-y-1">
+            {COUPON_RULES.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
         </div>
       )}
     </section>
@@ -525,7 +543,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   const [canActivateToday, setCanActivateToday] = useState(true);
   const [nextIssuanceAt, setNextIssuanceAt] = useState<string | null>(null);
   const [showCouponRules, setShowCouponRules] = useState(false);
-  const [dontShowCouponRules, setDontShowCouponRules] = useState(false);
+  const [couponRulesAccepted, setCouponRulesAccepted] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(QR_ACTIVE_MS / 1000);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [networkErrorToast, setNetworkErrorToast] = useState(false);
@@ -572,9 +590,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   }, []);
 
   useEffect(() => {
-    if (localStorage.getItem("hideCouponRules") !== "1") {
-      setShowCouponRules(true);
-    }
+    setShowCouponRules(true);
   }, []);
 
   const isQrVisible = useMemo(() => {
@@ -924,10 +940,12 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
       {showCouponRules && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
-          onClick={() => setShowCouponRules(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Coupon rules"
         >
           <div
-            className="relative flex w-full max-w-[280px] flex-col items-center"
+            className="relative flex max-h-[calc(100vh-3rem)] w-full max-w-sm flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <img
@@ -939,8 +957,9 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
             <button
               type="button"
+              disabled={!couponRulesAccepted}
               onClick={() => setShowCouponRules(false)}
-              className="absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white font-black text-[var(--yl-primary)] shadow-lg text-lg leading-none"
+              className="absolute -right-3 -top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white font-black text-[var(--yl-primary)] shadow-lg text-lg leading-none disabled:cursor-not-allowed disabled:opacity-45"
               aria-label="Close"
             >
               ✕
@@ -950,27 +969,21 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
               <label className="mb-3 flex cursor-pointer items-center gap-2.5">
                 <input
                   type="checkbox"
-                  checked={dontShowCouponRules}
-                  onChange={(e) => {
-                    setDontShowCouponRules(e.target.checked);
-                    if (e.target.checked) {
-                      localStorage.setItem("hideCouponRules", "1");
-                    } else {
-                      localStorage.removeItem("hideCouponRules");
-                    }
-                  }}
+                  checked={couponRulesAccepted}
+                  onChange={(e) => setCouponRulesAccepted(e.target.checked)}
                   className="h-4 w-4 cursor-pointer accent-[var(--yl-primary)]"
                 />
                 <span className="text-xs font-semibold text-[var(--yl-ink-muted)]">
-                  Don&apos;t show this again
+                  I have read and understand these coupon rules.
                 </span>
               </label>
               <button
                 type="button"
+                disabled={!couponRulesAccepted}
                 onClick={() => setShowCouponRules(false)}
-                className="w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] py-3 text-sm font-black uppercase tracking-[0.1em] text-white shadow-[0_8px_20px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5"
+                className="w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] py-3 text-sm font-black uppercase tracking-[0.1em] text-white shadow-[0_8px_20px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
               >
-                Got it!
+                Continue to Wallet
               </button>
             </div>
           </div>
