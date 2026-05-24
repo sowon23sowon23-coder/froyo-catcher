@@ -10,7 +10,7 @@ import {
   type CouponRewardTierConfig,
 } from "../../../lib/coupons";
 import { requirePortalRole } from "../../../lib/portalAuth";
-import { getDallasDayStart } from "../../../lib/dallasTime";
+import { dallasWallTimeToUtc, getDallasDayStart } from "../../../lib/dallasTime";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +22,43 @@ type CouponConfigMap = {
 function normalizeDateValue(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function normalizeTimeValue(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return /^\d{2}:\d{2}$/.test(text) ? text : null;
+}
+
+function parseDateParts(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+}
+
+function parseTimeParts(time: string | null | undefined, fallbackHour: number, fallbackMinute: number) {
+  if (!time) return { hour: fallbackHour, minute: fallbackMinute };
+  const [hour, minute] = time.split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return { hour: fallbackHour, minute: fallbackMinute };
+  return { hour, minute };
+}
+
+function getCampaignStartIso(issuanceLimit: CouponIssuanceLimitConfig | null) {
+  if (!issuanceLimit?.campaignStartDate) return null;
+  const date = parseDateParts(issuanceLimit.campaignStartDate);
+  if (!date) return null;
+  const time = parseTimeParts(issuanceLimit.campaignStartTime, 0, 0);
+  return dallasWallTimeToUtc(date.year, date.month, date.day, time.hour, time.minute).toISOString();
+}
+
+function getCampaignEndIso(issuanceLimit: CouponIssuanceLimitConfig | null) {
+  if (!issuanceLimit?.campaignEndDate) return null;
+  const date = parseDateParts(issuanceLimit.campaignEndDate);
+  if (!date) return null;
+  if (!issuanceLimit.campaignEndTime) {
+    return dallasWallTimeToUtc(date.year, date.month, date.day + 1).toISOString();
+  }
+  const time = parseTimeParts(issuanceLimit.campaignEndTime, 0, 0);
+  return dallasWallTimeToUtc(date.year, date.month, date.day, time.hour, time.minute).toISOString();
 }
 
 function normalizeIssuanceLimit(input: unknown): CouponIssuanceLimitConfig | null {
@@ -36,7 +73,9 @@ function normalizeIssuanceLimit(input: unknown): CouponIssuanceLimitConfig | nul
     stopOnReach: raw.stopOnReach !== false,
     enabled: raw.enabled !== false,
     campaignStartDate: normalizeDateValue(raw.campaignStartDate),
+    campaignStartTime: normalizeTimeValue(raw.campaignStartTime),
     campaignEndDate: normalizeDateValue(raw.campaignEndDate),
+    campaignEndTime: normalizeTimeValue(raw.campaignEndTime),
     soldOutMessage: typeof raw.soldOutMessage === "string" && raw.soldOutMessage.trim()
       ? raw.soldOutMessage.trim().slice(0, 180)
       : "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
@@ -79,16 +118,10 @@ async function loadConfig(supabase: any) {
   const todayMidnightDallas = getDallasDayStart();
   dailyQuery = dailyQuery.gte("created_at", todayMidnightDallas.toISOString());
   let campaignQuery = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
-  if (issuanceLimit?.campaignStartDate) {
-    campaignQuery = campaignQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
-  }
-  if (issuanceLimit?.campaignEndDate) {
-    const end = new Date(`${issuanceLimit.campaignEndDate}T00:00:00.000Z`);
-    if (!Number.isNaN(end.getTime())) {
-      end.setUTCDate(end.getUTCDate() + 1);
-      campaignQuery = campaignQuery.lt("created_at", end.toISOString());
-    }
-  }
+  const campaignStartIso = getCampaignStartIso(issuanceLimit);
+  const campaignEndIso = getCampaignEndIso(issuanceLimit);
+  if (campaignStartIso) campaignQuery = campaignQuery.gte("created_at", campaignStartIso);
+  if (campaignEndIso) campaignQuery = campaignQuery.lt("created_at", campaignEndIso);
 
   const [dailyCountResult, campaignCountResult] = await Promise.all([
     dailyQuery,
@@ -114,16 +147,8 @@ async function loadConfig(supabase: any) {
     if (issuanceLimit.type === "daily") {
       completionQuery = completionQuery.gte("created_at", todayMidnightDallas.toISOString());
     } else {
-      if (issuanceLimit.campaignStartDate) {
-        completionQuery = completionQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
-      }
-      if (issuanceLimit.campaignEndDate) {
-        const end = new Date(`${issuanceLimit.campaignEndDate}T00:00:00.000Z`);
-        if (!Number.isNaN(end.getTime())) {
-          end.setUTCDate(end.getUTCDate() + 1);
-          completionQuery = completionQuery.lt("created_at", end.toISOString());
-        }
-      }
+      if (campaignStartIso) completionQuery = completionQuery.gte("created_at", campaignStartIso);
+      if (campaignEndIso) completionQuery = completionQuery.lt("created_at", campaignEndIso);
     }
     const completionResult = await completionQuery.maybeSingle();
     if (!completionResult.error && completionResult.data?.created_at) {
@@ -184,7 +209,9 @@ export async function PUT(req: NextRequest) {
   }
 
   if (issuanceLimit.type === "campaign" && issuanceLimit.campaignStartDate && issuanceLimit.campaignEndDate) {
-    if (issuanceLimit.campaignStartDate > issuanceLimit.campaignEndDate) {
+    const campaignStartIso = getCampaignStartIso(issuanceLimit);
+    const campaignEndIso = getCampaignEndIso(issuanceLimit);
+    if (campaignStartIso && campaignEndIso && campaignStartIso >= campaignEndIso) {
       return NextResponse.json({ error: "Campaign start date must be before the end date." }, { status: 400 });
     }
   }
@@ -251,16 +278,10 @@ export async function PUT(req: NextRequest) {
     const todayMidnightDallas = getDallasDayStart();
 
     let campaignCountQuery = supabase.from("wallet_coupons").select("*", { count: "exact", head: true });
-    if (issuanceLimit.campaignStartDate) {
-      campaignCountQuery = campaignCountQuery.gte("created_at", `${issuanceLimit.campaignStartDate}T00:00:00.000Z`);
-    }
-    if (issuanceLimit.campaignEndDate) {
-      const end = new Date(`${issuanceLimit.campaignEndDate}T00:00:00.000Z`);
-      if (!Number.isNaN(end.getTime())) {
-        end.setUTCDate(end.getUTCDate() + 1);
-        campaignCountQuery = campaignCountQuery.lt("created_at", end.toISOString());
-      }
-    }
+    const campaignStartIso = getCampaignStartIso(issuanceLimit);
+    const campaignEndIso = getCampaignEndIso(issuanceLimit);
+    if (campaignStartIso) campaignCountQuery = campaignCountQuery.gte("created_at", campaignStartIso);
+    if (campaignEndIso) campaignCountQuery = campaignCountQuery.lt("created_at", campaignEndIso);
 
     const [dailyCountResult, campaignCountResult, historyResult] = await Promise.all([
       supabase.from("wallet_coupons").select("*", { count: "exact", head: true }).gte("created_at", todayMidnightDallas.toISOString()),

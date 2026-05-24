@@ -13,7 +13,7 @@ import {
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 import { COUPON_SCORE_THRESHOLD, createCouponCode } from "../../../lib/couponMvp";
-import { getDallasDayKey, getDallasDayStart } from "../../../lib/dallasTime";
+import { dallasWallTimeToUtc, getDallasDayStart } from "../../../lib/dallasTime";
 
 async function createUniqueRedeemToken(supabase: any) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -27,6 +27,38 @@ async function createUniqueRedeemToken(supabase: any) {
 
 function normalizeContactValue(contactType: EntryContactType, value: string) {
   return contactType === "phone" ? normalizeUsPhone(value) : normalizeEmail(value);
+}
+
+function parseDateParts(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+}
+
+function parseTimeParts(time: string | null | undefined, fallbackHour: number, fallbackMinute: number) {
+  if (!time) return { hour: fallbackHour, minute: fallbackMinute };
+  const [hour, minute] = time.split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return { hour: fallbackHour, minute: fallbackMinute };
+  return { hour, minute };
+}
+
+function getCampaignStartIso(config: CouponIssuanceLimitConfig | null) {
+  if (!config?.campaignStartDate) return null;
+  const date = parseDateParts(config.campaignStartDate);
+  if (!date) return null;
+  const time = parseTimeParts(config.campaignStartTime, 0, 0);
+  return dallasWallTimeToUtc(date.year, date.month, date.day, time.hour, time.minute).toISOString();
+}
+
+function getCampaignEndIso(config: CouponIssuanceLimitConfig | null) {
+  if (!config?.campaignEndDate) return null;
+  const date = parseDateParts(config.campaignEndDate);
+  if (!date) return null;
+  if (!config.campaignEndTime) {
+    return dallasWallTimeToUtc(date.year, date.month, date.day + 1).toISOString();
+  }
+  const time = parseTimeParts(config.campaignEndTime, 0, 0);
+  return dallasWallTimeToUtc(date.year, date.month, date.day, time.hour, time.minute).toISOString();
 }
 
 function serializeIssuedCoupon(row: {
@@ -75,7 +107,9 @@ async function getIssuanceLimitConfig(supabase: any): Promise<CouponIssuanceLimi
     stopOnReach: value?.stopOnReach !== false,
     enabled: value?.enabled !== false,
     campaignStartDate: typeof value?.campaignStartDate === "string" ? value.campaignStartDate : null,
+    campaignStartTime: typeof value?.campaignStartTime === "string" ? value.campaignStartTime : null,
     campaignEndDate: typeof value?.campaignEndDate === "string" ? value.campaignEndDate : null,
+    campaignEndTime: typeof value?.campaignEndTime === "string" ? value.campaignEndTime : null,
     soldOutMessage: typeof value?.soldOutMessage === "string" ? value.soldOutMessage : null,
   };
 }
@@ -86,16 +120,10 @@ async function getCurrentIssuanceCount(supabase: any, config: CouponIssuanceLimi
   if (config.type === "daily") {
     query = query.gte("created_at", getDallasDayStart().toISOString());
   } else {
-    if (config.campaignStartDate) {
-      query = query.gte("created_at", `${config.campaignStartDate}T00:00:00.000Z`);
-    }
-    if (config.campaignEndDate) {
-      const end = new Date(`${config.campaignEndDate}T00:00:00.000Z`);
-      if (!Number.isNaN(end.getTime())) {
-        end.setUTCDate(end.getUTCDate() + 1);
-        query = query.lt("created_at", end.toISOString());
-      }
-    }
+    const campaignStartIso = getCampaignStartIso(config);
+    const campaignEndIso = getCampaignEndIso(config);
+    if (campaignStartIso) query = query.gte("created_at", campaignStartIso);
+    if (campaignEndIso) query = query.lt("created_at", campaignEndIso);
   }
 
   const result = await query;
@@ -210,8 +238,10 @@ export async function POST(req: NextRequest) {
       });
     }
     if (issuanceLimit?.type === "campaign") {
-      const today = getDallasDayKey();
-      if (issuanceLimit.campaignStartDate && today < issuanceLimit.campaignStartDate) {
+      const nowMs = Date.now();
+      const campaignStartIso = getCampaignStartIso(issuanceLimit);
+      const campaignEndIso = getCampaignEndIso(issuanceLimit);
+      if (campaignStartIso && nowMs < new Date(campaignStartIso).getTime()) {
         return NextResponse.json({
           eligible: true,
           issued: false,
@@ -219,7 +249,7 @@ export async function POST(req: NextRequest) {
           message: "This coupon campaign has not started yet.",
         });
       }
-      if (issuanceLimit.campaignEndDate && today > issuanceLimit.campaignEndDate) {
+      if (campaignEndIso && nowMs >= new Date(campaignEndIso).getTime()) {
         return NextResponse.json({
           eligible: true,
           issued: false,

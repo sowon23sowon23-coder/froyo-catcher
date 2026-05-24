@@ -29,7 +29,7 @@ function getTimeZoneOffsetMs(date: Date) {
   return zonedAsUtc - date.getTime();
 }
 
-function dallasWallTimeToUtc(year: number, month: number, day: number, hour = 0, minute = 0, second = 0) {
+export function dallasWallTimeToUtc(year: number, month: number, day: number, hour = 0, minute = 0, second = 0) {
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
   const firstPass = new Date(utcGuess - getTimeZoneOffsetMs(new Date(utcGuess)));
   return new Date(utcGuess - getTimeZoneOffsetMs(firstPass));

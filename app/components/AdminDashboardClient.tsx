@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import QRCode from "qrcode";
 import { formatCurrency, formatDateTime } from "../lib/couponMvp";
+import { dallasWallTimeToUtc } from "../lib/dallasTime";
 
 // ??? Types ???????????????????????????????????????????????????????????????????
 
@@ -68,7 +69,9 @@ type CouponSettings = {
     stopOnReach: boolean;
     enabled?: boolean;
     campaignStartDate?: string | null;
+    campaignStartTime?: string | null;
     campaignEndDate?: string | null;
+    campaignEndTime?: string | null;
     soldOutMessage?: string | null;
   } | null;
   rewardTiers: CouponRewardTier[];
@@ -80,6 +83,53 @@ type NavItem = "dashboard" | "coupon" | "couponSettings" | "game" | "users" | "f
 type DashboardFilter = { mode: "latest" | "day" | "range"; date: string; startDate: string; endDate: string };
 
 const DEFAULT_MANUAL_DISCOUNT_PERCENT = 3;
+
+function parseCampaignDateParts(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return { year, month, day };
+}
+
+function parseCampaignTimeParts(time: string | null | undefined, fallbackHour: number, fallbackMinute: number) {
+  if (!time) return { hour: fallbackHour, minute: fallbackMinute };
+  const [hour, minute] = time.split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return { hour: fallbackHour, minute: fallbackMinute };
+  return { hour, minute };
+}
+
+function getCampaignBoundaryMs(dateValue: string | null | undefined, timeValue: string | null | undefined, endOfDayFallback: boolean) {
+  if (!dateValue) return null;
+  const date = parseCampaignDateParts(dateValue);
+  if (!date) return null;
+  if (endOfDayFallback && !timeValue) {
+    return dallasWallTimeToUtc(date.year, date.month, date.day + 1).getTime();
+  }
+  const time = parseCampaignTimeParts(timeValue, 0, 0);
+  return dallasWallTimeToUtc(date.year, date.month, date.day, time.hour, time.minute).getTime();
+}
+
+function formatCampaignPeriod(dateValue: string | null | undefined, timeValue: string | null | undefined) {
+  if (!dateValue) return "—";
+  return timeValue ? `${dateValue} ${timeValue}` : dateValue;
+}
+
+function getCampaignDeadlineMs(endDate: string | null | undefined, endTime: string | null | undefined) {
+  if (!endDate) return null;
+  return getCampaignBoundaryMs(endDate, endTime, true);
+}
+
+function formatCountdown(ms: number) {
+  if (ms <= 0) return "Ended";
+  const totalSeconds = Math.floor(ms / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return days > 0
+    ? `${days}d ${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`
+    : `${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
+}
 
 function buildPeriodQuery(filter: DashboardFilter) {
   const params = new URLSearchParams();
@@ -251,9 +301,13 @@ export default function AdminDashboardClient() {
       setNotice("Enter a valid issuance limit.");
       return;
     }
-    if (limit.type === "campaign" && limit.campaignStartDate && limit.campaignEndDate && limit.campaignStartDate > limit.campaignEndDate) {
-      setNotice("Campaign start date must be before the end date.");
-      return;
+    if (limit.type === "campaign" && limit.campaignStartDate && limit.campaignEndDate) {
+      const campaignStartMs = getCampaignBoundaryMs(limit.campaignStartDate, limit.campaignStartTime, false);
+      const campaignEndMs = getCampaignBoundaryMs(limit.campaignEndDate, limit.campaignEndTime, true);
+      if (campaignStartMs !== null && campaignEndMs !== null && campaignStartMs >= campaignEndMs) {
+        setNotice("Campaign start date must be before the end date.");
+        return;
+      }
     }
     if (nextSettings.rewardTiers.length < 1) {
       setNotice("At least one reward tier is required.");
@@ -723,6 +777,7 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   const [editSnapshot, setEditSnapshot] = useState<CouponSettings | null>(null);
   const [qrPreview, setQrPreview] = useState<{ value: string; label: string; dataUrl: string } | null>(null);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const current = settings ?? {
     issuanceLimit: {
@@ -731,7 +786,9 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
       stopOnReach: true,
       enabled: true,
       campaignStartDate: "",
+      campaignStartTime: "",
       campaignEndDate: "",
+      campaignEndTime: "",
       soldOutMessage: "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
     },
     rewardTiers: [
@@ -749,9 +806,20 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
     stopOnReach: true,
     enabled: true,
     campaignStartDate: "",
+    campaignStartTime: "",
     campaignEndDate: "",
+    campaignEndTime: "",
     soldOutMessage: "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
   };
+  const campaignDeadlineMs = limit.type === "campaign" ? getCampaignDeadlineMs(limit.campaignEndDate, limit.campaignEndTime) : null;
+  const campaignCountdown = campaignDeadlineMs === null ? null : formatCountdown(campaignDeadlineMs - nowMs);
+
+  useEffect(() => {
+    if (campaignDeadlineMs === null) return;
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [campaignDeadlineMs]);
 
   const updateLimit = (patch: Partial<NonNullable<CouponSettings["issuanceLimit"]>>) => {
     onChange({ ...current, issuanceLimit: { ...limit, ...patch } });
@@ -856,14 +924,22 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                   <input value={String(limit.max)} onChange={(e) => updateLimit({ max: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
                 </label>
                 {limit.type === "campaign" ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="block">
-                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Campaign Start</span>
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Start Date</span>
                       <input type="date" value={limit.campaignStartDate ?? ""} onChange={(e) => updateLimit({ campaignStartDate: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
                     </label>
                     <label className="block">
-                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Campaign End</span>
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Start Time</span>
+                      <input type="time" value={limit.campaignStartTime ?? ""} onChange={(e) => updateLimit({ campaignStartTime: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">End Date</span>
                       <input type="date" value={limit.campaignEndDate ?? ""} onChange={(e) => updateLimit({ campaignEndDate: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">End Time</span>
+                      <input type="time" value={limit.campaignEndTime ?? ""} onChange={(e) => updateLimit({ campaignEndTime: e.target.value })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
                     </label>
                   </div>
                 ) : null}
@@ -885,7 +961,15 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                 {limit.type === "campaign" && (limit.campaignStartDate || limit.campaignEndDate) && (
                   <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
                     <p className="text-xs font-semibold text-[#9a6f75]">Period</p>
-                    <p className="mt-1 text-sm font-black text-[#4f2832]">{limit.campaignStartDate ?? "—"} ~ {limit.campaignEndDate ?? "—"}</p>
+                    <p className="mt-1 text-sm font-black text-[#4f2832]">
+                      {formatCampaignPeriod(limit.campaignStartDate, limit.campaignStartTime)} ~ {formatCampaignPeriod(limit.campaignEndDate, limit.campaignEndTime)}
+                    </p>
+                  </div>
+                )}
+                {campaignCountdown && (
+                  <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                    <p className="text-xs font-semibold text-[#9a6f75]">Countdown</p>
+                    <p className="mt-1 font-mono text-sm font-black tabular-nums text-[#c0502a]">{campaignCountdown}</p>
                   </div>
                 )}
               </div>
@@ -1303,9 +1387,18 @@ function summarizeConfigChanges(changes: unknown): string[] {
     if (bl?.type !== al.type) diffs.push(`Type: ${bl?.type ?? "—"} → ${al.type}`);
     if (bl?.max !== al.max) diffs.push(`Max: ${bl?.max ?? "—"} → ${al.max}`);
     if (bl?.enabled !== al.enabled) diffs.push(al.enabled === false ? "Paused issuance" : "Resumed issuance");
-    if (bl?.campaignStartDate !== al.campaignStartDate || bl?.campaignEndDate !== al.campaignEndDate) {
-      const prev = bl?.campaignStartDate ? `${bl.campaignStartDate} ~ ${bl.campaignEndDate ?? "—"}` : "—";
-      const next = al.campaignStartDate ? `${al.campaignStartDate} ~ ${al.campaignEndDate ?? "—"}` : "—";
+    if (
+      bl?.campaignStartDate !== al.campaignStartDate ||
+      bl?.campaignStartTime !== al.campaignStartTime ||
+      bl?.campaignEndDate !== al.campaignEndDate ||
+      bl?.campaignEndTime !== al.campaignEndTime
+    ) {
+      const prev = bl?.campaignStartDate
+        ? `${formatCampaignPeriod(String(bl.campaignStartDate), typeof bl.campaignStartTime === "string" ? bl.campaignStartTime : null)} ~ ${formatCampaignPeriod(typeof bl.campaignEndDate === "string" ? bl.campaignEndDate : null, typeof bl.campaignEndTime === "string" ? bl.campaignEndTime : null)}`
+        : "—";
+      const next = al.campaignStartDate
+        ? `${formatCampaignPeriod(String(al.campaignStartDate), typeof al.campaignStartTime === "string" ? al.campaignStartTime : null)} ~ ${formatCampaignPeriod(typeof al.campaignEndDate === "string" ? al.campaignEndDate : null, typeof al.campaignEndTime === "string" ? al.campaignEndTime : null)}`
+        : "—";
       if (prev !== next) diffs.push(`Period: ${prev} → ${next}`);
     }
   }
