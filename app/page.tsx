@@ -396,6 +396,7 @@ export default function Page() {
   const [switchSourceContactValue, setSwitchSourceContactValue] = useState<string>("");
   const [activeGameSessionId, setActiveGameSessionId] = useState<string>("");
   const [gameAccess, setGameAccess] = useState<GameAccessState | null>(null);
+  const [gameAccessLoaded, setGameAccessLoaded] = useState(false);
   const gameStartTimeRef = useRef<number>(0);
 
   const clearClientAuthState = () => {
@@ -422,9 +423,13 @@ export default function Page() {
   useEffect(() => {
     let active = true;
 
-    (async () => {
-      const savedPhase = (sessionStorage.getItem(PHASE_STORAGE_KEY) || "").trim() as Phase;
+    const fetchGameAccess = fetch("/api/game-config", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json: { state?: GameAccessState }) => json.state ?? null)
+      .catch(() => null);
 
+    const fetchSession = (async () => {
+      const savedPhase = (sessionStorage.getItem(PHASE_STORAGE_KEY) || "").trim() as Phase;
       const savedNick = (localStorage.getItem("nickname") || "").trim();
       const savedContact = readSavedContact();
 
@@ -439,10 +444,7 @@ export default function Page() {
       }
 
       try {
-        const res = await fetch("/api/entry/session", {
-          method: "GET",
-          cache: "no-store",
-        });
+        const res = await fetch("/api/entry/session", { method: "GET", cache: "no-store" });
         const json = (await res.json().catch(() => ({}))) as {
           authenticated?: boolean;
           nickname?: string;
@@ -462,17 +464,12 @@ export default function Page() {
             setCharacter(savedChar);
           }
           localStorage.removeItem("selectedMode");
-
           localStorage.setItem("nickname", json.nickname);
           localStorage.setItem("entryContactType", json.contactType);
           localStorage.setItem("entryContactValue", json.contactValue);
           sessionStorage.setItem(
             SESSION_AUTH_STORAGE_KEY,
-            JSON.stringify({
-              nickname: json.nickname,
-              contactType: json.contactType,
-              contactValue: json.contactValue,
-            } satisfies SessionAuthSnapshot)
+            JSON.stringify({ nickname: json.nickname, contactType: json.contactType, contactValue: json.contactValue } satisfies SessionAuthSnapshot)
           );
           if (active) {
             setAuthNick(json.nickname);
@@ -492,33 +489,18 @@ export default function Page() {
         // Continue with login screen fallback.
       }
 
-      if (active) {
-        setPhase("login");
-      }
-    })().finally(() => {
-      if (active) {
-        setBootLoading(false);
-      }
+      if (active) setPhase("login");
+    })();
+
+    Promise.allSettled([fetchGameAccess, fetchSession]).then(([accessResult]) => {
+      if (!active) return;
+      const accessState = accessResult.status === "fulfilled" ? accessResult.value : null;
+      setGameAccess(accessState);
+      setGameAccessLoaded(true);
+      setBootLoading(false);
     });
 
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/game-config", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((json: { state?: GameAccessState }) => {
-        if (active) setGameAccess(json.state ?? null);
-      })
-      .catch(() => {
-        if (active) setGameAccess(null);
-      });
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -1286,6 +1268,26 @@ export default function Page() {
     clearClientAuthState();
     setPhase("login");
   };
+
+  if (!bootLoading && gameAccessLoaded && gameAccess !== null && !gameAccess.isOpen) {
+    return (
+      <main className="fixed inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_15%_5%,#ffffff_0%,#ffeef8_35%,#f8d5e8_100%)] p-6">
+        <div className="w-full max-w-sm rounded-[2rem] bg-white/95 p-8 shadow-[0_22px_60px_rgba(150,9,83,0.28)] ring-1 ring-[var(--yl-card-border)]">
+          <img src="/yogurtland-logo.png" alt="Yogurtland" className="h-8 w-auto" draggable={false} />
+          <h1 className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
+          <div className="mt-6 rounded-2xl bg-[#fff4f0] px-4 py-4 text-sm font-bold leading-relaxed text-[#c0502a]">
+            {gameAccess.message || "The game is currently closed."}
+          </div>
+          <a
+            href="/wallet"
+            className="mt-4 block w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] px-4 py-3 text-center text-base font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_24px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5"
+          >
+            Open My Wallet
+          </a>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <>
