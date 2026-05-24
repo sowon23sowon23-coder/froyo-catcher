@@ -90,7 +90,7 @@ export function resolveGameAccessState(configInput: unknown, now = new Date()): 
   const config = normalizeGameAccessConfig(configInput);
   const startsAt = getGameAccessBoundaryIso(config.startDate, config.startTime, false);
   const endsAt = getGameAccessBoundaryIso(config.endDate, config.endTime, true);
-  const blocksAt = getGameAccessBoundaryIso(config.blockDate, config.blockTime, true);
+  const blocksAt = getGameAccessBoundaryIso(config.blockDate, config.blockTime, false);
   const walletAccessEnabled = config.walletAccessEnabled !== false;
   const closedMessage = config.closedMessage || DEFAULT_CLOSED_MESSAGE;
   const nowMs = now.getTime();
