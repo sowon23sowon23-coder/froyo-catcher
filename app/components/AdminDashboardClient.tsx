@@ -1179,20 +1179,29 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
             </div>
 
             <div className="mt-5 grid gap-2 sm:grid-cols-3">
-              {(["open", "closed", "scheduled"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => update({ mode, enabled: mode !== "closed" })}
-                  className={`rounded-2xl border px-3 py-3 text-sm font-black capitalize ${
-                    current.mode === mode
-                      ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]"
-                      : "border-[#edd9d5] text-[#8a6670]"
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
+              {(["open", "closed", "scheduled"] as const).map((mode) => {
+                const desc =
+                  mode === "open"
+                    ? "Game is live. Players can play anytime."
+                    : mode === "closed"
+                      ? "Game is blocked. Players see the closed message."
+                      : "Game opens automatically within the set date & time range.";
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => update({ mode, enabled: mode !== "closed" })}
+                    className={`rounded-2xl border px-3 py-3 text-left transition ${
+                      current.mode === mode
+                        ? "border-[#ff8a70] bg-[#fff0e8]"
+                        : "border-[#edd9d5]"
+                    }`}
+                  >
+                    <p className={`text-sm font-black capitalize ${current.mode === mode ? "text-[#c0502a]" : "text-[#8a6670]"}`}>{mode}</p>
+                    <p className="mt-0.5 text-[11px] font-semibold leading-snug text-[#9a6f75]">{desc}</p>
+                  </button>
+                );
+              })}
             </div>
 
             {current.mode === "scheduled" ? (
