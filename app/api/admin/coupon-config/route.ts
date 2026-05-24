@@ -72,6 +72,8 @@ function normalizeIssuanceLimit(input: unknown): CouponIssuanceLimitConfig | nul
     max,
     stopOnReach: raw.stopOnReach !== false,
     enabled: raw.enabled !== false,
+    dailyStartTime: normalizeTimeValue(raw.dailyStartTime),
+    dailyEndTime: normalizeTimeValue(raw.dailyEndTime),
     campaignStartDate: normalizeDateValue(raw.campaignStartDate),
     campaignStartTime: normalizeTimeValue(raw.campaignStartTime),
     campaignEndDate: normalizeDateValue(raw.campaignEndDate),

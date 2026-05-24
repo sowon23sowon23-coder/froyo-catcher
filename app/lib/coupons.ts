@@ -68,6 +68,8 @@ export type CouponIssuanceLimitConfig = {
   max: number;
   stopOnReach: boolean;
   enabled?: boolean;
+  dailyStartTime?: string | null;
+  dailyEndTime?: string | null;
   campaignStartDate?: string | null;
   campaignStartTime?: string | null;
   campaignEndDate?: string | null;

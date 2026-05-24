@@ -68,6 +68,8 @@ type CouponSettings = {
     max: number;
     stopOnReach: boolean;
     enabled?: boolean;
+    dailyStartTime?: string | null;
+    dailyEndTime?: string | null;
     campaignStartDate?: string | null;
     campaignStartTime?: string | null;
     campaignEndDate?: string | null;
@@ -923,6 +925,18 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                   <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Maximum Coupons</span>
                   <input value={String(limit.max)} onChange={(e) => updateLimit({ max: Number(e.target.value.replace(/[^\d]/g, "")) || 0 })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
                 </label>
+                {limit.type === "daily" ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Daily Start Time</span>
+                      <input type="time" value={limit.dailyStartTime ?? ""} onChange={(e) => updateLimit({ dailyStartTime: e.target.value || null })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Daily End Time</span>
+                      <input type="time" value={limit.dailyEndTime ?? ""} onChange={(e) => updateLimit({ dailyEndTime: e.target.value || null })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                    </label>
+                  </div>
+                ) : null}
                 {limit.type === "campaign" ? (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="block">
@@ -958,6 +972,14 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                   <p className="text-xs font-semibold text-[#9a6f75]">Max</p>
                   <p className="mt-1 text-sm font-black text-[#4f2832]">{limit.max.toLocaleString()}</p>
                 </div>
+                {limit.type === "daily" && (limit.dailyStartTime || limit.dailyEndTime) && (
+                  <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                    <p className="text-xs font-semibold text-[#9a6f75]">Daily Window</p>
+                    <p className="mt-1 text-sm font-black text-[#4f2832]">
+                      {limit.dailyStartTime ?? "—"} ~ {limit.dailyEndTime ?? "—"}
+                    </p>
+                  </div>
+                )}
                 {limit.type === "campaign" && (limit.campaignStartDate || limit.campaignEndDate) && (
                   <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
                     <p className="text-xs font-semibold text-[#9a6f75]">Period</p>

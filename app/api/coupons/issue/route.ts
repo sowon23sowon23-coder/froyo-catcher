@@ -13,7 +13,7 @@ import {
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 import { COUPON_SCORE_THRESHOLD, createCouponCode } from "../../../lib/couponMvp";
-import { dallasWallTimeToUtc, getDallasDayStart } from "../../../lib/dallasTime";
+import { dallasWallTimeToUtc, getDallasDayStart, GAME_TIME_ZONE } from "../../../lib/dallasTime";
 
 async function createUniqueRedeemToken(supabase: any) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -106,6 +106,8 @@ async function getIssuanceLimitConfig(supabase: any): Promise<CouponIssuanceLimi
     max,
     stopOnReach: value?.stopOnReach !== false,
     enabled: value?.enabled !== false,
+    dailyStartTime: typeof value?.dailyStartTime === "string" ? value.dailyStartTime : null,
+    dailyEndTime: typeof value?.dailyEndTime === "string" ? value.dailyEndTime : null,
     campaignStartDate: typeof value?.campaignStartDate === "string" ? value.campaignStartDate : null,
     campaignStartTime: typeof value?.campaignStartTime === "string" ? value.campaignStartTime : null,
     campaignEndDate: typeof value?.campaignEndDate === "string" ? value.campaignEndDate : null,
@@ -236,6 +238,40 @@ export async function POST(req: NextRequest) {
         reason: "coupon_policy_inactive",
         message: "Coupon issuance is currently paused.",
       });
+    }
+    if (issuanceLimit?.type === "daily" && (issuanceLimit.dailyStartTime || issuanceLimit.dailyEndTime)) {
+      const nowDallas = new Intl.DateTimeFormat("en-US", {
+        timeZone: GAME_TIME_ZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).formatToParts(new Date());
+      const nowHour = Number(nowDallas.find((p) => p.type === "hour")?.value ?? "0");
+      const nowMinute = Number(nowDallas.find((p) => p.type === "minute")?.value ?? "0");
+      const nowTotalMin = nowHour * 60 + nowMinute;
+
+      if (issuanceLimit.dailyStartTime) {
+        const [sh, sm] = issuanceLimit.dailyStartTime.split(":").map(Number);
+        if (Number.isInteger(sh) && Number.isInteger(sm) && nowTotalMin < sh * 60 + sm) {
+          return NextResponse.json({
+            eligible: true,
+            issued: false,
+            reason: "daily_window_not_started",
+            message: `쿠폰 발행은 ${issuanceLimit.dailyStartTime}부터 가능합니다.`,
+          });
+        }
+      }
+      if (issuanceLimit.dailyEndTime) {
+        const [eh, em] = issuanceLimit.dailyEndTime.split(":").map(Number);
+        if (Number.isInteger(eh) && Number.isInteger(em) && nowTotalMin >= eh * 60 + em) {
+          return NextResponse.json({
+            eligible: true,
+            issued: false,
+            reason: "daily_window_ended",
+            message: `오늘의 쿠폰 발행이 종료되었습니다 (${issuanceLimit.dailyEndTime} 마감).`,
+          });
+        }
+      }
     }
     if (issuanceLimit?.type === "campaign") {
       const nowMs = Date.now();
