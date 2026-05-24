@@ -11,6 +11,10 @@ export type GameAccessConfig = {
   startTime?: string | null;
   endDate?: string | null;
   endTime?: string | null;
+  couponEndDate?: string | null;
+  couponEndTime?: string | null;
+  blockDate?: string | null;
+  blockTime?: string | null;
   closedMessage?: string | null;
   walletAccessEnabled?: boolean;
 };
@@ -22,6 +26,10 @@ export type GameAccessState = {
   message: string;
   startsAt: string | null;
   endsAt: string | null;
+  couponEndsAt: string | null;
+  blocksAt: string | null;
+  couponIssuanceOpen: boolean;
+  pageBlocked: boolean;
   walletAccessEnabled: boolean;
 };
 
@@ -64,6 +72,10 @@ export function normalizeGameAccessConfig(input: unknown): GameAccessConfig {
     startTime: normalizeTimeValue(raw.startTime),
     endDate: normalizeDateValue(raw.endDate),
     endTime: normalizeTimeValue(raw.endTime),
+    couponEndDate: normalizeDateValue(raw.couponEndDate),
+    couponEndTime: normalizeTimeValue(raw.couponEndTime),
+    blockDate: normalizeDateValue(raw.blockDate),
+    blockTime: normalizeTimeValue(raw.blockTime),
     closedMessage,
     walletAccessEnabled: raw.walletAccessEnabled !== false,
   };
@@ -84,22 +96,27 @@ export function resolveGameAccessState(configInput: unknown, now = new Date()): 
   const config = normalizeGameAccessConfig(configInput);
   const startsAt = getGameAccessBoundaryIso(config.startDate, config.startTime, false);
   const endsAt = getGameAccessBoundaryIso(config.endDate, config.endTime, true);
+  const couponEndsAt = getGameAccessBoundaryIso(config.couponEndDate, config.couponEndTime, true);
+  const blocksAt = getGameAccessBoundaryIso(config.blockDate, config.blockTime, true);
   const walletAccessEnabled = config.walletAccessEnabled !== false;
   const closedMessage = config.closedMessage || DEFAULT_CLOSED_MESSAGE;
+  const nowMs = now.getTime();
+
+  const pageBlocked = blocksAt ? nowMs >= new Date(blocksAt).getTime() : false;
+  const couponIssuanceOpen = couponEndsAt ? nowMs < new Date(couponEndsAt).getTime() : true;
 
   if (config.enabled === false || config.mode === "closed") {
-    return { config, isOpen: false, reason: "closed", message: closedMessage, startsAt, endsAt, walletAccessEnabled };
+    return { config, isOpen: false, reason: "closed", message: closedMessage, startsAt, endsAt, couponEndsAt, blocksAt, couponIssuanceOpen, pageBlocked, walletAccessEnabled };
   }
 
   if (config.mode === "scheduled") {
-    const nowMs = now.getTime();
     if (startsAt && nowMs < new Date(startsAt).getTime()) {
-      return { config, isOpen: false, reason: "not_started", message: closedMessage, startsAt, endsAt, walletAccessEnabled };
+      return { config, isOpen: false, reason: "not_started", message: closedMessage, startsAt, endsAt, couponEndsAt, blocksAt, couponIssuanceOpen, pageBlocked, walletAccessEnabled };
     }
     if (endsAt && nowMs >= new Date(endsAt).getTime()) {
-      return { config, isOpen: false, reason: "ended", message: closedMessage, startsAt, endsAt, walletAccessEnabled };
+      return { config, isOpen: false, reason: "ended", message: closedMessage, startsAt, endsAt, couponEndsAt, blocksAt, couponIssuanceOpen, pageBlocked, walletAccessEnabled };
     }
   }
 
-  return { config, isOpen: true, reason: "open", message: "", startsAt, endsAt, walletAccessEnabled };
+  return { config, isOpen: true, reason: "open", message: "", startsAt, endsAt, couponEndsAt, blocksAt, couponIssuanceOpen, pageBlocked, walletAccessEnabled };
 }

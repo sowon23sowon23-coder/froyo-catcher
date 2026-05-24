@@ -1269,7 +1269,7 @@ export default function Page() {
     setPhase("login");
   };
 
-  if (!bootLoading && gameAccessLoaded && gameAccess !== null && !gameAccess.isOpen) {
+  if (!bootLoading && gameAccessLoaded && gameAccess !== null && (!gameAccess.isOpen || gameAccess.pageBlocked)) {
     return (
       <main className="fixed inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_15%_5%,#ffffff_0%,#ffeef8_35%,#f8d5e8_100%)] p-6">
         <div className="w-full max-w-sm rounded-[2rem] bg-white/95 p-8 shadow-[0_22px_60px_rgba(150,9,83,0.28)] ring-1 ring-[var(--yl-card-border)]">
