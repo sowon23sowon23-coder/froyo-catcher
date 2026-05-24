@@ -1230,6 +1230,17 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
                       <input type="time" value={current.endTime ?? ""} onChange={(e) => update({ endTime: e.target.value || null })} className="mt-1.5 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
                     </label>
                   </div>
+                  <label className="mt-3 block">
+                    <span className="text-[11px] font-semibold text-[#9a6f75]">Message</span>
+                    <textarea
+                      value={current.closedMessage ?? ""}
+                      onChange={(e) => update({ closedMessage: e.target.value })}
+                      maxLength={220}
+                      rows={2}
+                      placeholder="The game is currently closed. You can still access your wallet and redeem available coupons."
+                      className="mt-1.5 w-full resize-none rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none placeholder:font-normal placeholder:text-[#c4a8a8]"
+                    />
+                  </label>
                 </div>
                 <div>
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Complete Block <span className="normal-case font-semibold text-[#9a6f75]">(entire page blocked)</span></p>
@@ -1243,20 +1254,34 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
                       <input type="time" value={current.blockTime ?? ""} onChange={(e) => update({ blockTime: e.target.value || null })} className="mt-1.5 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
                     </label>
                   </div>
+                  <label className="mt-3 block">
+                    <span className="text-[11px] font-semibold text-[#9a6f75]">Message</span>
+                    <textarea
+                      value={current.blockMessage ?? ""}
+                      onChange={(e) => update({ blockMessage: e.target.value })}
+                      maxLength={220}
+                      rows={2}
+                      placeholder="This campaign has ended. This page is no longer available."
+                      className="mt-1.5 w-full resize-none rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none placeholder:font-normal placeholder:text-[#c4a8a8]"
+                    />
+                  </label>
                 </div>
               </div>
             ) : null}
 
-            <label className="mt-5 block">
-              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Closed Message</span>
-              <textarea
-                value={current.closedMessage ?? ""}
-                onChange={(e) => update({ closedMessage: e.target.value })}
-                maxLength={220}
-                rows={3}
-                className="mt-2 w-full resize-none rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none"
-              />
-            </label>
+            {current.mode !== "scheduled" && (
+              <label className="mt-5 block">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Closed Message</span>
+                <textarea
+                  value={current.closedMessage ?? ""}
+                  onChange={(e) => update({ closedMessage: e.target.value })}
+                  maxLength={220}
+                  rows={3}
+                  placeholder="The game is currently closed. You can still access your wallet and redeem available coupons."
+                  className="mt-2 w-full resize-none rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none placeholder:font-normal placeholder:text-[#c4a8a8]"
+                />
+              </label>
+            )}
 
           </div>
 
