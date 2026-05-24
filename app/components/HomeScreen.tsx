@@ -292,7 +292,7 @@ export default function HomeScreen({
         )}
 
         {!gameAccessOpen ? (
-          <section className="mt-auto rounded-2xl border border-[var(--yl-card-border)] bg-white/85 p-4 shadow-[0_8px_22px_rgba(150,9,83,0.14)]">
+          <section className="my-auto rounded-2xl border border-[var(--yl-card-border)] bg-white/85 p-4 shadow-[0_8px_22px_rgba(150,9,83,0.14)]">
             <div className="mb-3 rounded-xl bg-[#fff4f0] px-3 py-2.5 text-sm font-bold text-[#c0502a]">
               {gameClosedMessage ?? "The game is currently closed."}
             </div>
