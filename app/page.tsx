@@ -11,6 +11,7 @@ import { COUPON_SCORE_THRESHOLD } from "./lib/couponMvp";
 import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
 import { getDallasDayKey, getDallasDayStart } from "./lib/dallasTime";
+import type { GameAccessState } from "./lib/gameAccess";
 
 type CharId = "green" | "berry" | "sprinkle";
 type Phase = "login" | "switchAccount" | "home" | "game";
@@ -394,6 +395,7 @@ export default function Page() {
   const [switchSourceContactType, setSwitchSourceContactType] = useState<EntryContactType>("phone");
   const [switchSourceContactValue, setSwitchSourceContactValue] = useState<string>("");
   const [activeGameSessionId, setActiveGameSessionId] = useState<string>("");
+  const [gameAccess, setGameAccess] = useState<GameAccessState | null>(null);
   const gameStartTimeRef = useRef<number>(0);
 
   const clearClientAuthState = () => {
@@ -503,6 +505,28 @@ export default function Page() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/game-config", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json: { state?: GameAccessState }) => {
+        if (active) setGameAccess(json.state ?? null);
+      })
+      .catch(() => {
+        if (active) setGameAccess(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gameAccess && !gameAccess.isOpen && phase === "game") {
+      setPhase("home");
+      setCouponNotice(gameAccess.message);
+    }
+  }, [gameAccess, phase]);
 
   useEffect(() => {
     const b = Number(localStorage.getItem("bestScore") || 0);
@@ -1319,7 +1343,13 @@ export default function Page() {
               <HomeScreen
                 nickname={authNick}
                 todayBestScore={todayBestScore}
+                gameAccessOpen={gameAccess?.isOpen ?? true}
+                gameClosedMessage={gameAccess && !gameAccess.isOpen ? gameAccess.message : undefined}
                 onStart={(char: CharId) => {
+                  if (gameAccess && !gameAccess.isOpen) {
+                    setCouponNotice(gameAccess.message);
+                    return;
+                  }
                   setCharacter(char);
                   setCouponNotice(null);
                   setActiveGameSessionId(createGameSessionId());

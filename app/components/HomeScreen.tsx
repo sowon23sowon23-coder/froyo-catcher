@@ -35,6 +35,8 @@ const INFO_BUTTONS: InfoButton[] = [
 export default function HomeScreen({
   nickname,
   todayBestScore,
+  gameAccessOpen = true,
+  gameClosedMessage,
   onStart,
   onOpenLeaderboard,
   onOpenFeedback,
@@ -42,6 +44,8 @@ export default function HomeScreen({
 }: {
   nickname?: string;
   todayBestScore?: number;
+  gameAccessOpen?: boolean;
+  gameClosedMessage?: string;
   onStart: (character: CharId) => void;
   onOpenLeaderboard: () => void;
   onOpenFeedback: () => void;
@@ -88,6 +92,7 @@ export default function HomeScreen({
   };
 
   const startGame = () => {
+    if (!gameAccessOpen) return;
     localStorage.setItem("selectedCharacter", character);
     trackEvent({ action: "home_start_click", category: "engagement", label: `${character}_free` });
 
@@ -280,18 +285,32 @@ export default function HomeScreen({
           </div>
         </section>
 
-        <section className="mt-auto rounded-2xl border border-[var(--yl-card-border)] bg-white/85 p-3 shadow-[0_8px_22px_rgba(150,9,83,0.14)]">
-          <button
-            type="button"
-            onClick={startGame}
-            className="mt-3 w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] px-4 py-3 text-base font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_24px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
-          >
-            Start Game
-          </button>
-          <p className="mt-2 text-center text-xs font-bold text-[var(--yl-ink-muted)]">
-            Selected: {selectedCharacter.label} · Free Play
-          </p>
-        </section>
+        {!gameAccessOpen ? (
+          <section className="mt-auto rounded-2xl border border-[var(--yl-card-border)] bg-white/85 p-4 shadow-[0_8px_22px_rgba(150,9,83,0.14)]">
+            <div className="mb-3 rounded-xl bg-[#fff4f0] px-3 py-2.5 text-sm font-bold text-[#c0502a]">
+              {gameClosedMessage ?? "The game is currently closed."}
+            </div>
+            <a
+              href="/wallet"
+              className="block w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] px-4 py-3 text-center text-base font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_24px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+            >
+              Open My Wallet
+            </a>
+          </section>
+        ) : (
+          <section className="mt-auto rounded-2xl border border-[var(--yl-card-border)] bg-white/85 p-3 shadow-[0_8px_22px_rgba(150,9,83,0.14)]">
+            <button
+              type="button"
+              onClick={startGame}
+              className="mt-3 w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] px-4 py-3 text-base font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_24px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
+            >
+              Start Game
+            </button>
+            <p className="mt-2 text-center text-xs font-bold text-[var(--yl-ink-muted)]">
+              Selected: {selectedCharacter.label} · Free Play
+            </p>
+          </section>
+        )}
       </div>
     </main>
   );

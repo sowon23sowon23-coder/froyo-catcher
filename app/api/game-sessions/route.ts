@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow } from "../../lib/couponData";
+import { getGameAccessStateForServer } from "../../lib/gameAccessServer";
 
 type GameSessionBody = {
   sessionId: string;
@@ -32,6 +33,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = getServiceSupabaseOrThrow();
+    const gameAccess = await getGameAccessStateForServer(supabase);
+    if (!gameAccess.isOpen) {
+      return NextResponse.json({ error: "game_closed", message: gameAccess.message }, { status: 403 });
+    }
 
     await supabase.from("game_sessions").insert([
       {

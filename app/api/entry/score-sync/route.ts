@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeEmail, normalizeUsPhone, type EntryContactType } from "../../../lib/entry";
+import { getGameAccessStateForServer } from "../../../lib/gameAccessServer";
 
 type ScoreSyncBody = {
   contactType?: EntryContactType;
@@ -96,6 +97,11 @@ export async function POST(req: NextRequest) {
   const supabase = getServerSupabase();
   if (!supabase) {
     return NextResponse.json({ error: "Server is not configured for entries." }, { status: 500 });
+  }
+
+  const gameAccess = await getGameAccessStateForServer(supabase);
+  if (!gameAccess.isOpen) {
+    return NextResponse.json({ error: "game_closed", message: gameAccess.message }, { status: 403 });
   }
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || "unknown";

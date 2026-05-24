@@ -14,6 +14,7 @@ import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../.
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 import { COUPON_SCORE_THRESHOLD, createCouponCode } from "../../../lib/couponMvp";
 import { dallasWallTimeToUtc, getDallasDayStart, GAME_TIME_ZONE } from "../../../lib/dallasTime";
+import { getGameAccessStateForServer } from "../../../lib/gameAccessServer";
 
 async function createUniqueRedeemToken(supabase: any) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -217,6 +218,16 @@ export async function POST(req: NextRequest) {
   }
 
   const { score, gameSessionId, mode } = parsed.data;
+  const gameAccess = await getGameAccessStateForServer(supabase);
+  if (!gameAccess.isOpen) {
+    return NextResponse.json({
+      eligible: true,
+      issued: false,
+      reason: "game_closed",
+      message: gameAccess.message,
+    });
+  }
+
   const reward = await getEligibleConfiguredCouponReward(supabase, score);
 
   if (!reward || score < COUPON_SCORE_THRESHOLD) {

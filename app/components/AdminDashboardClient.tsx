@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { formatCurrency, formatDateTime } from "../lib/couponMvp";
 import { dallasWallTimeToUtc } from "../lib/dallasTime";
+import { resolveGameAccessState, type GameAccessConfig, type GameAccessState } from "../lib/gameAccess";
 
 // ??? Types ???????????????????????????????????????????????????????????????????
 
@@ -44,6 +45,7 @@ type CouponListRow = {
   rewardType: string;
   discountAmount: number;
   status: string;
+  issuedAt: string;
   expiresAt: string;
   userId: string | null;
 };
@@ -81,10 +83,8 @@ type CouponSettings = {
   history?: Array<{ id: number; changed_by: string | null; changes: unknown; created_at: string }>;
 };
 
-type NavItem = "dashboard" | "coupon" | "couponSettings" | "game" | "users" | "feedback" | "logs";
+type NavItem = "dashboard" | "coupon" | "couponSettings" | "game" | "users" | "feedback" | "logs" | "gameSettings";
 type DashboardFilter = { mode: "latest" | "day" | "range"; date: string; startDate: string; endDate: string };
-
-const DEFAULT_MANUAL_DISCOUNT_PERCENT = 3;
 
 function parseCampaignDateParts(date: string) {
   const [year, month, day] = date.split("-").map(Number);
@@ -165,7 +165,7 @@ function buildPeriodCsvHref(path: string, filter: DashboardFilter) {
 // ??? Main Component ???????????????????????????????????????????????????????????
 
 export default function AdminDashboardClient() {
-  const NAV_ITEMS: NavItem[] = ["dashboard", "game", "users", "coupon", "logs", "feedback", "couponSettings"];
+  const NAV_ITEMS: NavItem[] = ["dashboard", "gameSettings", "couponSettings", "coupon", "users", "logs", "game", "feedback"];
   const savedNav = typeof window !== "undefined" ? localStorage.getItem("adminNav") : null;
   const [nav, setNav] = useState<NavItem>(NAV_ITEMS.includes(savedNav as NavItem) ? (savedNav as NavItem) : "dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -179,14 +179,14 @@ export default function AdminDashboardClient() {
   // Game analytics
   const [gameData, setGameData] = useState<GameAnalytics | null>(null);
   const [gameLoading, setGameLoading] = useState(false);
+  const [gameAccessConfig, setGameAccessConfig] = useState<GameAccessConfig | null>(null);
+  const [gameAccessState, setGameAccessState] = useState<GameAccessState | null>(null);
+  const [gameSettingsLoading, setGameSettingsLoading] = useState(false);
+  const [gameSettingsSaving, setGameSettingsSaving] = useState(false);
 
   // Coupon management
   const [coupons, setCoupons] = useState<CouponListRow[]>([]);
   const [couponLoading, setCouponLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [userId, setUserId] = useState("");
-  const [discountPercent, setDiscountPercent] = useState(String(DEFAULT_MANUAL_DISCOUNT_PERCENT));
-
   // Coupon settings
   const [couponSettings, setCouponSettings] = useState<CouponSettings | null>(null);
   const [couponSettingsLoading, setCouponSettingsLoading] = useState(false);
@@ -231,6 +231,43 @@ export default function AdminDashboardClient() {
     } finally { setGameLoading(false); }
   };
 
+  const loadGameSettings = async () => {
+    setGameSettingsLoading(true);
+    try {
+      const res = await fetch("/api/admin/game-config", { cache: "no-store" });
+      const json = (await res.json().catch(() => ({}))) as { config?: GameAccessConfig; state?: GameAccessState; error?: string };
+      if (!res.ok || json.error) { setNotice(json.error || "Failed to load game settings."); return; }
+      const config = json.config ?? resolveGameAccessState(null).config;
+      setGameAccessConfig(config);
+      setGameAccessState(json.state ?? resolveGameAccessState(config));
+      loadedRef.current.gameSettings = true;
+    } finally { setGameSettingsLoading(false); }
+  };
+
+  const saveGameSettings = async (config: GameAccessConfig) => {
+    const state = resolveGameAccessState(config);
+    if (config.mode === "scheduled" && state.startsAt && state.endsAt && state.startsAt >= state.endsAt) {
+      setNotice("Game start time must be before the end time.");
+      return;
+    }
+
+    setGameSettingsSaving(true);
+    try {
+      const res = await fetch("/api/admin/game-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ game_access: config }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { config?: GameAccessConfig; state?: GameAccessState; error?: string };
+      if (!res.ok || json.error || !json.config) { setNotice(json.error || "Failed to save game settings."); return; }
+      setGameAccessConfig(json.config);
+      setGameAccessState(json.state ?? resolveGameAccessState(json.config));
+      setNotice("Game settings saved.");
+      loadedRef.current.dashboard = false;
+      loadedRef.current.game = false;
+    } finally { setGameSettingsSaving(false); }
+  };
+
   const loadCoupons = async () => {
     setCouponLoading(true);
     try {
@@ -271,30 +308,6 @@ export default function AdminDashboardClient() {
       setFeedbackLoaded(true);
       loadedRef.current.feedback = true;
     } finally { setFeedbackLoading(false); }
-  };
-
-  const createCoupon = async () => {
-    const parsedPercent = Number(discountPercent);
-    if (!Number.isFinite(parsedPercent) || parsedPercent < 1 || parsedPercent > 100) {
-      setNotice("Enter a discount percent between 1 and 100.");
-      return;
-    }
-
-    setCreating(true);
-    try {
-      const res = await fetch("/api/admin/coupons", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: userId.trim() || undefined,
-          couponName: `${parsedPercent}% Off Coupon`,
-          discountAmount: parsedPercent,
-        }),
-      });
-      const json = (await res.json().catch(() => ({}))) as { error?: string; coupon?: { code: string } };
-      setNotice(json.error ?? (json.coupon ? `Coupon ${json.coupon.code} created.` : "Done."));
-      await loadCoupons();
-    } finally { setCreating(false); }
   };
 
   const saveCouponSettings = async (nextSettings: CouponSettings) => {
@@ -414,6 +427,7 @@ export default function AdminDashboardClient() {
     if (!loadedRef.current[nav]) {
       if (nav === "coupon") void loadCoupons();
       if (nav === "couponSettings") void loadCouponSettings();
+      if (nav === "gameSettings") void loadGameSettings();
       if (nav === "feedback") void loadFeedback();
     }
   }, [nav, dashboardFilter]);
@@ -441,12 +455,13 @@ export default function AdminDashboardClient() {
 
   const navItems: { id: NavItem; label: string; icon: string }[] = [
     { id: "dashboard", label: "Dashboard", icon: "#" },
-    { id: "game", label: "Games", icon: "G" },
-    { id: "users", label: "Players", icon: "@" },
-    { id: "coupon", label: "Coupons", icon: "%" },
-    { id: "logs", label: "Coupon Logs", icon: "=" },
-    { id: "feedback", label: "Feedback", icon: "~" },
+    { id: "gameSettings", label: "Game Settings", icon: "!" },
     { id: "couponSettings", label: "Coupon Settings", icon: "*" },
+    { id: "coupon", label: "Coupons", icon: "%" },
+    { id: "users", label: "Players", icon: "@" },
+    { id: "logs", label: "Coupon Logs", icon: "=" },
+    { id: "game", label: "Games", icon: "G" },
+    { id: "feedback", label: "Feedback", icon: "~" },
   ];
 
   // ?? Render ???????????????????????????????????????????????????????????????????
@@ -510,9 +525,10 @@ export default function AdminDashboardClient() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadDashboard} />}
+          {nav === "gameSettings" && <GameSettingsSection config={gameAccessConfig} state={gameAccessState} loading={gameSettingsLoading} saving={gameSettingsSaving} onChange={setGameAccessConfig} onSave={saveGameSettings} onRefresh={loadGameSettings} />}
           {nav === "game" && <GameSection data={gameData} loading={gameLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadGame} />}
           {nav === "users" && <UserSection query={userQuery} results={userResults} loading={userSearchLoading} expiringId={expiringId} onQueryChange={setUserQuery} onSearch={searchUsers} onExpire={expireWalletCoupon} />}
-          {nav === "coupon" && <CouponSection coupons={coupons} loading={couponLoading} creating={creating} userId={userId} discountPercent={discountPercent} onUserIdChange={setUserId} onDiscountPercentChange={setDiscountPercent} onCreateCoupon={createCoupon} onRefresh={loadCoupons} />}
+          {nav === "coupon" && <CouponSection coupons={coupons} loading={couponLoading} onRefresh={loadCoupons} />}
           {nav === "logs" && <LogsSection data={storeStats} loading={storeLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadStore} />}
           {nav === "feedback" && <FeedbackSection rows={feedbackRows} loading={feedbackLoading} onRefresh={loadFeedback} />}
           {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
@@ -537,7 +553,7 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
       ? `Single day: ${filter.date}`
       : filter.mode === "range" && filter.startDate && filter.endDate
         ? `Date range: ${filter.startDate} to ${filter.endDate}`
-        : "Latest dashboard data";
+        : "Latest operational snapshot";
 
   return (
     <SectionShell title="Dashboard" subtitle={rangeLabel} onRefresh={onRefresh} loading={loading} csvHref={undefined}>
@@ -545,28 +561,31 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
         filter={filter}
         loading={loading}
         onFilterChange={onFilterChange}
-        description="Choose a single day or date range to filter coupon issuance, game sessions, conversion funnel, and recent logs."
+        description="Choose a single day or date range to review coupon usage, remaining campaign supply, game activity, and recent store activity."
       />
       {loading || !data ? <LoadingCard /> : (
         <>
-          {/* KPI row */}
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
-              label="Total Coupons Issued"
+              label="Coupons Issued"
               value={String(data.coupons.issued)}
               sub={data.coupons.issuanceLimit
                 ? `${data.coupons.issuanceLimit.current}/${data.coupons.issuanceLimit.max} ${data.coupons.issuanceLimit.type} limit (${data.coupons.issuanceLimit.percentUsed}%)`
                 : "Cumulative"}
               color={undefined}
             />
-            <KpiCard label="Coupons Redeemed" value={String(data.coupons.redeemed)} sub={`Redeem rate ${data.coupons.redeemRate}%`} color="green" />
-            <KpiCard label={hasFilter ? "Game Sessions" : "Game Sessions (14 days)"} value={String(data.game.totalSessions)} sub={`Completion rate ${data.game.completionRate}%`} />
-            <KpiCard label="Game-to-Coupon Conversion" value={`${data.game.gameToConversionRate}%`} sub="Based on completed sessions" color="orange" />
+            <KpiCard label="Coupons Used" value={String(data.coupons.redeemed)} sub={`Usage rate ${data.coupons.redeemRate}%`} color="green" />
+            <KpiCard
+              label="Coupons Remaining"
+              value={data.coupons.issuanceLimit ? String(Math.max(0, data.coupons.issuanceLimit.max - data.coupons.issuanceLimit.current)) : "-"}
+              sub={data.coupons.issuanceLimit ? `${data.coupons.issuanceLimit.type} supply` : "No limit configured"}
+              color="orange"
+            />
+            <KpiCard label={hasFilter ? "Game Plays" : "Game Plays (14 days)"} value={String(data.game.totalSessions)} sub={`${data.game.couponIssuedFromGame} coupon wins`} />
           </div>
 
-          {/* Funnel */}
           <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">{hasFilter ? "Conversion Funnel" : "Conversion Funnel (14 Days)"}</p>
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Coupon Flow</p>
             <div className="mt-5 flex items-end gap-2 overflow-x-auto pb-2">
               {data.funnel.map((step, i) => {
                 const max = data.funnel[0]?.value ?? 1;
@@ -586,7 +605,6 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
             </div>
           </div>
 
-          {/* Charts */}
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
               <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">{hasFilter ? "Coupon Issuance" : "Daily Coupon Issuance (14 Days)"}</p>
@@ -688,78 +706,89 @@ function PeriodFilter({ filter, loading, onFilterChange, description }: {
 
 // ??? Section: Coupon Management ???????????????????????????????????????????????
 
-function CouponSection({ coupons, loading, creating, userId, discountPercent, onUserIdChange, onDiscountPercentChange, onCreateCoupon, onRefresh }: {
-  coupons: CouponListRow[]; loading: boolean; creating: boolean;
-  userId: string;
-  discountPercent: string;
-  onUserIdChange: (v: string) => void;
-  onDiscountPercentChange: (v: string) => void;
-  onCreateCoupon: () => void; onRefresh: () => void;
+function CouponSection({ coupons, loading, onRefresh }: {
+  coupons: CouponListRow[];
+  loading: boolean;
+  onRefresh: () => void;
 }) {
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [issuedDate, setIssuedDate] = useState("");
+  const filteredCoupons = coupons.filter((coupon) => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const matchesStatus = statusFilter === "all" || coupon.status === statusFilter;
+    const matchesSearch = !normalizedSearch
+      || coupon.code.toLowerCase().includes(normalizedSearch)
+      || coupon.couponName.toLowerCase().includes(normalizedSearch)
+      || (coupon.userId ?? "").toLowerCase().includes(normalizedSearch);
+    const matchesDate = !issuedDate || coupon.issuedAt.slice(0, 10) === issuedDate;
+    return matchesStatus && matchesSearch && matchesDate;
+  });
+
   return (
-    <SectionShell title="Coupons" subtitle="Manual issuance and recent coupon activity" onRefresh={onRefresh} loading={loading} csvHref="/api/admin/redeem-logs?format=csv">
-      <div className="grid gap-5 xl:grid-cols-[320px_1fr]">
-        {/* Manual issue */}
-        <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
-          <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Manual Issuance</p>
-          <div className="mt-4 space-y-3">
-            <input value={userId} onChange={(e) => onUserIdChange(e.target.value)} placeholder="User ID (optional)" className="w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-            <input value={discountPercent} onChange={(e) => onDiscountPercentChange(e.target.value.replace(/[^\d]/g, ""))} placeholder="Discount Percent" className="w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-            <button type="button" onClick={onCreateCoupon} disabled={creating} className="w-full rounded-2xl bg-[linear-gradient(135deg,#ff9473,#ff6675)] py-3 font-black text-white disabled:opacity-60">
-              {creating ? "Creating..." : "Create Coupon"}
-            </button>
-            <p className="text-xs font-semibold text-[#9a6f75]">
-              Manual admin coupons are issued using the discount percentage you enter.
-            </p>
-          </div>
-
-          <div className="mt-6">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#cd6d66]">Coupon Rules (Current)</p>
-            <div className="mt-3 space-y-2">
-              {[{ score: "30+", reward: "3% off" }, { score: "50+", reward: "5% off" }, { score: "100+", reward: "10% off" }, { score: "150+", reward: "15% off" }].map((r) => (
-                <div key={r.score} className="flex items-center justify-between rounded-2xl bg-[#fff9f4] px-4 py-2.5 text-sm">
-                  <span className="font-black text-[#4f2832]">{r.score} pts</span>
-                  <span className="font-bold text-[#9a6f75]">{r.reward}</span>
-                </div>
-              ))}
-              <p className="pt-1 text-xs text-[#c4a0ae]">Maximum 1 per day - Valid for 24 hours</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Coupon list */}
-        <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+    <SectionShell title="Coupons" subtitle="Recent coupon activity" onRefresh={onRefresh} loading={loading} csvHref="/api/admin/redeem-logs?format=csv">
+      <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Recently Issued Coupons</p>
-          {loading ? <LoadingCard /> : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="text-[#9a6f75]">
-                    {["Code", "Name", "Discount", "Status", "Expires", "User"].map((h) => (
-                      <th key={h} className="pb-3 pr-4 font-black">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {coupons.map((c) => (
-                    <tr key={c.id} className="border-t border-[#f5e4de] text-[#563038]">
-                      <td className="py-2.5 pr-4 font-black">{c.code}</td>
-                      <td className="py-2.5 pr-4">{c.couponName}</td>
-                      <td className="py-2.5 pr-4">{formatCouponValue(c.discountAmount, c.rewardType)}</td>
-                      <td className="py-2.5 pr-4 uppercase">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-black ${c.status === "unused" ? "bg-[#e6f9ee] text-[#2a8a50]" : c.status === "used" ? "bg-[#eef0f5] text-[#6b7280]" : "bg-[#fff0e8] text-[#c0602a]"}`}>
-                          {c.status}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-4 text-xs text-[#9a6f75]">{formatDateTime(c.expiresAt)}</td>
-                      <td className="py-2.5 text-xs text-[#9a6f75]">{c.userId ?? "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search code, name, user"
+              className="rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+            />
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="rounded-2xl border border-[#edd9d5] bg-white px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+            >
+              <option value="all">All Status</option>
+              <option value="unused">Unused</option>
+              <option value="used">Used</option>
+              <option value="expired">Expired</option>
+            </select>
+            <input
+              type="date"
+              value={issuedDate}
+              onChange={(event) => setIssuedDate(event.target.value)}
+              className="rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+            />
+          </div>
         </div>
+        {loading ? <LoadingCard /> : coupons.length === 0 ? (
+          <p className="mt-4 text-sm font-semibold text-[#9a6f75]">No issued coupons yet.</p>
+        ) : filteredCoupons.length === 0 ? (
+          <p className="mt-4 text-sm font-semibold text-[#9a6f75]">No coupons match the current filters.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="text-[#9a6f75]">
+                  {["Code", "Name", "Discount", "Status", "Issued", "Expires", "User"].map((h) => (
+                    <th key={h} className="pb-3 pr-4 font-black">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCoupons.map((c) => (
+                  <tr key={c.id} className="border-t border-[#f5e4de] text-[#563038]">
+                    <td className="py-2.5 pr-4 font-black">{c.code}</td>
+                    <td className="py-2.5 pr-4">{c.couponName}</td>
+                    <td className="py-2.5 pr-4">{formatCouponValue(c.discountAmount, c.rewardType)}</td>
+                    <td className="py-2.5 pr-4 uppercase">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-black ${c.status === "unused" ? "bg-[#e6f9ee] text-[#2a8a50]" : c.status === "used" ? "bg-[#eef0f5] text-[#6b7280]" : "bg-[#fff0e8] text-[#c0602a]"}`}>
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-4 text-xs text-[#9a6f75]">{formatDateTime(c.issuedAt)}</td>
+                    <td className="py-2.5 pr-4 text-xs text-[#9a6f75]">{formatDateTime(c.expiresAt)}</td>
+                    <td className="py-2.5 text-xs text-[#9a6f75]">{c.userId ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </SectionShell>
   );
@@ -841,6 +870,21 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
     setEditSnapshot(null);
   };
   const saveEdit = () => {
+    const activeTiers = current.rewardTiers
+      .filter((tier) => tier.active !== false)
+      .map((tier) => `${tier.threshold}+ pts: ${tier.discountPercent}%`)
+      .join(", ");
+    const policyWindow = limit.type === "daily"
+      ? `Daily window: ${limit.dailyStartTime || "00:00"} ~ ${limit.dailyEndTime || "24:00"} Dallas time`
+      : `Campaign: ${formatCampaignPeriod(limit.campaignStartDate, limit.campaignStartTime)} ~ ${formatCampaignPeriod(limit.campaignEndDate, limit.campaignEndTime)} Dallas time`;
+    const confirmed = window.confirm([
+      "Save these coupon settings?",
+      `Type: ${limit.type}`,
+      `Maximum coupons: ${limit.max.toLocaleString()}`,
+      policyWindow,
+      `Active tiers: ${activeTiers || "none"}`,
+    ].join("\n"));
+    if (!confirmed) return;
     onSave(current);
     setIsEditing(false);
     setEditSnapshot(null);
@@ -1076,6 +1120,154 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   );
 }
 
+function GameSettingsSection({ config, state, loading, saving, onChange, onSave, onRefresh }: {
+  config: GameAccessConfig | null;
+  state: GameAccessState | null;
+  loading: boolean;
+  saving: boolean;
+  onChange: (value: GameAccessConfig) => void;
+  onSave: (value: GameAccessConfig) => void;
+  onRefresh: () => void;
+}) {
+  const fallback = resolveGameAccessState(null).config;
+  const current = config ?? fallback;
+  const effectiveState = state ?? resolveGameAccessState(current);
+  const update = (patch: Partial<GameAccessConfig>) => onChange({ ...current, ...patch });
+  const statusLabel = effectiveState.isOpen
+    ? "Open now"
+    : effectiveState.reason === "not_started"
+      ? "Scheduled, not started"
+      : effectiveState.reason === "ended"
+        ? "Ended"
+        : "Closed";
+  const statusSub = current.mode === "scheduled"
+    ? `${formatCampaignPeriod(current.startDate, current.startTime)} ~ ${formatCampaignPeriod(current.endDate, current.endTime)} Dallas time`
+    : current.mode === "closed"
+      ? "Players can still open wallet and redeem active coupons."
+      : "Players can start the game normally.";
+  const save = () => {
+    const confirmed = window.confirm([
+      "Save these game access settings?",
+      `Mode: ${current.mode}`,
+      `Status after save: ${resolveGameAccessState(current).isOpen ? "Open" : "Closed"}`,
+      current.mode === "scheduled"
+        ? `Schedule: ${formatCampaignPeriod(current.startDate, current.startTime)} ~ ${formatCampaignPeriod(current.endDate, current.endTime)} Dallas time`
+        : null,
+      `Wallet access while closed: ${current.walletAccessEnabled === false ? "Disabled" : "Enabled"}`,
+    ].filter(Boolean).join("\n"));
+    if (confirmed) onSave(current);
+  };
+
+  return (
+    <SectionShell title="Game Settings" subtitle="Control when players can start the game" onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+      {loading || !config ? <LoadingCard /> : (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+          <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Access Mode</p>
+                <p className="mt-1 text-xs font-semibold text-[#9a6f75]">{statusSub}</p>
+              </div>
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving}
+                className="rounded-2xl bg-[linear-gradient(135deg,#ff9473,#ff6675)] px-5 py-2.5 text-sm font-black text-white disabled:opacity-60"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-2 sm:grid-cols-3">
+              {(["open", "closed", "scheduled"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => update({ mode, enabled: mode !== "closed" })}
+                  className={`rounded-2xl border px-3 py-3 text-sm font-black capitalize ${
+                    current.mode === mode
+                      ? "border-[#ff8a70] bg-[#fff0e8] text-[#c0502a]"
+                      : "border-[#edd9d5] text-[#8a6670]"
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+
+            {current.mode === "scheduled" ? (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Start Date</span>
+                  <input type="date" value={current.startDate ?? ""} onChange={(e) => update({ startDate: e.target.value || null })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Start Time</span>
+                  <input type="time" value={current.startTime ?? ""} onChange={(e) => update({ startTime: e.target.value || null })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">End Date</span>
+                  <input type="date" value={current.endDate ?? ""} onChange={(e) => update({ endDate: e.target.value || null })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">End Time</span>
+                  <input type="time" value={current.endTime ?? ""} onChange={(e) => update({ endTime: e.target.value || null })} className="mt-2 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
+                </label>
+              </div>
+            ) : null}
+
+            <label className="mt-5 block">
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Closed Message</span>
+              <textarea
+                value={current.closedMessage ?? ""}
+                onChange={(e) => update({ closedMessage: e.target.value })}
+                maxLength={220}
+                rows={3}
+                className="mt-2 w-full resize-none rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none"
+              />
+            </label>
+
+            <label className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-[#f0ddd8] bg-[#fff9f4] px-4 py-3">
+              <span>
+                <span className="block text-sm font-black text-[#4f2832]">Wallet Access While Game Is Closed</span>
+                <span className="block text-xs font-semibold text-[#9a6f75]">Keep coupon redemption available outside the game period.</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={current.walletAccessEnabled !== false}
+                onChange={(e) => update({ walletAccessEnabled: e.target.checked })}
+                className="h-5 w-5 accent-[#c0502a]"
+              />
+            </label>
+          </div>
+
+          <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Current Status</p>
+            <div className={`mt-4 rounded-2xl px-4 py-4 ${effectiveState.isOpen ? "bg-[#e8f8ee]" : "bg-[#fff0e8]"}`}>
+              <p className={`text-2xl font-black ${effectiveState.isOpen ? "text-[#2a8a50]" : "text-[#c0502a]"}`}>{statusLabel}</p>
+              <p className="mt-2 text-sm font-bold text-[#4f2832]">{effectiveState.message || "Players can start the game."}</p>
+            </div>
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                <p className="text-xs font-semibold text-[#9a6f75]">Starts</p>
+                <p className="mt-1 text-sm font-black text-[#4f2832]">{current.startDate ? formatCampaignPeriod(current.startDate, current.startTime) : "—"}</p>
+              </div>
+              <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                <p className="text-xs font-semibold text-[#9a6f75]">Ends</p>
+                <p className="mt-1 text-sm font-black text-[#4f2832]">{current.endDate ? formatCampaignPeriod(current.endDate, current.endTime) : "—"}</p>
+              </div>
+              <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
+                <p className="text-xs font-semibold text-[#9a6f75]">Wallet</p>
+                <p className="mt-1 text-sm font-black text-[#4f2832]">{current.walletAccessEnabled === false ? "Blocked while closed" : "Available while closed"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </SectionShell>
+  );
+}
+
 function GameSection({ data, loading, filter, onFilterChange, onRefresh }: {
   data: GameAnalytics | null;
   loading: boolean;
@@ -1242,7 +1434,7 @@ function UserSection({ query, results, loading, expiringId, onQueryChange, onSea
             <div>
               <p className="font-black text-[#4f2832]">{user.nickname_display || user.nickname_key}</p>
               <p className="mt-0.5 text-xs text-[#9a6f75]">
-                {user.contact_type ? `${user.contact_type}: ${user.contact_value}` : "No contact info"} - Joined {formatDateTime(user.created_at)}
+                Joined {formatDateTime(user.created_at)}
               </p>
             </div>
             <span className="rounded-full bg-[#fff0f0] px-3 py-1 text-xs font-black text-[#cd6d66]">{user.walletCoupons.length} coupons</span>
@@ -1262,7 +1454,12 @@ function UserSection({ query, results, loading, expiringId, onQueryChange, onSea
                     <p className="mt-0.5 text-xs text-[#b89aa5]">Issued {formatDateTime(c.created_at)} - Expires {formatDateTime(c.expires_at)}</p>
                   </div>
                   {c.status === "active" && (
-                    <button type="button" onClick={() => onExpire(c.id, user.id)} disabled={expiringId === c.id}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("Expire this coupon now?")) onExpire(c.id, user.id);
+                      }}
+                      disabled={expiringId === c.id}
                       className="rounded-xl border border-[#f0ccc5] bg-white px-3 py-1.5 text-xs font-black text-[#c0502a] disabled:opacity-50">
                       {expiringId === c.id ? "Processing..." : "Expire Manually"}
                     </button>
@@ -1314,12 +1511,25 @@ function LogsSection({ data, loading, filter, onFilterChange, onRefresh }: {
   onFilterChange: (value: DashboardFilter) => void;
   onRefresh: () => void;
 }) {
+  const [actionFilter, setActionFilter] = useState("all");
+  const [logSearch, setLogSearch] = useState("");
   const subtitle =
     filter.mode === "day" && filter.date
       ? `Coupon redemption logs for ${filter.date}`
       : filter.mode === "range" && filter.startDate && filter.endDate
         ? `Coupon redemption logs from ${filter.startDate} to ${filter.endDate}`
         : "Coupon redemption processing logs";
+  const actionOptions = Array.from(new Set((data?.recentLogs ?? []).map((log) => log.action_type))).filter(Boolean);
+  const filteredLogs = (data?.recentLogs ?? []).filter((log) => {
+    const normalizedSearch = logSearch.trim().toLowerCase();
+    const matchesAction = actionFilter === "all" || log.action_type === actionFilter;
+    const matchesSearch = !normalizedSearch
+      || log.code.toLowerCase().includes(normalizedSearch)
+      || (log.store_id ?? "").toLowerCase().includes(normalizedSearch)
+      || (log.staff_id ?? "").toLowerCase().includes(normalizedSearch)
+      || (log.reason ?? "").toLowerCase().includes(normalizedSearch);
+    return matchesAction && matchesSearch;
+  });
 
   return (
     <SectionShell title="Coupon Logs" subtitle={subtitle} onRefresh={onRefresh} loading={loading} csvHref={buildPeriodCsvHref("/api/admin/redeem-logs", filter)}>
@@ -1331,11 +1541,34 @@ function LogsSection({ data, loading, filter, onFilterChange, onRefresh }: {
       />
       {loading || !data ? <LoadingCard /> : (
         <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Processing Logs</p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={logSearch}
+                onChange={(event) => setLogSearch(event.target.value)}
+                placeholder="Search code, store, staff"
+                className="rounded-2xl border border-[#edd9d5] px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+              />
+              <select
+                value={actionFilter}
+                onChange={(event) => setActionFilter(event.target.value)}
+                className="rounded-2xl border border-[#edd9d5] bg-white px-4 py-2.5 text-sm font-bold text-[#4d2931] outline-none"
+              >
+                <option value="all">All Actions</option>
+                {actionOptions.map((action) => (
+                  <option key={action} value={action}>{action}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           {data.recentLogs.length === 0 ? (
             <p className="text-sm text-[#9a6f75]">No logs available.</p>
+          ) : filteredLogs.length === 0 ? (
+            <p className="text-sm text-[#9a6f75]">No logs match the current filters.</p>
           ) : (
             <div className="space-y-3">
-              {data.recentLogs.map((log) => (
+              {filteredLogs.map((log) => (
                 <div key={log.id} className="rounded-2xl bg-[#fff9f4] p-4 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-black text-[#4f2832]">{log.code}</span>
