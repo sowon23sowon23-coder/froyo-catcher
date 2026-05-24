@@ -214,76 +214,82 @@ export default function HomeScreen({
           </div>
         ) : null}
 
-        <section className="mb-4 rounded-3xl border border-[var(--yl-card-border)] bg-white/85 p-5 shadow-[0_16px_40px_rgba(150,9,83,0.16)] backdrop-blur-sm">
-          <div className="flex items-center justify-between rounded-2xl bg-[var(--yl-card-bg)] px-4 py-3 ring-1 ring-[var(--yl-card-border)]">
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[var(--yl-primary)]">Today&apos;s Best Score</p>
-              {typeof todayBestScore === "number" && todayBestScore > 0 ? (
-                <p className="text-2xl font-black text-[var(--yl-ink-strong)]">{todayBestScore}</p>
-              ) : (
-                <p className="text-sm font-bold text-[var(--yl-ink-muted)]">Play the game first.</p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onOpenLeaderboard}
-              className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1.5 text-sm font-black text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
-            >
-              Leaderboard
-            </button>
-          </div>
-        </section>
-
-        <section className="mb-3">
-          <p className="mb-2 text-sm font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Pick your cup</p>
-          <div className="grid grid-cols-3 gap-2">
-            {CHARACTERS.map((c) => {
-              const active = c.id === character;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setCharacter(c.id)}
-                  className={`rounded-2xl border bg-white px-2 py-2 text-center transition ${
-                    active
-                      ? "-translate-y-0.5 border-[#79d854] shadow-[0_10px_24px_rgba(72,175,53,0.24)]"
-                      : "border-white/70 hover:-translate-y-0.5"
-                  }`}
-                >
-                  <div
-                    className="mx-auto mb-1 grid h-11 w-11 place-items-center rounded-2xl"
-                    style={{ background: `${c.accent}22` }}
-                  >
-                    <img
-                      src={`/${c.id}.png`}
-                      alt={c.label}
-                      className="h-10 w-10 select-none object-contain"
-                      draggable={false}
-                    />
-                  </div>
-                  <p className="text-xs font-black text-[var(--yl-ink-strong)]">{c.label}</p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="mb-3">
-          <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Game Info</p>
-          <div className="grid grid-cols-2 gap-2">
-            {INFO_BUTTONS.map((btn) => (
+        {gameAccessOpen && (
+          <section className="mb-4 rounded-3xl border border-[var(--yl-card-border)] bg-white/85 p-5 shadow-[0_16px_40px_rgba(150,9,83,0.16)] backdrop-blur-sm">
+            <div className="flex items-center justify-between rounded-2xl bg-[var(--yl-card-bg)] px-4 py-3 ring-1 ring-[var(--yl-card-border)]">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[var(--yl-primary)]">Today&apos;s Best Score</p>
+                {typeof todayBestScore === "number" && todayBestScore > 0 ? (
+                  <p className="text-2xl font-black text-[var(--yl-ink-strong)]">{todayBestScore}</p>
+                ) : (
+                  <p className="text-sm font-bold text-[var(--yl-ink-muted)]">Play the game first.</p>
+                )}
+              </div>
               <button
-                key={btn.index}
                 type="button"
-                onClick={() => setInfoIndex(btn.index)}
-                className="flex items-center gap-2 rounded-2xl border border-[var(--yl-card-border)] bg-white/90 px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-0.5"
+                onClick={onOpenLeaderboard}
+                className="rounded-full border border-[var(--yl-card-border)] bg-white px-3 py-1.5 text-sm font-black text-[var(--yl-primary)] shadow-sm transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)]"
               >
-                <span className="text-xl leading-none">{btn.emoji}</span>
-                <span className="text-xs font-black text-[var(--yl-ink-strong)]">{btn.label}</span>
+                Leaderboard
               </button>
-            ))}
-          </div>
-        </section>
+            </div>
+          </section>
+        )}
+
+        {gameAccessOpen && (
+          <section className="mb-3">
+            <p className="mb-2 text-sm font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Pick your cup</p>
+            <div className="grid grid-cols-3 gap-2">
+              {CHARACTERS.map((c) => {
+                const active = c.id === character;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCharacter(c.id)}
+                    className={`rounded-2xl border bg-white px-2 py-2 text-center transition ${
+                      active
+                        ? "-translate-y-0.5 border-[#79d854] shadow-[0_10px_24px_rgba(72,175,53,0.24)]"
+                        : "border-white/70 hover:-translate-y-0.5"
+                    }`}
+                  >
+                    <div
+                      className="mx-auto mb-1 grid h-11 w-11 place-items-center rounded-2xl"
+                      style={{ background: `${c.accent}22` }}
+                    >
+                      <img
+                        src={`/${c.id}.png`}
+                        alt={c.label}
+                        className="h-10 w-10 select-none object-contain"
+                        draggable={false}
+                      />
+                    </div>
+                    <p className="text-xs font-black text-[var(--yl-ink-strong)]">{c.label}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {gameAccessOpen && (
+          <section className="mb-3">
+            <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Game Info</p>
+            <div className="grid grid-cols-2 gap-2">
+              {INFO_BUTTONS.map((btn) => (
+                <button
+                  key={btn.index}
+                  type="button"
+                  onClick={() => setInfoIndex(btn.index)}
+                  className="flex items-center gap-2 rounded-2xl border border-[var(--yl-card-border)] bg-white/90 px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-0.5"
+                >
+                  <span className="text-xl leading-none">{btn.emoji}</span>
+                  <span className="text-xs font-black text-[var(--yl-ink-strong)]">{btn.label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {!gameAccessOpen ? (
           <section className="mt-auto rounded-2xl border border-[var(--yl-card-border)] bg-white/85 p-4 shadow-[0_8px_22px_rgba(150,9,83,0.14)]">
