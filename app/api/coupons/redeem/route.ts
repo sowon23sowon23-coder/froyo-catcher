@@ -1,9 +1,15 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow, redeemCouponSchema, serializeCouponSummary } from "../../../lib/couponData";
+import { isCompleteBlockActive } from "../../../lib/gameAccessServer";
 import { requirePortalRole } from "../../../lib/portalAuth";
 
 export async function POST(req: NextRequest) {
+  const completeBlock = await isCompleteBlockActive();
+  if (completeBlock) {
+    return NextResponse.json({ error: "campaign_ended", message: completeBlock.message }, { status: 403 });
+  }
+
   const session = requirePortalRole(req, ["staff"]);
   if (!session) {
     return NextResponse.json({ error: "You must be logged in as staff to redeem coupons." }, { status: 401 });

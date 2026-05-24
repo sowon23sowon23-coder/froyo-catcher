@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCouponState, getWalletCouponStatus, type CouponState } from "../../../../lib/coupons";
+import { isCompleteBlockActive } from "../../../../lib/gameAccessServer";
 import { getServerSupabase } from "../../../../lib/serverSupabase";
 import { requirePortalRole } from "../../../../lib/portalAuth";
 
@@ -57,6 +58,11 @@ function serializeCouponState(row: {
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { token: string } }) {
+  const completeBlock = await isCompleteBlockActive();
+  if (completeBlock) {
+    return NextResponse.json({ error: "campaign_ended", message: completeBlock.message, state: "invalid" satisfies CouponState }, { status: 403 });
+  }
+
   const token = String(params.token || "").trim();
   if (!token) {
     return buildInvalidResponse();
@@ -76,6 +82,11 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
 }
 
 export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
+  const completeBlock = await isCompleteBlockActive();
+  if (completeBlock) {
+    return NextResponse.json({ error: "campaign_ended", message: completeBlock.message }, { status: 403 });
+  }
+
   const portalSession = requirePortalRole(req, ["staff", "admin"]);
   if (!portalSession) {
     return NextResponse.json({ error: "Staff login required." }, { status: 401 });

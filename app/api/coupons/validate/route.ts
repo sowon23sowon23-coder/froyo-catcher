@@ -7,9 +7,15 @@ import {
   serializeCouponSummary,
   validateCouponSchema,
 } from "../../../lib/couponData";
+import { isCompleteBlockActive } from "../../../lib/gameAccessServer";
 import { requirePortalRole } from "../../../lib/portalAuth";
 
 export async function POST(req: NextRequest) {
+  const completeBlock = await isCompleteBlockActive();
+  if (completeBlock) {
+    return NextResponse.json({ error: "campaign_ended", message: completeBlock.message }, { status: 403 });
+  }
+
   const session = requirePortalRole(req, ["admin", "staff"]);
   if (!session) {
     return NextResponse.json({ error: "Login is required." }, { status: 401 });
