@@ -4,8 +4,14 @@ import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../.
 import { getServerSupabase } from "../../../lib/serverSupabase";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
 import { getDallasDayStart, getNextDallasDayStart } from "../../../lib/dallasTime";
+import { isCompleteBlockActive } from "../../../lib/gameAccessServer";
 
 export async function GET(req: NextRequest) {
+  const completeBlock = await isCompleteBlockActive();
+  if (completeBlock) {
+    return NextResponse.json({ error: "campaign_ended", message: completeBlock.message }, { status: 403 });
+  }
+
   const auth = await requireAuthenticatedEntry(req);
   let supabase: any;
   let entry: { id: number; nickname: string };

@@ -5,6 +5,7 @@ import { trackEvent } from "./lib/gtag";
 import LoginScreen, { type LoginPayload } from "./components/LoginScreen";
 import HomeScreen from "./components/HomeScreen";
 import Game from "./components/Game";
+import CompleteBlockScreen from "./components/CompleteBlockScreen";
 import LeaderboardModal, { LeaderMode, LeaderRow } from "./components/LeaderboardModal";
 import { formatCouponLabel, resolveCouponReward, type CouponGameMode, type WalletCoupon } from "./lib/coupons";
 import { COUPON_SCORE_THRESHOLD } from "./lib/couponMvp";
@@ -1269,24 +1270,8 @@ export default function Page() {
     setPhase("login");
   };
 
-  if (!bootLoading && gameAccessLoaded && gameAccess !== null && (!gameAccess.isOpen || gameAccess.pageBlocked)) {
-    return (
-      <main className="fixed inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_15%_5%,#ffffff_0%,#ffeef8_35%,#f8d5e8_100%)] p-6">
-        <div className="w-full max-w-sm rounded-[2rem] bg-white/95 p-8 shadow-[0_22px_60px_rgba(150,9,83,0.28)] ring-1 ring-[var(--yl-card-border)]">
-          <img src="/yogurtland-logo.png" alt="Yogurtland" className="h-8 w-auto" draggable={false} />
-          <h1 className="mt-2 text-2xl font-black text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
-          <div className="mt-6 rounded-2xl bg-[#fff4f0] px-4 py-4 text-sm font-bold leading-relaxed text-[#c0502a]">
-            {gameAccess.message || "The game is currently closed."}
-          </div>
-          <a
-            href="/wallet"
-            className="mt-4 block w-full rounded-xl bg-[linear-gradient(135deg,var(--yl-primary),var(--yl-primary-soft))] px-4 py-3 text-center text-base font-black uppercase tracking-[0.1em] text-white shadow-[0_14px_24px_rgba(150,9,83,0.35)] transition hover:-translate-y-0.5"
-          >
-            Open My Wallet
-          </a>
-        </div>
-      </main>
-    );
+  if (!bootLoading && gameAccessLoaded && gameAccess?.pageBlocked) {
+    return <CompleteBlockScreen message={gameAccess.message} />;
   }
 
   return (

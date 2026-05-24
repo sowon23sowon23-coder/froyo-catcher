@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
+import CompleteBlockScreen from "../../components/CompleteBlockScreen";
 import RedeemPageClient from "../../components/RedeemPageClient";
 import { type CouponState } from "../../lib/coupons";
+import { getGameAccessStateForServer } from "../../lib/gameAccessServer";
 
 async function fetchInitialRedeemState(token: string) {
   const headerList = headers();
@@ -33,6 +35,11 @@ async function fetchInitialRedeemState(token: string) {
 }
 
 export default async function RedeemPage({ params }: { params: { token: string } }) {
+  const gameAccess = await getGameAccessStateForServer();
+  if (gameAccess.pageBlocked) {
+    return <CompleteBlockScreen message={gameAccess.message} />;
+  }
+
   const token = String(params.token || "").trim();
   const initialData = await fetchInitialRedeemState(token);
 

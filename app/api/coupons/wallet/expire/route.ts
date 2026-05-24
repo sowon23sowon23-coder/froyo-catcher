@@ -3,12 +3,18 @@ import { z } from "zod";
 
 import { getServiceSupabaseOrThrow } from "../../../../lib/couponData";
 import { getDallasDayStart } from "../../../../lib/dallasTime";
+import { isCompleteBlockActive } from "../../../../lib/gameAccessServer";
 
 const expireWalletCouponSchema = z.object({
   couponId: z.number().int().positive(),
 });
 
 export async function POST(req: NextRequest) {
+  const completeBlock = await isCompleteBlockActive();
+  if (completeBlock) {
+    return NextResponse.json({ error: "campaign_ended", message: completeBlock.message }, { status: 403 });
+  }
+
   let body: unknown;
 
   try {

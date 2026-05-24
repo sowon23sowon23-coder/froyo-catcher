@@ -20,7 +20,7 @@ export type GameAccessConfig = {
 export type GameAccessState = {
   config: GameAccessConfig;
   isOpen: boolean;
-  reason: "open" | "closed" | "not_started" | "ended";
+  reason: "open" | "closed" | "not_started" | "ended" | "blocked";
   message: string;
   startsAt: string | null;
   endsAt: string | null;
@@ -30,6 +30,7 @@ export type GameAccessState = {
 };
 
 const DEFAULT_CLOSED_MESSAGE = "The game is currently closed. You can still access your wallet and redeem available coupons.";
+const DEFAULT_BLOCKED_MESSAGE = "This campaign has ended. This page is no longer available.";
 
 function normalizeDateValue(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -96,6 +97,19 @@ export function resolveGameAccessState(configInput: unknown, now = new Date()): 
   const nowMs = now.getTime();
 
   const pageBlocked = blocksAt ? nowMs >= new Date(blocksAt).getTime() : false;
+  if (pageBlocked) {
+    return {
+      config,
+      isOpen: false,
+      reason: "blocked",
+      message: DEFAULT_BLOCKED_MESSAGE,
+      startsAt,
+      endsAt,
+      blocksAt,
+      pageBlocked,
+      walletAccessEnabled: false,
+    };
+  }
 
   if (config.enabled === false || config.mode === "closed") {
     return { config, isOpen: false, reason: "closed", message: closedMessage, startsAt, endsAt, blocksAt, pageBlocked, walletAccessEnabled };

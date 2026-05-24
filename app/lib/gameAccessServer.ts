@@ -15,3 +15,8 @@ export async function getGameAccessStateForServer(supabase = getServiceSupabaseO
 
   return resolveGameAccessState(normalizeGameAccessConfig(result.data?.value));
 }
+
+export async function isCompleteBlockActive(supabase = getServiceSupabaseOrThrow()) {
+  const state = await getGameAccessStateForServer(supabase);
+  return state.pageBlocked ? state : null;
+}
