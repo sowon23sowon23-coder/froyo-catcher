@@ -1153,7 +1153,6 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
       current.mode === "scheduled"
         ? `Schedule: ${formatCampaignPeriod(current.startDate, current.startTime)} ~ ${formatCampaignPeriod(current.endDate, current.endTime)} Dallas time`
         : null,
-      `Wallet access while closed: ${current.walletAccessEnabled === false ? "Disabled" : "Enabled"}`,
     ].filter(Boolean).join("\n"));
     if (confirmed) onSave(current);
   };
@@ -1259,18 +1258,6 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
               />
             </label>
 
-            <label className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-[#f0ddd8] bg-[#fff9f4] px-4 py-3">
-              <span>
-                <span className="block text-sm font-black text-[#4f2832]">Wallet Access While Game Is Closed</span>
-                <span className="block text-xs font-semibold text-[#9a6f75]">Keep coupon redemption available outside the game period.</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={current.walletAccessEnabled !== false}
-                onChange={(e) => update({ walletAccessEnabled: e.target.checked })}
-                className="h-5 w-5 accent-[#c0502a]"
-              />
-            </label>
           </div>
 
           <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
@@ -1291,10 +1278,6 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
               <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
                 <p className="text-xs font-semibold text-[#9a6f75]">Complete Block</p>
                 <p className="mt-1 text-sm font-black text-[#4f2832]">{current.blockDate ? formatCampaignPeriod(current.blockDate, current.blockTime) : "—"}</p>
-              </div>
-              <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
-                <p className="text-xs font-semibold text-[#9a6f75]">Wallet</p>
-                <p className="mt-1 text-sm font-black text-[#4f2832]">{current.walletAccessEnabled === false ? "Blocked while closed" : "Available while closed"}</p>
               </div>
             </div>
           </div>
