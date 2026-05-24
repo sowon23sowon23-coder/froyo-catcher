@@ -227,14 +227,7 @@ export async function POST(req: NextRequest) {
       message: gameAccess.message,
     });
   }
-  if (!gameAccess.couponIssuanceOpen) {
-    return NextResponse.json({
-      eligible: true,
-      issued: false,
-      reason: "coupon_cutoff",
-      message: "쿠폰 발급이 마감되었습니다.",
-    });
-  }
+
 
   const reward = await getEligibleConfiguredCouponReward(supabase, score);
 

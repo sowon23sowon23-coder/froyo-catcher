@@ -1233,19 +1233,6 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
                   </div>
                 </div>
                 <div>
-                  <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Coupon Cutoff <span className="normal-case font-semibold text-[#9a6f75]">(no new coupons after this)</span></p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="text-[11px] font-semibold text-[#9a6f75]">Date</span>
-                      <input type="date" value={current.couponEndDate ?? ""} onChange={(e) => update({ couponEndDate: e.target.value || null })} className="mt-1.5 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-                    </label>
-                    <label className="block">
-                      <span className="text-[11px] font-semibold text-[#9a6f75]">Time</span>
-                      <input type="time" value={current.couponEndTime ?? ""} onChange={(e) => update({ couponEndTime: e.target.value || null })} className="mt-1.5 w-full rounded-2xl border border-[#edd9d5] px-4 py-3 text-sm font-bold text-[#4d2931] outline-none" />
-                    </label>
-                  </div>
-                </div>
-                <div>
                   <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Complete Block <span className="normal-case font-semibold text-[#9a6f75]">(entire page blocked)</span></p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="block">
@@ -1300,10 +1287,6 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
               <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
                 <p className="text-xs font-semibold text-[#9a6f75]">Game Closes</p>
                 <p className="mt-1 text-sm font-black text-[#4f2832]">{current.endDate ? formatCampaignPeriod(current.endDate, current.endTime) : "—"}</p>
-              </div>
-              <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
-                <p className="text-xs font-semibold text-[#9a6f75]">Coupon Cutoff</p>
-                <p className="mt-1 text-sm font-black text-[#4f2832]">{current.couponEndDate ? formatCampaignPeriod(current.couponEndDate, current.couponEndTime) : "—"}</p>
               </div>
               <div className="rounded-2xl bg-[#fff9f4] px-4 py-3">
                 <p className="text-xs font-semibold text-[#9a6f75]">Complete Block</p>
