@@ -480,18 +480,31 @@ export default function Page() {
           localStorage.setItem("entryContactType", json.contactType);
           localStorage.setItem("entryContactValue", json.contactValue);
           const sessionPin = readSessionAuthSnapshot()?.pin || (localStorage.getItem("entryPin") || "").trim();
+          if (!/^\d{6}$/.test(sessionPin)) {
+            await invalidateServerSession();
+            localStorage.removeItem("entryPin");
+            sessionStorage.removeItem(SESSION_AUTH_STORAGE_KEY);
+            if (active) {
+              setAuthNick(json.nickname);
+              setAuthPin(undefined);
+              setAuthContactType(json.contactType);
+              setAuthContactValue(json.contactValue);
+              setPhase("login");
+            }
+            return;
+          }
           sessionStorage.setItem(
             SESSION_AUTH_STORAGE_KEY,
             JSON.stringify({
               nickname: json.nickname,
               contactType: json.contactType,
               contactValue: json.contactValue,
-              ...(/^\d{6}$/.test(sessionPin) ? { pin: sessionPin } : {}),
+              pin: sessionPin,
             } satisfies SessionAuthSnapshot)
           );
           if (active) {
             setAuthNick(json.nickname);
-            setAuthPin(/^\d{6}$/.test(sessionPin) ? sessionPin : undefined);
+            setAuthPin(sessionPin);
             setAuthContactType(json.contactType);
             setAuthContactValue(json.contactValue);
             setLastNick(json.nickname);
