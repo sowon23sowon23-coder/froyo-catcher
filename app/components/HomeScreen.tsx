@@ -34,6 +34,7 @@ const INFO_BUTTONS: InfoButton[] = [
 
 export default function HomeScreen({
   nickname,
+  entryPin,
   todayBestScore,
   gameAccessOpen = true,
   gameClosedMessage,
@@ -43,6 +44,7 @@ export default function HomeScreen({
   onSwitchAccount,
 }: {
   nickname?: string;
+  entryPin?: string;
   todayBestScore?: number;
   gameAccessOpen?: boolean;
   gameClosedMessage?: string;
@@ -194,9 +196,16 @@ export default function HomeScreen({
 
         {nickname ? (
           <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-ink-muted)]">
-              Logged in as <span className="text-[var(--yl-primary)]">{nickname}</span>
-            </p>
+            <div className="min-w-0">
+              <p className="text-sm font-black uppercase tracking-[0.1em] text-[var(--yl-ink-muted)]">
+                Logged in as <span className="text-[var(--yl-primary)]">{nickname}</span>
+              </p>
+              {entryPin ? (
+                <p className="mt-1 text-xs font-black uppercase tracking-[0.08em] text-[var(--yl-ink-muted)]">
+                  6-digit number <span className="text-[var(--yl-primary)]">{entryPin}</span>
+                </p>
+              ) : null}
+            </div>
             <div className="flex items-center gap-1.5">
               <a
                 href="/wallet"

@@ -45,6 +45,7 @@ type SessionAuthSnapshot = {
   nickname: string;
   contactType: EntryContactType;
   contactValue: string;
+  pin?: string;
 };
 
 type IssuedCoupon = {
@@ -94,6 +95,7 @@ function readSessionAuthSnapshot(): SessionAuthSnapshot | null {
     const nickname = String(parsed.nickname || "").trim();
     const contactType = parsed.contactType;
     const contactValue = String(parsed.contactValue || "").trim();
+    const pin = String(parsed.pin || "").trim();
     if (
       nickname.length < 2 ||
       nickname.length > 12 ||
@@ -106,6 +108,7 @@ function readSessionAuthSnapshot(): SessionAuthSnapshot | null {
       nickname,
       contactType,
       contactValue,
+      ...(pin && /^\d{6}$/.test(pin) ? { pin } : {}),
     };
   } catch {
     return null;
@@ -369,6 +372,7 @@ export default function Page() {
   const [todayBestScore, setTodayBestScore] = useState<number | undefined>(undefined);
   const [startSignal, setStartSignal] = useState(0);
   const [authNick, setAuthNick] = useState<string | undefined>(undefined);
+  const [authPin, setAuthPin] = useState<string | undefined>(undefined);
   const [authContactType, setAuthContactType] = useState<EntryContactType>("phone");
   const [authContactValue, setAuthContactValue] = useState<string>("");
 
@@ -404,6 +408,7 @@ export default function Page() {
     localStorage.clear();
     sessionStorage.clear();
     setAuthNick(undefined);
+    setAuthPin(undefined);
     setAuthContactType("phone");
     setAuthContactValue("");
     setLastNick(undefined);
@@ -432,12 +437,18 @@ export default function Page() {
     const fetchSession = (async () => {
       const savedPhase = (sessionStorage.getItem(PHASE_STORAGE_KEY) || "").trim() as Phase;
       const savedNick = (localStorage.getItem("nickname") || "").trim();
+      const savedPin = (localStorage.getItem("entryPin") || "").trim();
       const savedContact = readSavedContact();
 
       if (savedNick.length >= 2 && savedNick.length <= 12) {
         if (active) setAuthNick(savedNick);
       } else if (active) {
         setAuthNick(undefined);
+      }
+      if (/^\d{6}$/.test(savedPin)) {
+        if (active) setAuthPin(savedPin);
+      } else if (active) {
+        setAuthPin(undefined);
       }
       if (savedContact && active) {
         setAuthContactType(savedContact.type);
@@ -468,12 +479,19 @@ export default function Page() {
           localStorage.setItem("nickname", json.nickname);
           localStorage.setItem("entryContactType", json.contactType);
           localStorage.setItem("entryContactValue", json.contactValue);
+          const sessionPin = readSessionAuthSnapshot()?.pin || (localStorage.getItem("entryPin") || "").trim();
           sessionStorage.setItem(
             SESSION_AUTH_STORAGE_KEY,
-            JSON.stringify({ nickname: json.nickname, contactType: json.contactType, contactValue: json.contactValue } satisfies SessionAuthSnapshot)
+            JSON.stringify({
+              nickname: json.nickname,
+              contactType: json.contactType,
+              contactValue: json.contactValue,
+              ...(/^\d{6}$/.test(sessionPin) ? { pin: sessionPin } : {}),
+            } satisfies SessionAuthSnapshot)
           );
           if (active) {
             setAuthNick(json.nickname);
+            setAuthPin(/^\d{6}$/.test(sessionPin) ? sessionPin : undefined);
             setAuthContactType(json.contactType);
             setAuthContactValue(json.contactValue);
             setLastNick(json.nickname);
@@ -1207,12 +1225,15 @@ export default function Page() {
         nickname: trimmed,
         contactType: sessionContact.contactType,
         contactValue: sessionContact.contactValue,
+        pin: payload.pin,
       } satisfies SessionAuthSnapshot)
     );
     localStorage.setItem("nickname", trimmed);
+    localStorage.setItem("entryPin", payload.pin);
     localStorage.setItem("entryContactType", sessionContact.contactType);
     localStorage.setItem("entryContactValue", sessionContact.contactValue);
     setAuthNick(trimmed);
+    setAuthPin(payload.pin);
     setAuthContactType(sessionContact.contactType);
     setAuthContactValue(sessionContact.contactValue);
     setLastNick(trimmed);
@@ -1337,6 +1358,7 @@ export default function Page() {
             {phase === "home" && (
               <HomeScreen
                 nickname={authNick}
+                entryPin={authPin}
                 todayBestScore={todayBestScore}
                 gameAccessOpen={gameAccess?.isOpen ?? true}
                 gameClosedMessage={gameAccess && !gameAccess.isOpen ? gameAccess.message : undefined}
