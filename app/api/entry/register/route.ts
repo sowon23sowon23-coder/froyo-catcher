@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createHmac, timingSafeEqual } from "crypto";
 import { normalizeEmail, normalizeUsPhone, type EntryContactType } from "../../../lib/entry";
 import { createEntrySessionToken, ENTRY_SESSION_COOKIE } from "../../../lib/entrySession";
 
@@ -7,6 +8,8 @@ type RegisterEntryBody = {
   contactType?: EntryContactType;
   contactValue?: string;
   nickname?: string | null;
+  pin?: string | null;
+  loginMode?: "existing" | "new";
   store?: string | null;
   rememberMe?: boolean;
 };
@@ -43,6 +46,28 @@ function isUndefinedTable(error: { code?: string } | null | undefined) {
 
 function normalizeNicknameKey(raw: string) {
   return raw.trim().toLowerCase();
+}
+
+function getPinSecret() {
+  return (
+    process.env.ENTRY_PIN_SECRET ||
+    process.env.ENTRY_SESSION_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    ""
+  );
+}
+
+function hashEntryPin(nicknameKey: string, pin: string) {
+  const secret = getPinSecret();
+  if (!secret) return null;
+  return createHmac("sha256", secret).update(`${nicknameKey}:${pin}`).digest("base64url");
+}
+
+function pinHashMatches(expectedHash: string, actualHash: string) {
+  const expected = Buffer.from(expectedHash);
+  const actual = Buffer.from(actualHash);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 async function migrateLeaderboardNickname(
@@ -226,6 +251,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Nickname must be 2-12 characters." }, { status: 400 });
   }
   const nicknameKey = normalizeNicknameKey(nickname);
+  const pin = String(body.pin || "").trim();
+  if (!/^\d{6}$/.test(pin)) {
+    return NextResponse.json({ error: "Enter a valid 6-digit number." }, { status: 400 });
+  }
+  const loginMode = body.loginMode === "new" ? "new" : "existing";
+  const pinHash = hashEntryPin(nicknameKey, pin);
+  if (!pinHash) {
+    return NextResponse.json({ error: "Server is not configured for ID numbers." }, { status: 500 });
+  }
   const store = String(body.store || "").trim();
   const rememberMe = body.rememberMe !== false;
 
@@ -258,7 +292,7 @@ export async function POST(req: NextRequest) {
 
   const nicknameOwner = await supabase
     .from("entries")
-    .select("id,contact_type,contact_value,nickname_key,nickname_display")
+    .select("id,contact_type,contact_value,nickname_key,nickname_display,pin_hash")
     .eq("nickname_key", nicknameKey)
     .maybeSingle();
 
@@ -298,6 +332,15 @@ export async function POST(req: NextRequest) {
   };
 
   if (nicknameOwner.data?.id) {
+    if (loginMode === "new") {
+      return NextResponse.json({ error: "This nickname is already in use. Choose Existing ID to log in." }, { status: 409 });
+    }
+
+    const storedPinHash = String(nicknameOwner.data.pin_hash || "").trim();
+    if (storedPinHash && !pinHashMatches(storedPinHash, pinHash)) {
+      return NextResponse.json({ error: "The nickname or 6-digit number is incorrect." }, { status: 401 });
+    }
+
     const sessionContactType = String(nicknameOwner.data.contact_type || "") as EntryContactType;
     const sessionContactValue = String(nicknameOwner.data.contact_value || "").trim();
     const patch: Record<string, unknown> = {
@@ -305,6 +348,9 @@ export async function POST(req: NextRequest) {
       nickname_display: nickname || null,
       store: store || null,
     };
+    if (!storedPinHash) {
+      patch.pin_hash = pinHash;
+    }
 
     const updateResult = await supabase.from("entries").update(patch).eq("id", nicknameOwner.data.id);
     if (updateResult.error) {
@@ -313,6 +359,10 @@ export async function POST(req: NextRequest) {
 
     return buildOkResponse(Number(nicknameOwner.data.id), sessionContactType, sessionContactValue);
   };
+
+  if (loginMode === "existing") {
+    return NextResponse.json({ error: "ID not found. Choose New ID to create it." }, { status: 404 });
+  }
 
   if (existing.data?.id) {
     const oldNicknameKey = String(existing.data.nickname_key || "").trim();
@@ -325,11 +375,13 @@ export async function POST(req: NextRequest) {
         consent_at: consentAt,
         nickname_key: nicknameKey,
         nickname_display: nickname || null,
+        pin_hash: pinHash,
         store: store || null,
       },
       {
         consent_at: consentAt,
         nickname_key: nicknameKey,
+        pin_hash: pinHash,
       },
     ];
 
@@ -372,6 +424,7 @@ export async function POST(req: NextRequest) {
       consent_at: consentAt,
       nickname_key: nicknameKey,
       nickname_display: nickname || null,
+      pin_hash: pinHash,
       store: store || null,
     },
     {
@@ -379,6 +432,7 @@ export async function POST(req: NextRequest) {
       contact_value: normalizedContact,
       consent_at: consentAt,
       nickname_key: nicknameKey,
+      pin_hash: pinHash,
     },
   ];
 

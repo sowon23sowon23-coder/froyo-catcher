@@ -1017,6 +1017,8 @@ export default function Page() {
     contactType: EntryContactType,
     contactValue: string,
     nickname: string,
+    pin: string,
+    loginMode: LoginPayload["loginMode"],
     store: string
   ) => {
     const res = await fetch("/api/entry/register", {
@@ -1026,6 +1028,8 @@ export default function Page() {
         contactType,
         contactValue,
         nickname: nickname.trim() || null,
+        pin,
+        loginMode,
         store: store.trim() || null,
         rememberMe: true,
       }),
@@ -1168,13 +1172,17 @@ export default function Page() {
         payload.contactType,
         payload.contactValue,
         trimmed,
+        payload.pin,
+        payload.loginMode,
         finalStore
       );
     } catch (err) {
       console.error(err);
       const message = (err as Error)?.message || "";
       if (message.includes("Nickname is already in use")) {
-        setLoginError("This nickname is already in use. Please choose a different nickname.");
+        setLoginError(message);
+      } else if (message.includes("6-digit") || message.includes("incorrect") || message.includes("ID not found")) {
+        setLoginError(message);
       } else if (message.includes("Invalid contact value")) {
         setLoginError("Login could not be prepared. Please try a different nickname.");
       } else if (message.includes("Too many requests")) {

@@ -5,6 +5,8 @@ import { type EntryContactType } from "../lib/entry";
 
 export type LoginPayload = {
   nickname: string;
+  pin: string;
+  loginMode: "existing" | "new";
   contactType: EntryContactType;
   contactValue: string;
 };
@@ -40,7 +42,10 @@ export default function LoginScreen({
   onCancel?: () => void;
 }) {
   const [nickname, setNickname] = useState(initialNickname);
+  const [pin, setPin] = useState("");
+  const [loginMode, setLoginMode] = useState<"existing" | "new">("existing");
   const [nicknameError, setNicknameError] = useState<string | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   useEffect(() => {
     setNickname(initialNickname);
@@ -52,10 +57,17 @@ export default function LoginScreen({
       setNicknameError("Nickname must be 2-12 characters.");
       return null;
     }
+    if (!/^\d{6}$/.test(pin)) {
+      setPinError("Enter a 6-digit number.");
+      return null;
+    }
 
     setNicknameError(null);
+    setPinError(null);
     return {
       nickname: trimmed,
+      pin,
+      loginMode,
       contactType: "email",
       contactValue: buildInternalContactValue(trimmed),
     };
@@ -81,8 +93,8 @@ export default function LoginScreen({
             <h1 className="mt-1 text-[2rem] font-black leading-[1.05] text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
               {mode === "switch"
-                ? "Enter a new nickname to switch your player name."
-                : "Enter your nickname to continue."}
+                ? "Choose whether to use an existing ID or create a new one."
+                : "Use your nickname and 6-digit number to continue."}
             </p>
             {mode === "switch" && currentAccount ? (
               <p className="mt-2 text-sm font-black text-[var(--yl-primary)]">
@@ -92,6 +104,30 @@ export default function LoginScreen({
           </div>
 
           <div className="space-y-4 p-5 sm:p-6">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--yl-card-border)] bg-[#fff9fc] p-1.5">
+              {([
+                ["existing", "Existing ID"],
+                ["new", "New ID"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => {
+                    setLoginMode(value);
+                    setNicknameError(null);
+                    setPinError(null);
+                  }}
+                  className={`rounded-xl px-3 py-2.5 text-sm font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--yl-focus-ring)] ${
+                    loginMode === value
+                      ? "bg-[var(--yl-primary)] text-white shadow-[0_8px_18px_rgba(150,9,83,0.22)]"
+                      : "bg-transparent text-[var(--yl-ink-muted)] hover:bg-white"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div className="rounded-2xl border border-[var(--yl-card-border)] bg-[#fff9fc] p-4">
               <label htmlFor="login-nickname" className="block text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
                 Nickname
@@ -111,6 +147,31 @@ export default function LoginScreen({
                 This nickname will appear on the leaderboard.
               </p>
               {nicknameError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{nicknameError}</p> : null}
+            </div>
+
+            <div className="rounded-2xl border border-[var(--yl-card-border)] bg-[#fff9fc] p-4">
+              <label htmlFor="login-pin" className="block text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
+                6-digit number
+              </label>
+              <input
+                id="login-pin"
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  if (pinError) setPinError(null);
+                }}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                placeholder="123456"
+                className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-white px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
+              />
+              <p className="mt-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+                {loginMode === "existing"
+                  ? "Enter the number you used when you created this ID."
+                  : "Create a number you can remember for this nickname."}
+              </p>
+              {pinError ? <p className="mt-2 text-sm font-bold text-[var(--yl-primary-soft)]">{pinError}</p> : null}
             </div>
 
             <button
