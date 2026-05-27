@@ -808,10 +808,10 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   }, [activeCoupons]);
 
 
-  // Send a single expire request; if it fails, retry once after 3 seconds.
+  // Send a single final-state request; if it fails, retry once after 3 seconds.
   // The coupon is already locked in local state; this is only DB sync.
-  const syncExpireToServer = (couponId: number) => {
-    const body = JSON.stringify({ couponId });
+  const syncCouponStateToServer = (couponId: number, action: "expired" | "redeemed") => {
+    const body = JSON.stringify({ couponId, action });
     const doFetch = () =>
       fetch("/api/coupons/wallet/expire", {
         method: "POST",
@@ -832,21 +832,23 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     setSecondsLeft(QR_ACTIVE_MS / 1000);
   };
 
-  const expireCoupon = async (coupon: WalletCoupon) => {
+  const completeRedeemedCoupon = async (coupon: WalletCoupon) => {
     clearQrTimers();
-    setWalletUiStates((prev) => ({ ...prev, [coupon.id]: "expired" }));
+    setWalletUiStates((prev) => ({ ...prev, [coupon.id]: "idle" }));
     setActiveCouponId(null);
     setSecondsLeft(0);
     setQrDataUrl("");
 
-    const expiredCoupon: WalletCoupon = {
+    const redeemedAt = new Date().toISOString();
+    const redeemedCoupon: WalletCoupon = {
       ...coupon,
-      status: "expired",
-      state: "expired",
+      status: "redeemed",
+      state: "already_redeemed",
+      redeemedAt,
     };
 
     const nextActive = activeCouponsRef.current.filter((item) => item.id !== coupon.id);
-    const nextHistory = [expiredCoupon, ...historyCouponsRef.current.filter((item) => item.id !== coupon.id)].sort(
+    const nextHistory = [redeemedCoupon, ...historyCouponsRef.current.filter((item) => item.id !== coupon.id)].sort(
       (a, b) => new Date(b.redeemedAt || b.expiresAt).getTime() - new Date(a.redeemedAt || a.expiresAt).getTime()
     );
 
@@ -854,7 +856,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     setHistoryCoupons(nextHistory);
     writeLocalWalletCoupons([...nextActive, ...nextHistory]);
 
-    syncExpireToServer(coupon.id);
+    syncCouponStateToServer(coupon.id, "redeemed");
   };
 
   const startCouponFlow = (coupon: WalletCoupon) => {
@@ -876,14 +878,14 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
       // Mark the coupon as consumed on the server the instant the QR
       // becomes visible. Retries once on failure so a brief network hiccup
       // doesn't leave the coupon re-usable after a page reload.
-      syncExpireToServer(coupon.id);
+      syncCouponStateToServer(coupon.id, "redeemed");
 
       clockIntervalRef.current = window.setInterval(() => {
         setSecondsLeft((prev) => Math.max(prev - 1, 0));
       }, 1000);
 
       countdownTimeoutRef.current = window.setTimeout(() => {
-        void expireCoupon(coupon);
+        void completeRedeemedCoupon(coupon);
       }, QR_ACTIVE_MS);
     }, QR_LOADING_MS);
   };

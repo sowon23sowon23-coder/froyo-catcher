@@ -7,6 +7,7 @@ import { isCompleteBlockActive } from "../../../../lib/gameAccessServer";
 
 const expireWalletCouponSchema = z.object({
   couponId: z.number().int().positive(),
+  action: z.enum(["expired", "redeemed"]).optional().default("expired"),
 });
 
 export async function POST(req: NextRequest) {
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
 
     const entryId = couponLookup.data.entry_id;
     const todayMidnightDallas = getDallasDayStart();
+    const isRedeemAction = parsed.data.action === "redeemed";
 
     // Attempt the update first (conditional on status='active').
     // This acts as a lightweight lock: only one concurrent caller can flip a
@@ -52,10 +54,18 @@ export async function POST(req: NextRequest) {
     // to checking before.
     const result = await supabase
       .from("wallet_coupons")
-      .update({ status: "expired" })
+      .update(
+        isRedeemAction
+          ? {
+              status: "redeemed",
+              redeemed_at: new Date().toISOString(),
+              redeemed_by: "wallet_use_button",
+            }
+          : { status: "expired" }
+      )
       .eq("id", parsed.data.couponId)
       .eq("status", "active")
-      .select("id")
+      .select("id,status,redeemed_at")
       .maybeSingle();
 
     if (result.error) {
@@ -71,7 +81,7 @@ export async function POST(req: NextRequest) {
         .from("wallet_coupons")
         .select("id", { count: "exact", head: true })
         .eq("entry_id", entryId)
-        .eq("status", "expired")
+        .in("status", ["expired", "redeemed"])
         .gte("created_at", todayMidnightDallas.toISOString());
 
       if (!activatedToday.error && (activatedToday.count ?? 0) > 1) {
@@ -88,7 +98,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, couponId: parsed.data.couponId, expired: didExpire });
+    return NextResponse.json({
+      success: true,
+      couponId: parsed.data.couponId,
+      status: result.data?.status ?? null,
+      redeemedAt: result.data?.redeemed_at ?? null,
+      expired: didExpire && !isRedeemAction,
+      redeemed: didExpire && isRedeemAction,
+    });
   } catch (error) {
     console.error("Wallet coupon expire route error", error);
     return NextResponse.json({ error: "An error occurred while expiring the coupon." }, { status: 500 });
