@@ -104,6 +104,27 @@ export default function LoginScreen({
           </div>
 
           <div className="space-y-4 p-5 sm:p-6">
+            <div className="rounded-2xl border border-[#f3bad5] bg-[#fff2f8] p-4 text-sm text-[var(--yl-ink-strong)]">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Login Guide</p>
+              <div className="mt-3 space-y-2">
+                <div>
+                  <p className="font-black text-[var(--yl-primary-deep)]">Existing Users</p>
+                  <p className="mt-0.5 font-semibold text-[var(--yl-ink-muted)]">
+                    Select Existing ID, enter your existing nickname, and create a new 4-digit number.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-black text-[var(--yl-primary-deep)]">New Users</p>
+                  <p className="mt-0.5 font-semibold text-[var(--yl-ink-muted)]">
+                    Select New ID, enter your preferred nickname, and create a 4-digit number.
+                  </p>
+                </div>
+                <p className="rounded-xl bg-white px-3 py-2 text-xs font-black text-[var(--yl-primary)]">
+                  Remember your 4-digit number. You&apos;ll need it for future logins.
+                </p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--yl-card-border)] bg-[#fff9fc] p-1.5">
               {([
                 ["existing", "Existing ID"],
