@@ -1,7 +1,19 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow } from "../../../lib/couponData";
 import { requirePortalRole } from "../../../lib/portalAuth";
+
+type WalletCouponRow = {
+  id: number;
+  redeem_token: string | null;
+  status: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+  redeemed_at: string | null;
+  redeemed_by: string | null;
+  redeemed_store_name: string | null;
+  redeemed_staff_name: string | null;
+};
 
 function escapeCsv(value: string | number | null | undefined) {
   const normalized = value == null ? "" : String(value);
@@ -37,6 +49,34 @@ function getDateRange(req: NextRequest) {
   return { startIso: start.toISOString(), endIso: end.toISOString() };
 }
 
+function getWalletStatus(row: Pick<WalletCouponRow, "status" | "expires_at" | "redeemed_at">) {
+  if (row.status === "redeemed" || row.redeemed_at) return "redeemed";
+  if (row.status === "expired") return "expired";
+  const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : NaN;
+  if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) return "expired";
+  return "active";
+}
+
+function formatWalletCode(row: Pick<WalletCouponRow, "id" | "redeem_token">) {
+  const token = String(row.redeem_token || "").trim();
+  if (token) return token.slice(0, 8).toUpperCase();
+  return `WALLET-${row.id}`;
+}
+
+function serializeLog(row: WalletCouponRow) {
+  const action = getWalletStatus(row);
+  return {
+    id: Number(row.id),
+    code: formatWalletCode(row),
+    action_type: action,
+    reason: action === "redeemed" ? "Wallet coupon used" : "Wallet coupon expired",
+    store_id: row.redeemed_store_name || row.redeemed_by || null,
+    staff_id: row.redeemed_staff_name || null,
+    order_number: null,
+    created_at: String(row.redeemed_at || row.created_at || ""),
+  };
+}
+
 export async function GET(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) {
@@ -53,9 +93,10 @@ export async function GET(req: NextRequest) {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
     let query = supabase
-      .from("redeem_logs")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false });
+      .from("wallet_coupons")
+      .select("id,redeem_token,status,created_at,expires_at,redeemed_at,redeemed_by,redeemed_store_name,redeemed_staff_name", { count: "exact" })
+      .or(`status.eq.redeemed,status.eq.expired,redeemed_at.not.is.null`)
+      .order("redeemed_at", { ascending: false, nullsFirst: false });
 
     if (dateRange) {
       query = query.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
@@ -64,11 +105,11 @@ export async function GET(req: NextRequest) {
     const result = await query.range(from, to);
 
     if (result.error) {
-      console.error("Failed to load redeem logs", result.error);
+      console.error("Failed to load wallet coupon logs", result.error);
       return NextResponse.json({ error: "Failed to load redeem logs." }, { status: 500 });
     }
 
-    const rows = result.data ?? [];
+    const rows = ((result.data ?? []) as WalletCouponRow[]).map(serializeLog);
     if (format === "csv") {
       const header = ["id", "code", "action_type", "reason", "store_id", "staff_id", "order_number", "created_at"];
       const content = [

@@ -348,16 +348,16 @@ function ActiveCouponCard({
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Store Use</p>
               <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
                 {!canActivateToday
-                  ? "Daily use limit reached. Come back tomorrow."
+                  ? "You can use 1 coupon every 24 hours. This coupon is saved and will unlock when your cooldown ends."
                   : 'Press the "Use" button only when directed to do so by the emaployee.'}
               </p>
             </div>
             <span
-              className={`rounded-full bg-[var(--yl-primary)] px-4 py-2 text-xs font-black uppercase tracking-[0.08em] text-white ${
+              className={`max-w-[7.75rem] rounded-full bg-[var(--yl-primary)] px-4 py-2 text-center text-xs font-black uppercase leading-tight tracking-[0.08em] text-white ${
                 uiState === "loading" || uiState === "active" || !canActivateToday ? "opacity-50" : ""
               }`}
             >
-              {uiState === "loading" ? "Generating" : uiState === "active" ? "Live" : "Use"}
+              {uiState === "loading" ? "Generating" : uiState === "active" ? "Live" : !canActivateToday ? "Unlocks Soon" : "Use"}
             </span>
           </div>
         </button>
