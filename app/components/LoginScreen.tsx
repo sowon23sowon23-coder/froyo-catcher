@@ -57,8 +57,8 @@ export default function LoginScreen({
       setNicknameError("Nickname must be 2-12 characters.");
       return null;
     }
-    if (!/^\d{6}$/.test(pin)) {
-      setPinError("Enter a 6-digit number.");
+    if (!/^\d{4}$/.test(pin)) {
+      setPinError("Enter a 4-digit number.");
       return null;
     }
 
@@ -94,7 +94,7 @@ export default function LoginScreen({
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
               {mode === "switch"
                 ? "Choose whether to use an existing ID or create a new one."
-                : "Use your nickname and 6-digit number to continue."}
+                : "Use your nickname and 4-digit number to continue."}
             </p>
             {mode === "switch" && currentAccount ? (
               <p className="mt-2 text-sm font-black text-[var(--yl-primary)]">
@@ -151,19 +151,19 @@ export default function LoginScreen({
 
             <div className="rounded-2xl border border-[var(--yl-card-border)] bg-[#fff9fc] p-4">
               <label htmlFor="login-pin" className="block text-xs font-black uppercase tracking-[0.12em] text-[var(--yl-primary)]">
-                6-digit number
+                4-digit number
               </label>
               <input
                 id="login-pin"
                 value={pin}
                 onChange={(e) => {
-                  setPin(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4));
                   if (pinError) setPinError(null);
                 }}
                 inputMode="numeric"
                 pattern="[0-9]*"
-                maxLength={6}
-                placeholder="123456"
+                maxLength={4}
+                placeholder="1234"
                 className="mt-2 w-full rounded-xl border border-[var(--yl-card-border)] bg-white px-3 py-2.5 text-base font-semibold text-[var(--yl-ink-strong)] outline-none focus:border-[var(--yl-primary)]"
               />
               <p className="mt-2 text-[11px] font-semibold text-[var(--yl-ink-muted)]">

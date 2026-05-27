@@ -252,8 +252,8 @@ export async function POST(req: NextRequest) {
   }
   const nicknameKey = normalizeNicknameKey(nickname);
   const pin = String(body.pin || "").trim();
-  if (!/^\d{6}$/.test(pin)) {
-    return NextResponse.json({ error: "Enter a valid 6-digit number." }, { status: 400 });
+  if (!/^\d{4}$/.test(pin)) {
+    return NextResponse.json({ error: "Enter a valid 4-digit number." }, { status: 400 });
   }
   const loginMode = body.loginMode === "new" ? "new" : "existing";
   const pinHash = hashEntryPin(nicknameKey, pin);
@@ -338,7 +338,7 @@ export async function POST(req: NextRequest) {
 
     const storedPinHash = String(nicknameOwner.data.pin_hash || "").trim();
     if (storedPinHash && !pinHashMatches(storedPinHash, pinHash)) {
-      return NextResponse.json({ error: "The nickname or 6-digit number is incorrect." }, { status: 401 });
+      return NextResponse.json({ error: "The nickname or 4-digit number is incorrect." }, { status: 401 });
     }
 
     const sessionContactType = String(nicknameOwner.data.contact_type || "") as EntryContactType;

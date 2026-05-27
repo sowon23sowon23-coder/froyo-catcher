@@ -108,7 +108,7 @@ function readSessionAuthSnapshot(): SessionAuthSnapshot | null {
       nickname,
       contactType,
       contactValue,
-      ...(pin && /^\d{6}$/.test(pin) ? { pin } : {}),
+      ...(pin && /^\d{4}$/.test(pin) ? { pin } : {}),
     };
   } catch {
     return null;
@@ -445,7 +445,7 @@ export default function Page() {
       } else if (active) {
         setAuthNick(undefined);
       }
-      if (/^\d{6}$/.test(savedPin)) {
+      if (/^\d{4}$/.test(savedPin)) {
         if (active) setAuthPin(savedPin);
       } else if (active) {
         setAuthPin(undefined);
@@ -480,7 +480,7 @@ export default function Page() {
           localStorage.setItem("entryContactType", json.contactType);
           localStorage.setItem("entryContactValue", json.contactValue);
           const sessionPin = readSessionAuthSnapshot()?.pin || (localStorage.getItem("entryPin") || "").trim();
-          if (!/^\d{6}$/.test(sessionPin)) {
+          if (!/^\d{4}$/.test(sessionPin)) {
             await invalidateServerSession();
             localStorage.removeItem("entryPin");
             sessionStorage.removeItem(SESSION_AUTH_STORAGE_KEY);
@@ -1212,7 +1212,7 @@ export default function Page() {
       const message = (err as Error)?.message || "";
       if (message.includes("Nickname is already in use")) {
         setLoginError(message);
-      } else if (message.includes("6-digit") || message.includes("incorrect") || message.includes("ID not found")) {
+      } else if (message.includes("4-digit") || message.includes("incorrect") || message.includes("ID not found")) {
         setLoginError(message);
       } else if (message.includes("Invalid contact value")) {
         setLoginError("Login could not be prepared. Please try a different nickname.");

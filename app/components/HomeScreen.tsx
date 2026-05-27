@@ -202,7 +202,7 @@ export default function HomeScreen({
               </p>
               {entryPin ? (
                 <p className="mt-1 text-xs font-black uppercase tracking-[0.08em] text-[var(--yl-ink-muted)]">
-                  6-digit number <span className="text-[var(--yl-primary)]">{entryPin}</span>
+                  4-digit number <span className="text-[var(--yl-primary)]">{entryPin}</span>
                 </p>
               ) : null}
             </div>
