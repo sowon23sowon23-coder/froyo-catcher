@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
   ).length;
 
   const latestIssuedRow = (rows.data ?? []).find((row) => row.created_at >= todayIso);
-  const nextIssuanceAt = latestIssuedRow ? getNextDallasDayStart().toISOString() : null;
+  const nextIssuanceAt = latestIssuedRow || activatedTodayCount > 0 ? getNextDallasDayStart().toISOString() : null;
 
   return NextResponse.json({
     nickname: entry.nickname,

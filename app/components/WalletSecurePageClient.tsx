@@ -906,11 +906,13 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   }, [historyCoupons]);
 
   const canUseToday = canActivateToday && !usedTodayLocal;
+  const effectiveNextIssuanceAt =
+    nextIssuanceAt || (!canUseToday ? getNextDallasDayStart().toISOString() : null);
 
   const issuanceBlockedMs = useMemo(() => {
-    if (!nextIssuanceAt) return 0;
-    return Math.max(0, new Date(nextIssuanceAt).getTime() - Date.now());
-  }, [nextIssuanceAt]);
+    if (!effectiveNextIssuanceAt) return 0;
+    return Math.max(0, new Date(effectiveNextIssuanceAt).getTime() - Date.now());
+  }, [effectiveNextIssuanceAt]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_8%,#ffffff_0%,#ffedf7_36%,#f9d3e7_100%)] p-4 sm:p-5">
@@ -1006,7 +1008,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
             {tab === "active" && activeCards.length === 0 ? (
               <section className="rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white px-5 py-8 shadow-[0_18px_44px_rgba(150,9,83,0.16)]">
                 {!canUseToday || issuanceBlockedMs > 0 ? (
-                  <DailyLimitEmptyState nextIssuanceAt={nextIssuanceAt} />
+                  <DailyLimitEmptyState nextIssuanceAt={effectiveNextIssuanceAt} />
                 ) : (
                   <>
                     <p className="text-lg font-black text-[var(--yl-ink-strong)]">No active coupons yet</p>
