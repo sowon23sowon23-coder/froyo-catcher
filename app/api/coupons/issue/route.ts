@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
             eligible: true,
             issued: false,
             reason: "daily_window_not_started",
-            message: `쿠폰 발행은 ${issuanceLimit.dailyStartTime}부터 가능합니다.`,
+            message: `Coupon issuance opens at ${issuanceLimit.dailyStartTime}.`,
           });
         }
       }
@@ -280,7 +280,7 @@ export async function POST(req: NextRequest) {
             eligible: true,
             issued: false,
             reason: "daily_window_ended",
-            message: `오늘의 쿠폰 발행이 종료되었습니다 (${issuanceLimit.dailyEndTime} 마감).`,
+            message: `Coupon issuance has ended for today (closes at ${issuanceLimit.dailyEndTime}).`,
           });
         }
       }

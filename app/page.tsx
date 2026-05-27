@@ -13,6 +13,11 @@ import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
 import { getDallasDayKey, getDallasDayStart } from "./lib/dallasTime";
 import type { GameAccessState } from "./lib/gameAccess";
+import {
+  readLocalWalletCoupons,
+  removeLegacyWalletCoupons,
+  writeLocalWalletCoupons,
+} from "./lib/walletLocalStorage";
 
 type CharId = "green" | "berry" | "sprinkle";
 type Phase = "login" | "switchAccount" | "home" | "game";
@@ -57,8 +62,6 @@ type IssuedCoupon = {
   createdAt: string;
   upgraded?: boolean;
 };
-
-const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 
 function normalizeNick(raw: string) {
   return raw.trim().toLowerCase();
@@ -113,21 +116,6 @@ function readSessionAuthSnapshot(): SessionAuthSnapshot | null {
   } catch {
     return null;
   }
-}
-
-function readLocalWalletCoupons(): WalletCoupon[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as WalletCoupon[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalWalletCoupons(coupons: WalletCoupon[]) {
-  localStorage.setItem(LOCAL_WALLET_STORAGE_KEY, JSON.stringify(coupons));
 }
 
 function upsertLocalWalletCoupon(coupon: WalletCoupon) {
@@ -1153,9 +1141,9 @@ export default function Page() {
       if (json.eligible && json.issued === false) {
         setCouponNotice(
           json.reason === "daily_limit_reached"
-            ? "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다."
+            ? "All coupons for today have been claimed."
             : json.reason === "campaign_limit_reached"
-              ? "아쉽게도 이번 캠페인의 쿠폰이 모두 소진되었습니다."
+              ? "All coupons for this campaign have been claimed."
               : json.reason === "user_daily_limit_reached"
                 ? "You've used all available coupons for today."
               : json.message || json.reason || "Coupon could not be issued."
@@ -1245,6 +1233,7 @@ export default function Page() {
     localStorage.setItem("entryPin", payload.pin);
     localStorage.setItem("entryContactType", sessionContact.contactType);
     localStorage.setItem("entryContactValue", sessionContact.contactValue);
+    removeLegacyWalletCoupons();
     setAuthNick(trimmed);
     setAuthPin(payload.pin);
     setAuthContactType(sessionContact.contactType);
@@ -1466,7 +1455,7 @@ export default function Page() {
                         : "Discount";
                     setCouponNotice(
                       issuedCoupon.upgraded
-                        ? `쿠폰이 ${percentLabel} 할인으로 업그레이드됐습니다!`
+                        ? `Your coupon has been upgraded to a ${percentLabel} discount!`
                         : `${percentLabel} discount coupon is in My Wallet!`
                     );
                   }
@@ -1528,7 +1517,7 @@ export default function Page() {
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Update</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
-            {couponNotice.includes("is in My Wallet") || couponNotice.includes("available coupons") || couponNotice.includes("업그레이드") ? (
+            {couponNotice.includes("is in My Wallet") || couponNotice.includes("available coupons") || couponNotice.includes("upgraded") ? (
               <a
                 href={couponNotice.includes("available coupons") ? "/wallet?tab=history" : "/wallet"}
                 className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"

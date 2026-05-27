@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { type WalletCoupon } from "../lib/coupons";
 import { getDallasDayKey, getDallasDayStart, getNextDallasDayStart } from "../lib/dallasTime";
+import { readLocalWalletCoupons, writeLocalWalletCoupons } from "../lib/walletLocalStorage";
 
-const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 const WALLET_REFRESH_INTERVAL_MS = 10000;
 const EXPIRING_SOON_MS = 2 * 60 * 60 * 1000;
 const QR_DISPLAY_SECONDS = 20;
@@ -30,25 +30,6 @@ type RedeemLookupResponse = {
     redeemedStoreName?: string | null;
   } | null;
 };
-
-function readLocalWalletCoupons(): WalletCoupon[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as WalletCoupon[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalWalletCoupons(coupons: WalletCoupon[]) {
-  try {
-    localStorage.setItem(LOCAL_WALLET_STORAGE_KEY, JSON.stringify(coupons));
-  } catch {
-    // Ignore storage write failures so wallet rendering still works.
-  }
-}
 
 async function reconcileActiveCoupons(activeCoupons: WalletCoupon[]) {
   if (activeCoupons.length === 0) {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { trackEvent } from "../lib/gtag";
 import { InfoModal, ALL_INFO_CARDS, type InfoCard } from "./InfoModal";
 import { isCouponExpired } from "../lib/coupons";
+import { readLocalWalletCoupons } from "../lib/walletLocalStorage";
 
 type CharId = "green" | "berry" | "sprinkle";
 
@@ -65,8 +66,7 @@ export default function HomeScreen({
     localStorage.removeItem("selectedMode");
 
     try {
-      const raw = localStorage.getItem("walletCouponsLocal");
-      const coupons = raw ? (JSON.parse(raw) as Array<{ status?: string; expiresAt?: string; redeemedAt?: string | null }>) : [];
+      const coupons = readLocalWalletCoupons({ nickname });
       const count = coupons.filter(
         (c) => c.status === "active" && !isCouponExpired(String(c.expiresAt || ""))
       ).length;
@@ -74,7 +74,7 @@ export default function HomeScreen({
     } catch {
       // ignore parse errors
     }
-  }, []);
+  }, [nickname]);
 
   const selectedCharacter = useMemo(
     () => CHARACTERS.find((c) => c.id === character) ?? CHARACTERS[0],

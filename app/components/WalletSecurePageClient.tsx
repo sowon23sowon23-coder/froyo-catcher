@@ -15,8 +15,8 @@ import {
   type WalletCoupon,
 } from "../lib/coupons";
 import { getDallasDayKey, getDallasDayStart, getNextDallasDayStart } from "../lib/dallasTime";
+import { readLocalWalletCoupons, writeLocalWalletCoupons } from "../lib/walletLocalStorage";
 
-const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 const WALLET_REFRESH_INTERVAL_MS = 10000;
 const QR_LOADING_MS = 2500;
 const QR_ACTIVE_MS = 20000;
@@ -54,26 +54,6 @@ type RedeemLookupResponse = {
     redeemedStoreName?: string | null;
   } | null;
 };
-
-function readLocalWalletCoupons(): WalletCoupon[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as WalletCoupon[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalWalletCoupons(coupons: WalletCoupon[]) {
-  try {
-    localStorage.setItem(LOCAL_WALLET_STORAGE_KEY, JSON.stringify(coupons));
-  } catch {
-    // Ignore storage write failures so wallet rendering still works.
-  }
-}
-
 
 function inferDiscountPercent(coupon: WalletCoupon) {
   const resolvedReward = resolveCouponReward(coupon.rewardType, coupon.title, coupon.description);
@@ -854,6 +834,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
 
     setActiveCoupons(nextActive);
     setHistoryCoupons(nextHistory);
+    setTab("history");
     writeLocalWalletCoupons([...nextActive, ...nextHistory]);
 
     syncCouponStateToServer(coupon.id, "redeemed");

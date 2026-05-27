@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatCouponExpiry, type CouponState } from "../lib/coupons";
+import { formatCouponExpiry, type CouponState, type WalletCoupon } from "../lib/coupons";
+import { readLocalWalletCoupons, writeLocalWalletCoupons } from "../lib/walletLocalStorage";
 
 type RedeemCoupon = {
   id: number;
@@ -19,8 +20,6 @@ type RedeemResponse = {
   redeemedNow?: boolean;
   coupon?: RedeemCoupon;
 };
-
-const LOCAL_WALLET_STORAGE_KEY = "walletCouponsLocal";
 
 function stateLabel(state: CouponState) {
   if (state === "valid") return "Valid";
@@ -89,24 +88,21 @@ export default function RedeemPageClient({
     if (!shouldSyncHistory) return;
 
     try {
-      const raw = window.localStorage.getItem(LOCAL_WALLET_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          const nextCoupons = parsed.map((coupon) => {
-            if (!coupon || coupon.redeemToken !== token) return coupon;
-            return {
-              ...coupon,
-              status: couponStatus === "expired" || data.state === "expired" ? "expired" : "redeemed",
-              state: data.state === "expired" ? "expired" : "already_redeemed",
-              redeemedAt: data.coupon?.redeemedAt || new Date().toISOString(),
-              redeemedStaffName: data.coupon?.redeemedStaffName || null,
-              redeemedStoreName: data.coupon?.redeemedStoreName || null,
-            };
-          });
-          window.localStorage.setItem(LOCAL_WALLET_STORAGE_KEY, JSON.stringify(nextCoupons));
-        }
-      }
+      const nextCoupons = readLocalWalletCoupons().map((coupon) => {
+        if (!coupon || coupon.redeemToken !== token) return coupon;
+        const nextStatus: WalletCoupon["status"] =
+          couponStatus === "expired" || data.state === "expired" ? "expired" : "redeemed";
+        const nextState: WalletCoupon["state"] = data.state === "expired" ? "expired" : "already_redeemed";
+        return {
+          ...coupon,
+          status: nextStatus,
+          state: nextState,
+          redeemedAt: data.coupon?.redeemedAt || new Date().toISOString(),
+          redeemedStaffName: data.coupon?.redeemedStaffName || null,
+          redeemedStoreName: data.coupon?.redeemedStoreName || null,
+        };
+      });
+      writeLocalWalletCoupons(nextCoupons);
     } catch {
       // Ignore local wallet sync failures and continue to the wallet page.
     }
