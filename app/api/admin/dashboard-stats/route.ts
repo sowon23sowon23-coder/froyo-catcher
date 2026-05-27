@@ -75,9 +75,8 @@ export async function GET(req: NextRequest) {
       .limit(5000);
     let redeemedWalletQuery = supabase
       .from("wallet_coupons")
-      .select("id,status,redeemed_at")
-      .not("redeemed_at", "is", null)
-      .order("redeemed_at", { ascending: false })
+      .select("id,status,redeemed_at,created_at")
+      .order("created_at", { ascending: false })
       .limit(5000);
     let sessionsQuery = supabase
       .from("game_sessions")
@@ -96,15 +95,11 @@ export async function GET(req: NextRequest) {
 
     if (dateRange) {
       couponsQuery = couponsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
-      redeemedWalletQuery = redeemedWalletQuery.gte("redeemed_at", dateRange.startIso).lt("redeemed_at", dateRange.endIso);
       sessionsQuery = sessionsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
       redeemSuccessLogsQuery = redeemSuccessLogsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
       redeemLogsQuery = redeemLogsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
     } else {
-      const recentFrom = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-      redeemedWalletQuery = redeemedWalletQuery.gte("redeemed_at", recentFrom);
       sessionsQuery = sessionsQuery.gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString());
-      redeemSuccessLogsQuery = redeemSuccessLogsQuery.gte("created_at", recentFrom);
     }
 
     const [couponsResult, redeemedWalletResult, sessionsResult, redeemSuccessLogsResult, redeemLogsResult, couponConfigResult] = await Promise.all([
@@ -141,11 +136,23 @@ export async function GET(req: NextRequest) {
         active++;
       }
     }
-    const redeemDates = [
-      ...redeemedWalletRows.map((row) => String(row.redeemed_at || "")).filter(Boolean),
-      ...legacyRedeemSuccessRows.map((row) => String(row.created_at || "")).filter(Boolean),
-    ];
-    const redeemed = redeemDates.length;
+    const inDateRange = (timestamp: string) => {
+      if (!dateRange) return true;
+      const time = new Date(timestamp).getTime();
+      return Number.isFinite(time) && time >= new Date(dateRange.startIso).getTime() && time < new Date(dateRange.endIso).getTime();
+    };
+    const redeemedWalletDates = redeemedWalletRows
+      .map((row) => String(row.redeemed_at || ""))
+      .filter((timestamp) => timestamp && inDateRange(timestamp));
+    const walletRedeemedWithoutDate = redeemedWalletRows.filter((row) => {
+      const status = String(row.status || "").toLowerCase();
+      return !row.redeemed_at && (status === "redeemed" || status === "used");
+    }).length;
+    const legacyRedeemDates = legacyRedeemSuccessRows
+      .map((row) => String(row.created_at || ""))
+      .filter(Boolean);
+    const redeemDates = [...redeemedWalletDates, ...legacyRedeemDates];
+    const redeemed = redeemDates.length + (dateRange ? 0 : walletRedeemedWithoutDate);
 
     // Coupon → redeem conversion rate
     const redeemRate = issued > 0 ? Number(((redeemed / issued) * 100).toFixed(1)) : 0;
