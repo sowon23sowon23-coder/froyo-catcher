@@ -21,6 +21,16 @@ function characterLabel(character?: CharId) {
   return "-";
 }
 
+function maskNickname(nickname?: string) {
+  const trimmed = (nickname || "").trim();
+  if (!trimmed) return "-";
+
+  const chars = Array.from(trimmed);
+  if (chars.length <= 2) return trimmed;
+  const visibleCount = chars.length === 3 ? 1 : 2;
+  return `${chars.slice(0, visibleCount).join("")}${"*".repeat(chars.length - visibleCount)}`;
+}
+
 export default function LeaderboardModal({
   open,
   onClose,
@@ -132,7 +142,7 @@ export default function LeaderboardModal({
                 {mode === "today" ? "Today best" : "Your best"}
               </p>
               <div className="mt-1 flex items-center justify-between">
-                <div className="truncate pr-3 font-black text-[var(--yl-ink-strong)]">{myNickname ?? "-"}</div>
+                <div className="truncate pr-3 font-black text-[var(--yl-ink-strong)]">{maskNickname(myNickname)}</div>
                 <div className="text-lg font-black text-[var(--yl-primary)]">{myScore ?? "-"}</div>
               </div>
               {myRank !== undefined && (
@@ -170,7 +180,7 @@ export default function LeaderboardModal({
                       <div className="font-black text-[var(--yl-primary-deep)]">{r.rank}</div>
                       <div className="min-w-0 font-bold text-[var(--yl-ink-strong)]">
                         <div className="truncate">
-                          {r.nickname}
+                          {maskNickname(r.nickname)}
                           {isMe ? <span className="ml-2 text-xs font-black text-[var(--yl-green)]">YOU</span> : null}
                         </div>
                         {r.date ? (
