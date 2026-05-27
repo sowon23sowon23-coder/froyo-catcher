@@ -73,9 +73,21 @@ export async function GET(req: NextRequest) {
       .select("id,status,expires_at,redeemed_at,created_at,reward_type")
       .order("created_at", { ascending: false })
       .limit(5000);
+    let redeemedWalletQuery = supabase
+      .from("wallet_coupons")
+      .select("id,status,redeemed_at")
+      .not("redeemed_at", "is", null)
+      .order("redeemed_at", { ascending: false })
+      .limit(5000);
     let sessionsQuery = supabase
       .from("game_sessions")
       .select("id,score,coupon_issued,completed,created_at");
+    let redeemSuccessLogsQuery = supabase
+      .from("redeem_logs")
+      .select("id,action_type,created_at")
+      .eq("action_type", "redeem_success")
+      .order("created_at", { ascending: false })
+      .limit(5000);
     let redeemLogsQuery = supabase
       .from("redeem_logs")
       .select("id,action_type,store_id,created_at")
@@ -84,15 +96,22 @@ export async function GET(req: NextRequest) {
 
     if (dateRange) {
       couponsQuery = couponsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
+      redeemedWalletQuery = redeemedWalletQuery.gte("redeemed_at", dateRange.startIso).lt("redeemed_at", dateRange.endIso);
       sessionsQuery = sessionsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
+      redeemSuccessLogsQuery = redeemSuccessLogsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
       redeemLogsQuery = redeemLogsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
     } else {
+      const recentFrom = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+      redeemedWalletQuery = redeemedWalletQuery.gte("redeemed_at", recentFrom);
       sessionsQuery = sessionsQuery.gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString());
+      redeemSuccessLogsQuery = redeemSuccessLogsQuery.gte("created_at", recentFrom);
     }
 
-    const [couponsResult, sessionsResult, redeemLogsResult, couponConfigResult] = await Promise.all([
+    const [couponsResult, redeemedWalletResult, sessionsResult, redeemSuccessLogsResult, redeemLogsResult, couponConfigResult] = await Promise.all([
       couponsQuery,
+      redeemedWalletQuery,
       sessionsQuery,
+      redeemSuccessLogsQuery,
       redeemLogsQuery,
       supabase
         .from("coupon_config")
@@ -103,11 +122,12 @@ export async function GET(req: NextRequest) {
 
     const coupons = couponsResult.data ?? [];
     const sessions = sessionsResult.data ?? [];
+    const redeemedWalletRows = redeemedWalletResult.data ?? [];
+    const legacyRedeemSuccessRows = redeemSuccessLogsResult.data ?? [];
 
     // Coupon stats
-    let issued = 0, redeemed = 0, expired = 0, active = 0;
+    let issued = 0, expired = 0, active = 0;
     const issueDates: string[] = [];
-    const redeemDates: string[] = [];
 
     for (const c of coupons) {
       issued++;
@@ -115,14 +135,17 @@ export async function GET(req: NextRequest) {
       const now = new Date();
       const isExpiredByTime = c.expires_at && new Date(c.expires_at) < now;
       if (c.redeemed_at || c.status === "used") {
-        redeemed++;
-        if (c.redeemed_at) redeemDates.push(String(c.redeemed_at));
       } else if (c.status === "expired" || isExpiredByTime) {
         expired++;
       } else {
         active++;
       }
     }
+    const redeemDates = [
+      ...redeemedWalletRows.map((row) => String(row.redeemed_at || "")).filter(Boolean),
+      ...legacyRedeemSuccessRows.map((row) => String(row.created_at || "")).filter(Boolean),
+    ];
+    const redeemed = redeemDates.length;
 
     // Coupon → redeem conversion rate
     const redeemRate = issued > 0 ? Number(((redeemed / issued) * 100).toFixed(1)) : 0;

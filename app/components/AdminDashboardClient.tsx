@@ -433,6 +433,14 @@ export default function AdminDashboardClient() {
   }, [nav, dashboardFilter]);
 
   useEffect(() => {
+    if (nav !== "dashboard") return;
+    const intervalId = window.setInterval(() => {
+      void loadDashboard();
+    }, 15000);
+    return () => window.clearInterval(intervalId);
+  }, [nav, dashboardFilter]);
+
+  useEffect(() => {
     if (!notice) return;
     const t = window.setTimeout(() => setNotice(null), 2500);
     return () => window.clearTimeout(t);
