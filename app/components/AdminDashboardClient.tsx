@@ -303,7 +303,12 @@ export default function AdminDashboardClient() {
     setFeedbackLoading(true);
     try {
       const res = await fetch("/api/admin/feedback-view", { cache: "no-store" });
-      const json = (await res.json()) as { rows?: FeedbackRow[] };
+      const json = (await res.json().catch(() => ({}))) as { rows?: FeedbackRow[]; error?: string; details?: string };
+      if (!res.ok || json.error) {
+        setFeedbackRows([]);
+        setNotice(json.details || json.error || "Failed to load feedback.");
+        return;
+      }
       setFeedbackRows(json.rows ?? []);
       setFeedbackLoaded(true);
       loadedRef.current.feedback = true;
