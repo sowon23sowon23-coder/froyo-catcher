@@ -17,7 +17,6 @@ const FALLING_ITEM_CANDIDATES = [
   "gummy-bear.png",
   "green-gummy-bear.png",
   "yellow-gummy-bear.png",
-  "red-gummy-bear.png",
   "orange-gummy-bear.png",
   "strawberry.png",
   "kiwi.png",
@@ -28,21 +27,13 @@ const FALLING_ITEM_CANDIDATES = [
   "m-and-m-red.png",
   "m-and-m-orange.png",
 ] as const;
+const FALLING_ITEM_PRELOAD_FIRST = 5;
 type MissionItemImage = string;
 
 type FallingItem = { id: number; x: number; y: number; v: number; emoji?: string; image?: string };
 type Pop = { id: number; x: number; y: number; text: string; born: number; kind?: "gain" | "loss" };
 type CaughtItem = { id: number; emoji?: string; image?: string; x: number; y: number; rotate: number; scale: number };
 type CreamZone = { minX: number; maxX: number; minY: number; maxY: number };
-
-const GAME_BG_CANDIDATES = [
-  "/game-bg-1.jpg",
-  "/game-bg-2.jpg",
-  "/game-bg-1.jpeg",
-  "/game-bg-2.jpeg",
-  "/game-bg-1.png",
-  "/game-bg-2.png",
-] as const;
 
 const DEFAULT_GAME_BG =
   "radial-gradient(circle at 18% 18%, rgba(255,255,255,0.48), transparent 36%), linear-gradient(180deg, #99dcff 0%, #70c9ff 48%, #4ca6e8 100%)";
@@ -92,6 +83,31 @@ function loadImage(src: string) {
     img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
     img.src = src;
   });
+}
+
+function runAfterFirstPaint(callback: () => void) {
+  window.requestAnimationFrame(() => {
+    window.setTimeout(callback, 0);
+  });
+}
+
+function runWhenIdle(callback: () => void) {
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (cb: () => void, options?: { timeout?: number }) => number;
+  };
+  if (typeof idleWindow.requestIdleCallback === "function") {
+    idleWindow.requestIdleCallback(callback, { timeout: 1600 });
+    return;
+  }
+  window.setTimeout(callback, 250);
+}
+
+function preloadImages(srcs: readonly string[]) {
+  for (const src of srcs) {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = src;
+  }
 }
 
 function pickCreamPlacementAvoidOverlap(existing: CaughtItem[], image?: string) {
@@ -233,10 +249,16 @@ export default function Game({
   const loopRef = useRef<number | null>(null);
   const noticeTimeoutRef = useRef<number | null>(null);
   const levelCelebrateTimeoutRef = useRef<number | null>(null);
+  const inputFrameRef = useRef<number | null>(null);
+  const bounceTimeoutRef = useRef<number | null>(null);
+  const areaRectRef = useRef<DOMRect | null>(null);
   const playerXRef = useRef(50);
+  const pendingPlayerXRef = useRef(50);
+  const bounceActiveRef = useRef(false);
   const gameOverFiredRef = useRef(false);
   const difficultyLevelRef = useRef(0);
   const scoreRef = useRef(0);
+  const popsRef = useRef<Pop[]>([]);
   const collectedRef = useRef<CaughtItem[]>([]);
   const leaderboardOpenedRef = useRef(false);
   const lastWarningVibrateRef = useRef<number | null>(null);
@@ -258,6 +280,10 @@ export default function Game({
     scoreRef.current = score;
   }, [score]);
 
+  useEffect(() => {
+    popsRef.current = pops;
+  }, [pops]);
+
   useEffect(
     () => () => {
       if (noticeTimeoutRef.current !== null) {
@@ -266,6 +292,12 @@ export default function Game({
       if (levelCelebrateTimeoutRef.current !== null) {
         clearTimeout(levelCelebrateTimeoutRef.current);
       }
+      if (inputFrameRef.current !== null) {
+        cancelAnimationFrame(inputFrameRef.current);
+      }
+      if (bounceTimeoutRef.current !== null) {
+        clearTimeout(bounceTimeoutRef.current);
+      }
     },
     []
   );
@@ -273,21 +305,14 @@ export default function Game({
   useEffect(() => {
     let active = true;
 
-    const canLoad = (src: string) =>
-      new Promise<boolean>((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = src;
-      });
-
-    (async () => {
-      const checks = await Promise.all(GAME_BG_CANDIDATES.map((src) => canLoad(src)));
-      const available = GAME_BG_CANDIDATES.filter((_, i) => checks[i]);
-      if (!active || available.length === 0) return;
-      const randomIndex = Math.floor(Math.random() * available.length);
-      setGameBg(available[randomIndex]);
-    })();
+    runAfterFirstPaint(() => {
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = () => {
+        if (active) setGameBg("/game-bg-1.png");
+      };
+      img.src = "/game-bg-1.png";
+    });
 
     return () => {
       active = false;
@@ -295,28 +320,14 @@ export default function Game({
   }, []);
 
   useEffect(() => {
-    let active = true;
-
-    const canLoad = (src: string) =>
-      new Promise<boolean>((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = src;
+    const available = [...FALLING_ITEM_CANDIDATES];
+    setFallingItemImages(available);
+    runAfterFirstPaint(() => {
+      preloadImages(available.slice(0, FALLING_ITEM_PRELOAD_FIRST).map((name) => `/${name}`));
+      runWhenIdle(() => {
+        preloadImages(available.slice(FALLING_ITEM_PRELOAD_FIRST).map((name) => `/${name}`));
       });
-
-    (async () => {
-      const checks = await Promise.all(FALLING_ITEM_CANDIDATES.map((name) => canLoad(`/${name}`)));
-      const available = FALLING_ITEM_CANDIDATES.filter((_, i) => checks[i]);
-      if (!active) return;
-      if (available.length > 0) {
-        setFallingItemImages([...available]);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
+    });
   }, []);
 
   const stopAll = () => {
@@ -327,6 +338,10 @@ export default function Game({
     if (loopRef.current !== null) {
       clearInterval(loopRef.current);
       loopRef.current = null;
+    }
+    if (inputFrameRef.current !== null) {
+      cancelAnimationFrame(inputFrameRef.current);
+      inputFrameRef.current = null;
     }
   };
 
@@ -376,6 +391,8 @@ export default function Game({
     lastLifeLossRef.current = 0;
     lastHeartSpawnAtRef.current = 0;
     playerXRef.current = 50;
+    pendingPlayerXRef.current = 50;
+    areaRectRef.current = null;
     gameOverFiredRef.current = false;
     collectedRef.current = [];
     leaderboardOpenedRef.current = false;
@@ -394,6 +411,7 @@ export default function Game({
     setPops([]);
     setTilt(0);
     setBounce(false);
+    bounceActiveRef.current = false;
     setShake(false);
     setDangerFlash(false);
     catchStreakRef.current = 0;
@@ -407,6 +425,10 @@ export default function Game({
     if (levelCelebrateTimeoutRef.current !== null) {
       clearTimeout(levelCelebrateTimeoutRef.current);
       levelCelebrateTimeoutRef.current = null;
+    }
+    if (bounceTimeoutRef.current !== null) {
+      clearTimeout(bounceTimeoutRef.current);
+      bounceTimeoutRef.current = null;
     }
 
     trackEvent({ action: "game_start", category: "game", label: mode, value: 0 });
@@ -617,19 +639,44 @@ export default function Game({
     }
   };
 
+  const updateAreaRect = () => {
+    areaRectRef.current = areaRef.current?.getBoundingClientRect() ?? null;
+    return areaRectRef.current;
+  };
+
   const move = (clientX: number) => {
     if (isPaused) return;
-    const r = areaRef.current?.getBoundingClientRect();
+    const r = areaRectRef.current ?? updateAreaRect();
     if (!r) return;
 
     const xPx = clientX - r.left;
     const clamped = Math.max(PLAYER_W / 2, Math.min(r.width - PLAYER_W / 2, xPx));
     const pct = (clamped / r.width) * 100;
 
-    setPlayerX(pct);
-    setTilt((pct - 50) / 10);
-    setBounce(true);
-    setTimeout(() => setBounce(false), 140);
+    playerXRef.current = pct;
+    pendingPlayerXRef.current = pct;
+
+    if (inputFrameRef.current === null) {
+      inputFrameRef.current = requestAnimationFrame(() => {
+        inputFrameRef.current = null;
+        const nextX = pendingPlayerXRef.current;
+        setPlayerX(nextX);
+        setTilt((nextX - 50) / 10);
+      });
+    }
+
+    if (!bounceActiveRef.current) {
+      bounceActiveRef.current = true;
+      setBounce(true);
+    }
+    if (bounceTimeoutRef.current !== null) {
+      clearTimeout(bounceTimeoutRef.current);
+    }
+    bounceTimeoutRef.current = window.setTimeout(() => {
+      bounceActiveRef.current = false;
+      setBounce(false);
+      bounceTimeoutRef.current = null;
+    }, 140);
   };
 
   useEffect(() => {
@@ -655,9 +702,20 @@ export default function Game({
       e.preventDefault();
       if (e.touches && e.touches.length > 0) move(e.touches[0].clientX);
     };
+    const refreshRect = () => {
+      updateAreaRect();
+    };
 
+    updateAreaRect();
+    el.addEventListener("touchstart", refreshRect, { passive: true });
     el.addEventListener("touchmove", handler, { passive: false });
-    return () => el.removeEventListener("touchmove", handler);
+    window.addEventListener("resize", refreshRect);
+    return () => {
+      el.removeEventListener("touchstart", refreshRect);
+      el.removeEventListener("touchmove", handler);
+      window.removeEventListener("resize", refreshRect);
+      areaRectRef.current = null;
+    };
   }, [phase, isPaused]);
 
   useEffect(() => {
@@ -919,7 +977,9 @@ export default function Game({
           }
         }
 
-        setPops((ps) => ps.concat(popsToAdd).filter((p) => now - p.born < 700));
+        if (popsToAdd.length > 0 || popsRef.current.length > 0) {
+          setPops((ps) => ps.concat(popsToAdd).filter((p) => now - p.born < 700));
+        }
         return next;
       });
     }, 30);
@@ -1148,6 +1208,7 @@ export default function Game({
 
         <div
           ref={areaRef}
+          onPointerDown={() => updateAreaRect()}
           onMouseMove={(e) => phase === "play" && move(e.clientX)}
           className={`relative ${
             mode === "mission"

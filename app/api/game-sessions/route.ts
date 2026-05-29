@@ -10,6 +10,7 @@ type GameSessionBody = {
   playTimeSec?: number;
   completed?: boolean;
   couponIssued?: boolean;
+  couponUpgraded?: boolean;
   couponRewardType?: string;
   nicknameKey?: string;
   entryId?: number;
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
         play_time_sec: body.playTimeSec ? Number(body.playTimeSec) : null,
         completed: body.completed !== false,
         coupon_issued: body.couponIssued === true,
+        coupon_upgraded: body.couponUpgraded === true,
         coupon_reward_type: body.couponRewardType ? String(body.couponRewardType) : null,
       },
     ]);

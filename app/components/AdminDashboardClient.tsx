@@ -19,7 +19,14 @@ type DashboardStats = {
     redeemRate: number;
     issuanceLimit?: { type: "daily" | "campaign"; max: number; current: number; percentUsed: number; stopOnReach: boolean } | null;
   };
-  game: { totalSessions: number; completedSessions: number; completionRate: number; couponIssuedFromGame: number; gameToConversionRate: number };
+  game: {
+    totalSessions: number;
+    completedSessions: number;
+    completionRate: number;
+    couponIssuedFromGame: number;
+    couponUpdatesFromGame?: number;
+    gameToConversionRate: number;
+  };
   funnel: Array<{ label: string; value: number }>;
   charts: { issuedByDay: Array<{ date: string; count: number }>; redeemedByDay: Array<{ date: string; count: number }> };
   recentRedeems: Array<{ id: number; action_type: string; store_id: string | null; created_at: string }>;
@@ -549,14 +556,20 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
       />
       {loading || !data ? <LoadingCard /> : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <KpiCard
-              label="Coupons Issued"
+              label="New Coupons Created"
               value={String(data.coupons.issued)}
               sub={data.coupons.issuanceLimit
                 ? `${data.coupons.issuanceLimit.current}/${data.coupons.issuanceLimit.max} ${data.coupons.issuanceLimit.type} limit (${data.coupons.issuanceLimit.percentUsed}%)`
-                : "Cumulative"}
+                : "Actual coupon records"}
               color={undefined}
+            />
+            <KpiCard
+              label="Coupon Upgrades"
+              value={String(data.game.couponUpdatesFromGame ?? 0)}
+              sub="Existing coupon improved"
+              color="green"
             />
             <KpiCard label="Coupons Used" value={String(data.coupons.redeemed)} sub={`Usage rate ${data.coupons.redeemRate}%`} color="green" />
             <KpiCard
@@ -565,11 +578,21 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
               sub={data.coupons.issuanceLimit ? `${data.coupons.issuanceLimit.type} supply` : "No limit configured"}
               color="orange"
             />
-            <KpiCard label={hasFilter ? "Game Plays" : "Game Plays (14 days)"} value={String(data.game.totalSessions)} sub={`${data.game.couponIssuedFromGame} coupon wins`} />
+            <KpiCard label={hasFilter ? "Game Plays" : "Game Plays (14 days)"} value={String(data.game.totalSessions)} sub={`${data.game.couponIssuedFromGame} reward wins`} />
+          </div>
+
+          <div className="mt-3 grid gap-2 text-xs font-semibold text-[#8f6870] md:grid-cols-2 xl:grid-cols-4">
+            <p><span className="font-black text-[#5b343d]">New Coupons Created</span> means coupon records newly added to customer wallets.</p>
+            <p><span className="font-black text-[#5b343d]">Coupon Upgrades</span> means an existing active coupon was improved to a higher reward.</p>
+            <p><span className="font-black text-[#5b343d]">Reward Won</span> means a game earned a coupon reward, including new coupons and upgrades.</p>
+            <p><span className="font-black text-[#5b343d]">Coupons Used</span> means coupons redeemed by staff at the store.</p>
           </div>
 
           <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
             <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Coupon Flow</p>
+            <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+              Reward Won is not redemption. It counts game sessions that earned a coupon reward; Coupon Redeemed counts coupons actually used in store.
+            </p>
             <div className="mt-5 flex items-end gap-2 overflow-x-auto pb-2">
               {data.funnel.map((step, i) => {
                 const max = data.funnel[0]?.value ?? 1;
@@ -1284,7 +1307,7 @@ function GameSection({ data, loading, filter, onFilterChange, onRefresh }: {
                   <span className="font-black text-[#4f2832]">{s.score}pts</span>
                   <span className="text-xs text-[#9a6f75]">{s.nickname_key ?? "Anonymous"}</span>
                   <span className="text-xs text-[#9a6f75]">{s.mode}</span>
-                  {s.coupon_issued && <span className="rounded-full bg-[#e6f9ee] px-2 py-0.5 text-[10px] font-black text-[#2a8a50]">Coupon Issued</span>}
+                  {s.coupon_issued && <span className="rounded-full bg-[#e6f9ee] px-2 py-0.5 text-[10px] font-black text-[#2a8a50]">Reward Won</span>}
                   <span className="text-xs text-[#c4a0ae]">{formatDateTime(s.created_at)}</span>
                 </div>
               ))}

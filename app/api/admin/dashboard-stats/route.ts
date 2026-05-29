@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
       .limit(5000);
     let sessionsQuery = supabase
       .from("game_sessions")
-      .select("id,score,coupon_issued,completed,created_at");
+      .select("id,score,coupon_issued,coupon_upgraded,completed,created_at");
     let redeemSuccessLogsQuery = supabase
       .from("redeem_logs")
       .select("id,action_type,created_at")
@@ -185,6 +185,8 @@ export async function GET(req: NextRequest) {
     const totalSessions = sessions.length;
     const completedSessions = sessions.filter((s) => s.completed).length;
     const couponIssuedFromGame = sessions.filter((s) => s.coupon_issued).length;
+    const recordedCouponUpgrades = sessions.filter((s) => s.coupon_upgraded).length;
+    const couponUpdatesFromGame = Math.max(recordedCouponUpgrades, couponIssuedFromGame - issued);
     const completionRate = totalSessions > 0
       ? Math.round((completedSessions / totalSessions) * 100)
       : 0;
@@ -196,7 +198,7 @@ export async function GET(req: NextRequest) {
     const funnel = [
       { label: "Game Started", value: totalSessions },
       { label: "Game Completed", value: completedSessions },
-      { label: "Coupon Issued", value: couponIssuedFromGame },
+      { label: "Reward Won", value: couponIssuedFromGame },
       { label: "Coupon Redeemed", value: redeemed },
     ];
 
@@ -208,7 +210,7 @@ export async function GET(req: NextRequest) {
         endDate: dateRange?.endDate ?? null,
       },
       coupons: { issued, redeemed, expired, active, redeemRate, issuanceLimit: issuanceLimitWithPercent },
-      game: { totalSessions, completedSessions, completionRate, couponIssuedFromGame, gameToConversionRate },
+      game: { totalSessions, completedSessions, completionRate, couponIssuedFromGame, couponUpdatesFromGame, gameToConversionRate },
       funnel,
       charts: {
         issuedByDay: dateRange

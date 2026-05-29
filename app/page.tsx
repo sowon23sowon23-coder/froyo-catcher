@@ -1424,6 +1424,7 @@ export default function Page() {
                       playTimeSec,
                       completed: true,
                       couponIssued: !!issuedCoupon,
+                      couponUpgraded: issuedCoupon?.upgraded === true,
                       couponRewardType: issuedCoupon?.rewardType ?? null,
                       nicknameKey: nick.length >= 2 ? nick.toLowerCase() : null,
                     }),
