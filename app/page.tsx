@@ -1310,11 +1310,11 @@ export default function Page() {
       {bootLoading ? null : (
       <main
         className={`fixed inset-0 overflow-auto bg-[radial-gradient(circle_at_15%_5%,#ffffff_0%,#ffeef8_35%,#f8d5e8_100%)] flex justify-center p-1 sm:p-3 md:p-6 ${
-          phase === "game" ? "items-start sm:items-center" : "items-center"
+          phase === "game" || phase === "login" || phase === "switchAccount" ? "items-start sm:items-center" : "items-center"
         }`}
       >
         <div
-          className={`flex w-full ${phase === "game" ? "items-start sm:items-center" : "items-center"} ${
+          className={`flex w-full ${phase === "game" || phase === "login" || phase === "switchAccount" ? "items-start sm:items-center" : "items-center"} ${
             phase === "home"
               ? "max-w-[980px] gap-4 lg:justify-center"
               : "max-w-[430px] justify-center"

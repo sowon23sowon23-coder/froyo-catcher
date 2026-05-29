@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FocusEvent } from "react";
 import { type EntryContactType } from "../lib/entry";
 
 export type LoginPayload = {
@@ -46,10 +46,33 @@ export default function LoginScreen({
   const [loginMode, setLoginMode] = useState<"existing" | "new">("existing");
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
+  const focusTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     setNickname(initialNickname);
   }, [initialNickname]);
+
+  useEffect(
+    () => () => {
+      if (focusTimeoutRef.current !== null) {
+        clearTimeout(focusTimeoutRef.current);
+      }
+    },
+    []
+  );
+
+  const handleInputFocus = (event: FocusEvent<HTMLInputElement>) => {
+    setInputFocused(true);
+    if (focusTimeoutRef.current !== null) {
+      clearTimeout(focusTimeoutRef.current);
+    }
+    const target = event.currentTarget;
+    focusTimeoutRef.current = window.setTimeout(() => {
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      focusTimeoutRef.current = null;
+    }, 180);
+  };
 
   const buildPayload = (): LoginPayload | null => {
     const trimmed = nickname.trim();
@@ -80,17 +103,17 @@ export default function LoginScreen({
   };
 
   return (
-    <main className="flex min-h-[70vh] items-center p-4 sm:p-5">
+    <main className="flex min-h-[100dvh] items-start overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 sm:min-h-[70vh] sm:items-center sm:p-5">
       <div className="mx-auto w-full max-w-md">
         <section className="w-full overflow-hidden rounded-[1.8rem] border border-[var(--yl-card-border)] bg-white/95 shadow-[0_20px_48px_rgba(150,9,83,0.2)] backdrop-blur-sm">
-          <div className="border-b border-[var(--yl-card-border)] bg-[linear-gradient(135deg,#fff7fb,#ffe8f4)] px-5 py-5 sm:px-6">
+          <div className="border-b border-[var(--yl-card-border)] bg-[linear-gradient(135deg,#fff7fb,#ffe8f4)] px-5 py-4 sm:px-6 sm:py-5">
             <img
               src="/yogurtland-logo.png"
               alt="Yogurtland"
-              className="h-8 w-auto"
+              className="h-7 w-auto sm:h-8"
               draggable={false}
             />
-            <h1 className="mt-1 text-[2rem] font-black leading-[1.05] text-[var(--yl-ink-strong)]">Froyo Catcher</h1>
+            <h1 className="mt-1 text-[1.8rem] font-black leading-[1.05] text-[var(--yl-ink-strong)] sm:text-[2rem]">Froyo Catcher</h1>
             <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
               {mode === "switch"
                 ? "Choose whether to use an existing ID or create a new one."
@@ -103,10 +126,10 @@ export default function LoginScreen({
             ) : null}
           </div>
 
-          <div className="space-y-4 p-5 sm:p-6">
-            <div className="rounded-2xl border border-[#f3bad5] bg-[#fff2f8] p-4 text-sm text-[var(--yl-ink-strong)]">
+          <div className="space-y-3 p-4 sm:space-y-4 sm:p-6">
+            <div className={`${inputFocused ? "hidden sm:block" : ""} rounded-2xl border border-[#f3bad5] bg-[#fff2f8] p-3 text-sm text-[var(--yl-ink-strong)] sm:p-4`}>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Login Guide</p>
-              <div className="mt-3 space-y-2">
+              <div className="mt-2 space-y-2 sm:mt-3">
                 <div>
                   <p className="font-black text-[var(--yl-primary-deep)]">Existing Users</p>
                   <p className="mt-0.5 font-semibold text-[var(--yl-ink-muted)]">
@@ -156,6 +179,8 @@ export default function LoginScreen({
               <input
                 id="login-nickname"
                 value={nickname}
+                onFocus={handleInputFocus}
+                onBlur={() => setInputFocused(false)}
                 onChange={(e) => {
                   setNickname(e.target.value);
                   if (nicknameError) setNicknameError(null);
@@ -177,6 +202,8 @@ export default function LoginScreen({
               <input
                 id="login-pin"
                 value={pin}
+                onFocus={handleInputFocus}
+                onBlur={() => setInputFocused(false)}
                 onChange={(e) => {
                   setPin(e.target.value.replace(/\D/g, "").slice(0, 4));
                   if (pinError) setPinError(null);
