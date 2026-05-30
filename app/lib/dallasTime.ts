@@ -1,6 +1,7 @@
-export const GAME_TIME_ZONE = "America/Chicago";
+export const GAME_TIME_ZONE = "America/Los_Angeles";
+export const GAME_TIME_ZONE_LABEL = "California time";
 
-function getDallasParts(date: Date) {
+export function getGameTimeParts(date: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: GAME_TIME_ZONE,
     year: "numeric",
@@ -24,28 +25,64 @@ function getDallasParts(date: Date) {
 }
 
 function getTimeZoneOffsetMs(date: Date) {
-  const parts = getDallasParts(date);
+  const parts = getGameTimeParts(date);
   const zonedAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
   return zonedAsUtc - date.getTime();
 }
 
-export function dallasWallTimeToUtc(year: number, month: number, day: number, hour = 0, minute = 0, second = 0) {
+export function gameWallTimeToUtc(year: number, month: number, day: number, hour = 0, minute = 0, second = 0) {
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second);
   const firstPass = new Date(utcGuess - getTimeZoneOffsetMs(new Date(utcGuess)));
   return new Date(utcGuess - getTimeZoneOffsetMs(firstPass));
 }
 
-export function getDallasDayKey(date = new Date()) {
-  const parts = getDallasParts(date);
+export function getGameDayKey(date = new Date()) {
+  const parts = getGameTimeParts(date);
   return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
 }
 
-export function getDallasDayStart(date = new Date()) {
-  const parts = getDallasParts(date);
-  return dallasWallTimeToUtc(parts.year, parts.month, parts.day);
+export function getGameDayStart(date = new Date()) {
+  const parts = getGameTimeParts(date);
+  return gameWallTimeToUtc(parts.year, parts.month, parts.day);
 }
 
-export function getNextDallasDayStart(date = new Date()) {
-  const parts = getDallasParts(date);
-  return dallasWallTimeToUtc(parts.year, parts.month, parts.day + 1);
+export function getNextGameDayStart(date = new Date()) {
+  const parts = getGameTimeParts(date);
+  return gameWallTimeToUtc(parts.year, parts.month, parts.day + 1);
 }
+
+export function getGameDateRange(startDate: string, endDate: string) {
+  const startParts = startDate.split("-").map(Number);
+  const endParts = endDate.split("-").map(Number);
+  if (startParts.length !== 3 || endParts.length !== 3) return null;
+  const [startYear, startMonth, startDay] = startParts;
+  const [endYear, endMonth, endDay] = endParts;
+  if (!startYear || !startMonth || !startDay || !endYear || !endMonth || !endDay) return null;
+  const start = gameWallTimeToUtc(startYear, startMonth, startDay);
+  const end = gameWallTimeToUtc(endYear, endMonth, endDay + 1);
+  if (start.getTime() >= end.getTime()) return null;
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+export function buildGameRangeDateKeys(startDate: string, endDate: string) {
+  const startParts = startDate.split("-").map(Number);
+  const endParts = endDate.split("-").map(Number);
+  const [startYear, startMonth, startDay] = startParts;
+  const [endYear, endMonth, endDay] = endParts;
+  if (!startYear || !startMonth || !startDay || !endYear || !endMonth || !endDay) return [];
+
+  const keys: string[] = [];
+  let cursor = gameWallTimeToUtc(startYear, startMonth, startDay);
+  const end = gameWallTimeToUtc(endYear, endMonth, endDay);
+  while (cursor.getTime() <= end.getTime() && keys.length < 62) {
+    keys.push(getGameDayKey(cursor));
+    const parts = getGameTimeParts(cursor);
+    cursor = gameWallTimeToUtc(parts.year, parts.month, parts.day + 1);
+  }
+  return keys;
+}
+
+export const dallasWallTimeToUtc = gameWallTimeToUtc;
+export const getDallasDayKey = getGameDayKey;
+export const getDallasDayStart = getGameDayStart;
+export const getNextDallasDayStart = getNextGameDayStart;

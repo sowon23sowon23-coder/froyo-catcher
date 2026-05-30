@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow } from "../../../lib/couponData";
 import { requirePortalRole } from "../../../lib/portalAuth";
+import { buildGameRangeDateKeys, getGameDateRange, getGameDayKey, getGameTimeParts, gameWallTimeToUtc } from "../../../lib/dallasTime";
 
 export const dynamic = "force-dynamic";
 
@@ -22,38 +23,29 @@ function getDateRange(req: NextRequest) {
   const rangeEnd = mode === "range" ? endParam : dateParam;
   if (!rangeStart || !rangeEnd) return null;
 
-  const start = new Date(`${rangeStart}T00:00:00.000Z`);
-  const end = new Date(`${rangeEnd}T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-  end.setUTCDate(end.getUTCDate() + 1);
-  if (start.getTime() >= end.getTime()) return null;
+  const range = getGameDateRange(rangeStart, rangeEnd);
+  if (!range) return null;
 
   return {
     mode: mode === "range" ? "range" : "day",
     date: mode === "range" ? null : rangeStart,
     startDate: rangeStart,
     endDate: rangeEnd,
-    startIso: start.toISOString(),
-    endIso: end.toISOString(),
+    startIso: range.startIso,
+    endIso: range.endIso,
   };
 }
 
 function buildRangeChartSeries(startDate: string, endDate: string, timestamps: string[]) {
   const counts = new Map<string, number>();
   for (const timestamp of timestamps) {
-    const key = new Date(timestamp).toISOString().slice(0, 10);
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) continue;
+    const key = getGameDayKey(date);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
-  const series: Array<{ date: string; count: number }> = [];
-  const cursor = new Date(`${startDate}T00:00:00.000Z`);
-  const end = new Date(`${endDate}T00:00:00.000Z`);
-  while (cursor.getTime() <= end.getTime() && series.length < 62) {
-    const key = cursor.toISOString().slice(0, 10);
-    series.push({ date: key, count: counts.get(key) ?? 0 });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return series;
+  return buildGameRangeDateKeys(startDate, endDate).map((date) => ({ date, count: counts.get(date) ?? 0 }));
 }
 
 export async function GET(req: NextRequest) {
@@ -152,14 +144,15 @@ export async function GET(req: NextRequest) {
     if (dateRange) {
       sessionsByDay = buildRangeChartSeries(dateRange.startDate, dateRange.endDate, rows.map((row) => String(row.created_at)));
     } else {
-      const now = new Date();
+      const todayParts = getGameTimeParts(new Date());
       for (let i = 13; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        dayCounts.set(d.toISOString().slice(0, 10), 0);
+        const d = gameWallTimeToUtc(todayParts.year, todayParts.month, todayParts.day - i);
+        dayCounts.set(getGameDayKey(d), 0);
       }
       for (const row of rows) {
-        const day = String(row.created_at).slice(0, 10);
+        const date = new Date(String(row.created_at));
+        if (Number.isNaN(date.getTime())) continue;
+        const day = getGameDayKey(date);
         if (dayCounts.has(day)) dayCounts.set(day, (dayCounts.get(day) ?? 0) + 1);
       }
       sessionsByDay = Array.from(dayCounts.entries()).map(([date, count]) => ({ date, count }));

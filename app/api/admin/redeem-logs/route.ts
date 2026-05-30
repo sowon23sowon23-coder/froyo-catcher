@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getServiceSupabaseOrThrow } from "../../../lib/couponData";
 import { requirePortalRole } from "../../../lib/portalAuth";
+import { getGameDateRange } from "../../../lib/dallasTime";
 
 type WalletCouponRow = {
   id: number;
@@ -40,13 +41,10 @@ function getDateRange(req: NextRequest) {
   const rangeEnd = mode === "range" ? endParam : dateParam;
   if (!rangeStart || !rangeEnd) return null;
 
-  const start = new Date(`${rangeStart}T00:00:00.000Z`);
-  const end = new Date(`${rangeEnd}T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-  end.setUTCDate(end.getUTCDate() + 1);
-  if (start.getTime() >= end.getTime()) return null;
+  const range = getGameDateRange(rangeStart, rangeEnd);
+  if (!range) return null;
 
-  return { startIso: start.toISOString(), endIso: end.toISOString() };
+  return { startIso: range.startIso, endIso: range.endIso };
 }
 
 function getWalletStatus(row: Pick<WalletCouponRow, "status" | "expires_at" | "redeemed_at">) {

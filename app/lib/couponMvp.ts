@@ -1,4 +1,5 @@
 ﻿import { randomBytes } from "crypto";
+import { getGameDayKey, getGameTimeParts, gameWallTimeToUtc } from "./dallasTime";
 
 export const COUPON_SCORE_THRESHOLD = 30;
 export const DEFAULT_DISCOUNT_AMOUNT = 3000;
@@ -100,19 +101,19 @@ export function buildRedeemUrl(baseUrl: string, code: string) {
 export function buildChartSeries(days: number, rows: string[]) {
   const labels: string[] = [];
   const points = new Map<string, number>();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayParts = getGameTimeParts(new Date());
 
   for (let offset = days - 1; offset >= 0; offset -= 1) {
-    const current = new Date(today);
-    current.setDate(today.getDate() - offset);
-    const key = current.toISOString().slice(0, 10);
+    const current = gameWallTimeToUtc(todayParts.year, todayParts.month, todayParts.day - offset);
+    const key = getGameDayKey(current);
     labels.push(key);
     points.set(key, 0);
   }
 
   for (const value of rows) {
-    const key = value.slice(0, 10);
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) continue;
+    const key = getGameDayKey(date);
     if (points.has(key)) {
       points.set(key, (points.get(key) || 0) + 1);
     }

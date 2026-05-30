@@ -4,7 +4,7 @@ import { getServiceSupabaseOrThrow } from "../../../lib/couponData";
 import { buildChartSeries, getCouponStatus } from "../../../lib/couponMvp";
 import { COUPON_CONFIG_KEYS, type CouponIssuanceLimitConfig } from "../../../lib/coupons";
 import { requirePortalRole } from "../../../lib/portalAuth";
-import { getDallasDayStart } from "../../../lib/dallasTime";
+import { buildGameRangeDateKeys, getGameDateRange, getGameDayKey, getGameDayStart } from "../../../lib/dallasTime";
 
 export const dynamic = "force-dynamic";
 
@@ -25,39 +25,29 @@ function getDateRange(req: NextRequest) {
   const rangeEnd = mode === "range" ? endParam : dateParam;
   if (!rangeStart || !rangeEnd) return null;
 
-  const start = new Date(`${rangeStart}T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime())) return null;
-  const end = new Date(`${rangeEnd}T00:00:00.000Z`);
-  if (Number.isNaN(end.getTime())) return null;
-  end.setUTCDate(end.getUTCDate() + 1);
-  if (start.getTime() >= end.getTime()) return null;
+  const range = getGameDateRange(rangeStart, rangeEnd);
+  if (!range) return null;
 
   return {
     mode: mode === "range" ? "range" : "day",
     date: mode === "range" ? null : rangeStart,
     startDate: rangeStart,
     endDate: rangeEnd,
-    startIso: start.toISOString(),
-    endIso: end.toISOString(),
+    startIso: range.startIso,
+    endIso: range.endIso,
   };
 }
 
 function buildRangeChartSeries(startDate: string, endDate: string, timestamps: string[]) {
   const counts = new Map<string, number>();
   for (const timestamp of timestamps) {
-    const key = new Date(timestamp).toISOString().slice(0, 10);
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) continue;
+    const key = getGameDayKey(date);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
-  const series: Array<{ date: string; count: number }> = [];
-  const cursor = new Date(`${startDate}T00:00:00.000Z`);
-  const end = new Date(`${endDate}T00:00:00.000Z`);
-  while (cursor.getTime() <= end.getTime() && series.length < 62) {
-    const key = cursor.toISOString().slice(0, 10);
-    series.push({ date: key, count: counts.get(key) ?? 0 });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return series;
+  return buildGameRangeDateKeys(startDate, endDate).map((date) => ({ date, count: counts.get(date) ?? 0 }));
 }
 
 function applySessionDateRange<T extends { gte: (column: string, value: string) => T; lt: (column: string, value: string) => T }>(
@@ -198,7 +188,7 @@ export async function GET(req: NextRequest) {
     const rawIssuanceLimit = couponConfigResult.data?.value as Partial<CouponIssuanceLimitConfig> | null | undefined;
     const limitType = rawIssuanceLimit?.type === "campaign" ? "campaign" : rawIssuanceLimit?.type === "daily" ? "daily" : null;
     const limitMax = Number(rawIssuanceLimit?.max);
-    const todayMidnightDallas = getDallasDayStart();
+    const todayMidnightGame = getGameDayStart();
     const issuanceLimit = limitType && Number.isInteger(limitMax) && limitMax > 0
       ? {
           type: limitType,
@@ -207,7 +197,7 @@ export async function GET(req: NextRequest) {
             ? issued
             : coupons.filter((coupon) => {
                 const createdAt = new Date(String(coupon.created_at || "")).getTime();
-                return Number.isFinite(createdAt) && createdAt >= todayMidnightDallas.getTime();
+                return Number.isFinite(createdAt) && createdAt >= todayMidnightGame.getTime();
               }).length,
           stopOnReach: rawIssuanceLimit?.stopOnReach !== false,
         }

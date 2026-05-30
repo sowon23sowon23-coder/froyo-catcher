@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { type WalletCoupon } from "../lib/coupons";
-import { getDallasDayKey, getDallasDayStart, getNextDallasDayStart } from "../lib/dallasTime";
+import { GAME_TIME_ZONE_LABEL, getDallasDayKey, getDallasDayStart, getNextDallasDayStart } from "../lib/dallasTime";
 import { readLocalWalletCoupons, writeLocalWalletCoupons } from "../lib/walletLocalStorage";
 
 const WALLET_REFRESH_INTERVAL_MS = 10000;
@@ -302,7 +302,7 @@ function CouponCard({
                   Locked for today
                 </p>
                 <p className="mt-1 text-xs font-semibold text-[#4338ca]">
-                  You've already used a coupon today. This one is saved and will be ready to use after midnight Dallas time.
+                  You&apos;ve already used a coupon today. This one is saved and will be ready to use after midnight {GAME_TIME_ZONE_LABEL}.
                 </p>
               </div>
             </div>

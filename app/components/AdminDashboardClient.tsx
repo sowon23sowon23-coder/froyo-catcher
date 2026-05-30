@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import QRCode from "qrcode";
 import { formatCurrency, formatDateTime } from "../lib/couponMvp";
-import { dallasWallTimeToUtc } from "../lib/dallasTime";
+import { GAME_TIME_ZONE, GAME_TIME_ZONE_LABEL, dallasWallTimeToUtc } from "../lib/dallasTime";
 import { resolveGameAccessState, type GameAccessConfig, type GameAccessState } from "../lib/gameAccess";
 
 // ??? Types ???????????????????????????????????????????????????????????????????
@@ -538,6 +538,7 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
   onFilterChange: (value: DashboardFilter) => void;
   onRefresh: () => void;
 }) {
+  const [clockNow, setClockNow] = useState(() => new Date());
   const hasFilter = filter.mode === "day" ? Boolean(filter.date) : filter.mode === "range" ? Boolean(filter.startDate && filter.endDate) : false;
   const rangeLabel =
     filter.mode === "day" && filter.date
@@ -546,13 +547,25 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
         ? `Date range: ${filter.startDate} to ${filter.endDate}`
         : "Latest operational snapshot";
 
+  useEffect(() => {
+    const id = window.setInterval(() => setClockNow(new Date()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
   return (
     <SectionShell title="Dashboard" subtitle={rangeLabel} onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+      <div className="mb-5 rounded-[1.6rem] border border-[#f0ddd8] bg-white px-4 py-3">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Dashboard Time Basis</p>
+        <p className="mt-1 text-lg font-black text-[#4f2832]">{formatGameClock(clockNow)}</p>
+        <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+          Date filters, daily limits, today scores, and chart buckets use {GAME_TIME_ZONE_LABEL}.
+        </p>
+      </div>
       <PeriodFilter
         filter={filter}
         loading={loading}
         onFilterChange={onFilterChange}
-        description="Choose a single day or date range to review coupon usage, remaining campaign supply, game activity, and recent store activity."
+        description={`Choose a single day or date range in ${GAME_TIME_ZONE_LABEL} to review coupon usage, remaining campaign supply, game activity, and recent store activity.`}
       />
       {loading || !data ? <LoadingCard /> : (
         <>
@@ -615,11 +628,19 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
               <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">{hasFilter ? "Coupon Issuance" : "Daily Coupon Issuance (14 Days)"}</p>
-              <MiniBarChart series={data.charts.issuedByDay} color="bg-[#ff9a76]" />
+              <MiniBarChart
+                series={data.charts.issuedByDay}
+                color="bg-[#ff9a76]"
+                emptyText={hasFilter ? "No coupons were created in this selected period." : "No coupons were created in the last 14 days."}
+              />
             </div>
             <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
               <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">{hasFilter ? "Coupon Redemption" : "Daily Coupon Redemption (14 Days)"}</p>
-              <MiniBarChart series={data.charts.redeemedByDay} color="bg-[#46b874]" />
+              <MiniBarChart
+                series={data.charts.redeemedByDay}
+                color="bg-[#46b874]"
+                emptyText={hasFilter ? "No coupons were redeemed in this selected period." : "No coupons were redeemed in the last 14 days."}
+              />
             </div>
           </div>
 
@@ -792,8 +813,8 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
       .map((tier) => `${tier.threshold}+ pts: ${tier.discountPercent}%`)
       .join(", ");
     const policyWindow = limit.type === "daily"
-      ? `Daily window: ${limit.dailyStartTime || "00:00"} ~ ${limit.dailyEndTime || "24:00"} Dallas time`
-      : `Campaign: ${formatCampaignPeriod(limit.campaignStartDate, limit.campaignStartTime)} ~ ${formatCampaignPeriod(limit.campaignEndDate, limit.campaignEndTime)} Dallas time`;
+      ? `Daily window: ${limit.dailyStartTime || "00:00"} ~ ${limit.dailyEndTime || "24:00"} ${GAME_TIME_ZONE_LABEL}`
+      : `Campaign: ${formatCampaignPeriod(limit.campaignStartDate, limit.campaignStartTime)} ~ ${formatCampaignPeriod(limit.campaignEndDate, limit.campaignEndTime)} ${GAME_TIME_ZONE_LABEL}`;
     const confirmed = window.confirm([
       "Save these coupon settings?",
       `Type: ${limit.type}`,
@@ -1058,7 +1079,7 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
         ? "Ended"
         : "Closed";
   const statusSub = current.mode === "scheduled"
-    ? `${formatCampaignPeriod(current.startDate, current.startTime)} ~ ${formatCampaignPeriod(current.endDate, current.endTime)} Dallas time`
+    ? `${formatCampaignPeriod(current.startDate, current.startTime)} ~ ${formatCampaignPeriod(current.endDate, current.endTime)} ${GAME_TIME_ZONE_LABEL}`
     : current.mode === "closed"
       ? "Players can still open wallet and redeem active coupons."
       : "Players can start the game normally.";
@@ -1068,7 +1089,7 @@ function GameSettingsSection({ config, state, loading, saving, onChange, onSave,
       `Mode: ${current.mode}`,
       `Status after save: ${resolveGameAccessState(current).isOpen ? "Open" : "Closed"}`,
       current.mode === "scheduled"
-        ? `Schedule: ${formatCampaignPeriod(current.startDate, current.startTime)} ~ ${formatCampaignPeriod(current.endDate, current.endTime)} Dallas time`
+        ? `Schedule: ${formatCampaignPeriod(current.startDate, current.startTime)} ~ ${formatCampaignPeriod(current.endDate, current.endTime)} ${GAME_TIME_ZONE_LABEL}`
         : null,
     ].filter(Boolean).join("\n"));
     if (confirmed) onSave(current);
@@ -1660,18 +1681,41 @@ function LoadingCard() {
   );
 }
 
-function MiniBarChart({ series, color }: { series: Array<{ date: string; count: number }>; color: string }) {
+function MiniBarChart({ series, color, emptyText }: { series: Array<{ date: string; count: number }>; color: string; emptyText?: string }) {
   const max = Math.max(...series.map((s) => s.count), 1);
+  const hasData = series.some((s) => s.count > 0);
   return (
-    <div className="mt-4 flex h-36 items-end gap-1.5">
-      {series.map((item) => (
-        <div key={item.date} className="flex flex-1 flex-col items-center justify-end gap-1">
-          <div className={`w-full rounded-t-lg ${color}`} style={{ height: `${Math.max(4, (item.count / max) * 100)}%` }} />
-          <span className="text-[9px] font-black text-[#8a6870]">{item.date.slice(5)}</span>
+    <div className="relative mt-4 flex h-36 items-end gap-1.5">
+      {!hasData && emptyText ? (
+        <div className="pointer-events-none absolute inset-x-0 top-8 text-center text-xs font-bold text-[#b79aa2]">
+          {emptyText}
         </div>
-      ))}
+      ) : null}
+      {series.map((item) => {
+        const barHeight = item.count > 0 ? Math.max(4, (item.count / max) * 100) : 0;
+        return (
+          <div key={item.date} className="flex flex-1 flex-col items-center justify-end gap-1">
+            <div className={`w-full rounded-t-lg ${color}`} style={{ height: `${barHeight}%` }} />
+            <span className="text-[9px] font-black text-[#8a6870]">{item.date.slice(5)}</span>
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+function formatGameClock(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: GAME_TIME_ZONE,
+    weekday: "short",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZoneName: "short",
+  }).format(date);
 }
 
 

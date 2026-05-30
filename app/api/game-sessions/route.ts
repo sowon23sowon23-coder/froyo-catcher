@@ -39,20 +39,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "game_closed", message: gameAccess.message }, { status: 403 });
     }
 
-    await supabase.from("game_sessions").insert([
+    const row = {
+      session_id: sessionId,
+      entry_id: body.entryId ? Number(body.entryId) : null,
+      nickname_key: body.nicknameKey ? String(body.nicknameKey).toLowerCase().trim() : null,
+      mode,
+      score,
+      play_time_sec: body.playTimeSec ? Number(body.playTimeSec) : null,
+      completed: body.completed !== false,
+      coupon_issued: body.couponIssued === true,
+      coupon_reward_type: body.couponRewardType ? String(body.couponRewardType) : null,
+    };
+    const inserted = await supabase.from("game_sessions").insert([
       {
-        session_id: sessionId,
-        entry_id: body.entryId ? Number(body.entryId) : null,
-        nickname_key: body.nicknameKey ? String(body.nicknameKey).toLowerCase().trim() : null,
-        mode,
-        score,
-        play_time_sec: body.playTimeSec ? Number(body.playTimeSec) : null,
-        completed: body.completed !== false,
-        coupon_issued: body.couponIssued === true,
+        ...row,
         coupon_upgraded: body.couponUpgraded === true,
-        coupon_reward_type: body.couponRewardType ? String(body.couponRewardType) : null,
       },
     ]);
+
+    if (inserted.error) {
+      const message = String(inserted.error.message || "");
+      const missingCouponUpgradedColumn = message.includes("coupon_upgraded");
+      if (!missingCouponUpgradedColumn) {
+        console.error("game_sessions insert failed", inserted.error);
+        return NextResponse.json({ error: "Failed to record session." }, { status: 500 });
+      }
+
+      const fallbackInserted = await supabase.from("game_sessions").insert([row]);
+      if (fallbackInserted.error) {
+        console.error("game_sessions fallback insert failed", fallbackInserted.error);
+        return NextResponse.json({ error: "Failed to record session." }, { status: 500 });
+      }
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
