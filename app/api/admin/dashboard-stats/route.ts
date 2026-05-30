@@ -60,6 +60,15 @@ function buildRangeChartSeries(startDate: string, endDate: string, timestamps: s
   return series;
 }
 
+function applySessionDateRange<T extends { gte: (column: string, value: string) => T; lt: (column: string, value: string) => T }>(
+  query: T,
+  startIso: string,
+  endIso?: string
+) {
+  const ranged = query.gte("created_at", startIso);
+  return endIso ? ranged.lt("created_at", endIso) : ranged;
+}
+
 export async function GET(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) return NextResponse.json({ error: "Admin login required." }, { status: 401 });
@@ -78,9 +87,6 @@ export async function GET(req: NextRequest) {
       .select("id,status,redeemed_at,created_at")
       .order("created_at", { ascending: false })
       .limit(5000);
-    let sessionsQuery = supabase
-      .from("game_sessions")
-      .select("id,score,coupon_issued,coupon_upgraded,completed,created_at");
     let redeemSuccessLogsQuery = supabase
       .from("redeem_logs")
       .select("id,action_type,created_at")
@@ -92,20 +98,54 @@ export async function GET(req: NextRequest) {
       .select("id,action_type,store_id,created_at")
       .order("created_at", { ascending: false })
       .limit(5);
+    const sessionStartIso = dateRange
+      ? dateRange.startIso
+      : new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const sessionEndIso = dateRange?.endIso;
+    const totalSessionsQuery = applySessionDateRange(
+      supabase.from("game_sessions").select("id", { count: "exact", head: true }),
+      sessionStartIso,
+      sessionEndIso
+    );
+    const completedSessionsQuery = applySessionDateRange(
+      supabase.from("game_sessions").select("id", { count: "exact", head: true }).eq("completed", true),
+      sessionStartIso,
+      sessionEndIso
+    );
+    const couponWonSessionsQuery = applySessionDateRange(
+      supabase.from("game_sessions").select("id", { count: "exact", head: true }).eq("coupon_issued", true),
+      sessionStartIso,
+      sessionEndIso
+    );
+    const couponUpgradedSessionsQuery = applySessionDateRange(
+      supabase.from("game_sessions").select("id", { count: "exact", head: true }).eq("coupon_upgraded", true),
+      sessionStartIso,
+      sessionEndIso
+    );
 
     if (dateRange) {
       couponsQuery = couponsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
-      sessionsQuery = sessionsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
       redeemSuccessLogsQuery = redeemSuccessLogsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
       redeemLogsQuery = redeemLogsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
-    } else {
-      sessionsQuery = sessionsQuery.gte("created_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString());
     }
 
-    const [couponsResult, redeemedWalletResult, sessionsResult, redeemSuccessLogsResult, redeemLogsResult, couponConfigResult] = await Promise.all([
+    const [
+      couponsResult,
+      redeemedWalletResult,
+      totalSessionsResult,
+      completedSessionsResult,
+      couponWonSessionsResult,
+      couponUpgradedSessionsResult,
+      redeemSuccessLogsResult,
+      redeemLogsResult,
+      couponConfigResult,
+    ] = await Promise.all([
       couponsQuery,
       redeemedWalletQuery,
-      sessionsQuery,
+      totalSessionsQuery,
+      completedSessionsQuery,
+      couponWonSessionsQuery,
+      couponUpgradedSessionsQuery,
       redeemSuccessLogsQuery,
       redeemLogsQuery,
       supabase
@@ -116,7 +156,6 @@ export async function GET(req: NextRequest) {
     ]);
 
     const coupons = couponsResult.data ?? [];
-    const sessions = sessionsResult.data ?? [];
     const redeemedWalletRows = redeemedWalletResult.data ?? [];
     const legacyRedeemSuccessRows = redeemSuccessLogsResult.data ?? [];
 
@@ -182,10 +221,10 @@ export async function GET(req: NextRequest) {
       : null;
 
     // Game session stats
-    const totalSessions = sessions.length;
-    const completedSessions = sessions.filter((s) => s.completed).length;
-    const couponIssuedFromGame = sessions.filter((s) => s.coupon_issued).length;
-    const recordedCouponUpgrades = sessions.filter((s) => s.coupon_upgraded).length;
+    const totalSessions = totalSessionsResult.count ?? 0;
+    const completedSessions = completedSessionsResult.count ?? 0;
+    const couponIssuedFromGame = couponWonSessionsResult.count ?? 0;
+    const recordedCouponUpgrades = couponUpgradedSessionsResult.count ?? 0;
     const couponUpdatesFromGame = Math.max(recordedCouponUpgrades, couponIssuedFromGame - issued);
     const completionRate = totalSessions > 0
       ? Math.round((completedSessions / totalSessions) * 100)
