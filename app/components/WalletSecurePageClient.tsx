@@ -26,7 +26,7 @@ const COUPON_RULES = [
   "Coupons have no cash value and cannot be exchanged for cash or credit.",
   "Coupons are non-transferable, non-resaleable, and may not be shared.",
   "Lost, expired, or unused coupons will not be replaced or reissued.",
-  "Coupons must be redeemed in-store only and within the 24-hour validity period.",
+  "Coupons must be redeemed in-store only and within the 36-hour validity period.",
   "Coupons are valid on weighted items only.",
   "Excludes Swirl To-Go, online orders, third-party delivery, catering, and gift cards.",
   "Coupons are not valid with any other offer, discount, or promotion.",
@@ -529,7 +529,7 @@ function CouponPolicyCard() {
           <ul className="mb-4 list-inside list-disc space-y-1">
             <li>You can keep earning coupons and save them in your wallet.</li>
             <li>After using a coupon, the next coupon unlocks <span className="font-black text-[var(--yl-ink-strong)]">24 hours</span> later.</li>
-            <li>Each coupon expires <span className="font-black text-[var(--yl-ink-strong)]">24 hours</span> after it is issued.</li>
+            <li>Each coupon expires <span className="font-black text-[var(--yl-ink-strong)]">36 hours</span> after it is issued.</li>
           </ul>
 
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Redeeming at the Store</p>

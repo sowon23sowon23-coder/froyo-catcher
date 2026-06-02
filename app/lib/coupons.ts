@@ -11,7 +11,8 @@ export type CouponRewardDefinition = {
   description: string;
 };
 
-export const COUPON_EXPIRY_HOURS = 24;
+export const COUPON_EXPIRY_HOURS = 36;
+export const COUPON_REDEEM_COOLDOWN_HOURS = 24;
 
 export const COUPON_REWARDS: CouponRewardDefinition[] = [
   {
@@ -246,6 +247,12 @@ export function formatCouponLabel(rewardType: string | null | undefined) {
 export function getCouponExpiryIso(now = new Date()) {
   const expires = new Date(now.getTime() + COUPON_EXPIRY_HOURS * 60 * 60 * 1000);
   return expires.toISOString();
+}
+
+export function getCouponRedeemUnlockIso(redeemedAt: string | null | undefined) {
+  const redeemedMs = new Date(String(redeemedAt || "")).getTime();
+  if (!Number.isFinite(redeemedMs)) return null;
+  return new Date(redeemedMs + COUPON_REDEEM_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
 }
 
 export function isCouponExpired(expiresAt: string, now = Date.now()) {
