@@ -7,7 +7,7 @@ import HomeScreen from "./components/HomeScreen";
 import Game from "./components/Game";
 import CompleteBlockScreen from "./components/CompleteBlockScreen";
 import LeaderboardModal, { LeaderMode, LeaderRow } from "./components/LeaderboardModal";
-import { formatCouponLabel, resolveCouponReward, type CouponGameMode, type WalletCoupon } from "./lib/coupons";
+import { formatCouponLabel, resolveCouponReward, COUPON_REWARDS, type CouponGameMode, type WalletCoupon } from "./lib/coupons";
 import { COUPON_SCORE_THRESHOLD } from "./lib/couponMvp";
 import { supabase } from "./lib/supabaseClient";
 import { type EntryContactType } from "./lib/entry";
@@ -1145,7 +1145,7 @@ export default function Page() {
             : json.reason === "campaign_limit_reached"
               ? "All coupons for this campaign have been claimed."
               : json.reason === "user_daily_limit_reached"
-                ? "You've used all available coupons for today."
+              ? "You've already earned a coupon. Check My Wallet for its status."
               : json.message || json.reason || "Coupon could not be issued."
         );
       }
@@ -1454,10 +1454,14 @@ export default function Page() {
                       : formatCouponLabel(issuedCoupon.rewardType) !== "Coupon"
                         ? formatCouponLabel(issuedCoupon.rewardType)
                         : "Discount";
+                    const maxDiscount = COUPON_REWARDS[0].discountPercent;
+                    const canUpgrade = resolvedReward ? resolvedReward.discountPercent < maxDiscount : false;
                     setCouponNotice(
                       issuedCoupon.upgraded
                         ? `Your coupon has been upgraded to a ${percentLabel} discount!`
-                        : `${percentLabel} discount coupon is in My Wallet!`
+                        : canUpgrade
+                          ? `${percentLabel} coupon saved to My Wallet! Play again and score higher to upgrade it.`
+                          : `${percentLabel} discount coupon is in My Wallet!`
                     );
                   }
 

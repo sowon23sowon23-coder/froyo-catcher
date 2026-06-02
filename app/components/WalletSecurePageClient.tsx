@@ -6,6 +6,8 @@ import QRCode from "qrcode";
 import { InfoModal, ALL_INFO_CARDS } from "./InfoModal";
 
 import {
+  COUPON_REDEEM_COOLDOWN_HOURS,
+  COUPON_REWARDS,
   formatCouponExpiry,
   formatCouponLabel,
   getCouponFixedQrValue,
@@ -14,7 +16,6 @@ import {
   getWalletCouponStatus,
   type WalletCoupon,
 } from "../lib/coupons";
-import { getDallasDayKey, getDallasDayStart, getNextDallasDayStart } from "../lib/dallasTime";
 import { readLocalWalletCoupons, writeLocalWalletCoupons } from "../lib/walletLocalStorage";
 
 const WALLET_REFRESH_INTERVAL_MS = 10000;
@@ -39,6 +40,7 @@ type WalletResponse = {
   historyCoupons?: WalletCoupon[];
   canActivateToday?: boolean;
   nextIssuanceAt?: string | null;
+  nextRedeemAvailableAt?: string | null;
   error?: string;
 };
 
@@ -226,10 +228,6 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-function getMsUntilMidnight(): number {
-  return Math.max(0, getNextDallasDayStart().getTime() - Date.now());
-}
-
 function use24hCountdown(nextIssuanceAt: string | null) {
   const targetMs = nextIssuanceAt ? new Date(nextIssuanceAt).getTime() : null;
   const calc = () => (targetMs ? Math.max(0, targetMs - Date.now()) : 0);
@@ -245,6 +243,31 @@ function use24hCountdown(nextIssuanceAt: string | null) {
   const m = Math.floor((totalSecs % 3600) / 60);
   const s = totalSecs % 60;
   return { ms, formatted: `${pad(h)}:${pad(m)}:${pad(s)}` };
+}
+
+function getLatestRedeemUnlockIso(coupons: WalletCoupon[]) {
+  const latestRedeemedMs = coupons.reduce((latest, coupon) => {
+    if (coupon.status !== "redeemed" || !coupon.redeemedAt) return latest;
+    const redeemedMs = new Date(coupon.redeemedAt).getTime();
+    return Number.isFinite(redeemedMs) ? Math.max(latest, redeemedMs) : latest;
+  }, 0);
+
+  if (!latestRedeemedMs) return null;
+  const unlockMs = latestRedeemedMs + COUPON_REDEEM_COOLDOWN_HOURS * 60 * 60 * 1000;
+  return unlockMs > Date.now() ? new Date(unlockMs).toISOString() : null;
+}
+
+function formatUnlockDateTime(iso: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function formatExpiryDatetime(expiresAt: string) {
@@ -290,6 +313,21 @@ function CouponExpiryCountdown({ expiresAt }: { expiresAt: string }) {
   );
 }
 
+function CouponUnlockCountdown({ nextRedeemAvailableAt }: { nextRedeemAvailableAt: string | null }) {
+  const { ms, formatted } = use24hCountdown(nextRedeemAvailableAt);
+  if (!nextRedeemAvailableAt || ms <= 0) return null;
+  return (
+    <div className="mt-2 flex items-center justify-between gap-2">
+      <p className="text-xs font-semibold text-indigo-500">
+        Opens {formatUnlockDateTime(nextRedeemAvailableAt)}
+      </p>
+      <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 font-black tabular-nums text-[11px] text-indigo-600">
+        {formatted}
+      </span>
+    </div>
+  );
+}
+
 function ActiveCouponCard({
   coupon,
   uiState,
@@ -298,6 +336,7 @@ function ActiveCouponCard({
   secondsLeft,
   qrDataUrl,
   canActivateToday,
+  nextRedeemAvailableAt,
   onStart,
   onCancel,
 }: {
@@ -308,32 +347,35 @@ function ActiveCouponCard({
   secondsLeft: number;
   qrDataUrl: string;
   canActivateToday: boolean;
+  nextRedeemAvailableAt: string | null;
   onStart: () => void;
   onCancel: () => void;
 }) {
   const isUrgent = useIsUrgent(coupon.expiresAt);
+  const isLocked = !canActivateToday;
 
   return (
     <article
       className={`overflow-hidden rounded-[1.5rem] border-2 bg-white shadow-[0_14px_32px_rgba(150,9,83,0.14)] transition-colors ${
-        isUrgent ? "border-red-400" : "border-[var(--yl-card-border)]"
+        isLocked ? "border-indigo-200" : isUrgent ? "border-red-400" : "border-[var(--yl-card-border)]"
       }`}
     >
-      <div className={`px-4 py-4 ${isUrgent ? "bg-[linear-gradient(135deg,#fff5f5,#ffe0e0)]" : "bg-[linear-gradient(135deg,#fff8fb,#ffe6f2)]"}`}>
+      <div className={`px-4 py-4 ${isLocked ? "bg-[linear-gradient(135deg,#f5f3ff,#ede9fe)]" : isUrgent ? "bg-[linear-gradient(135deg,#fff5f5,#ffe0e0)]" : "bg-[linear-gradient(135deg,#fff8fb,#ffe6f2)]"}`}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className={`text-[11px] font-black uppercase tracking-[0.16em] ${isUrgent ? "text-red-500" : "text-[var(--yl-primary)]"}`}>
-              {isUrgent ? "⚠️ Expiring Soon" : "Available Coupon"}
+            <p className={`text-[11px] font-black uppercase tracking-[0.16em] ${isLocked ? "text-indigo-600" : isUrgent ? "text-red-500" : "text-[var(--yl-primary)]"}`}>
+              {isLocked ? "🔒 Locked Coupon" : isUrgent ? "⚠️ Expiring Soon" : "Available Coupon"}
             </p>
             <h2 className="mt-2 text-xl font-black text-[var(--yl-ink-strong)]">{resolveCouponLabel(coupon)} Discount</h2>
           </div>
           <span className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] ${
-            isUrgent ? "bg-red-100 text-red-600" : "bg-[#eff9ea] text-[#2f6c1a]"
+            isLocked ? "bg-indigo-100 text-indigo-600" : isUrgent ? "bg-red-100 text-red-600" : "bg-[#eff9ea] text-[#2f6c1a]"
           }`}>
-            {isUrgent ? "Urgent" : "Available"}
+            {isLocked ? "Locked" : isUrgent ? "Urgent" : "Available"}
           </span>
         </div>
         <CouponExpiryCountdown expiresAt={coupon.expiresAt} />
+        {isLocked && <CouponUnlockCountdown nextRedeemAvailableAt={nextRedeemAvailableAt} />}
       </div>
 
       <div className="grid gap-3 px-4 py-4">
@@ -348,7 +390,7 @@ function ActiveCouponCard({
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Store Use</p>
               <p className="mt-1 text-sm font-semibold text-[var(--yl-ink-muted)]">
                 {!canActivateToday
-                  ? "You can use 1 coupon every 24 hours. This coupon is saved and will unlock when your cooldown ends."
+                  ? `Saved in your wallet — cannot be used yet. Press "Use" after the coupon unlocks.`
                   : 'Press the "Use" button only when directed to do so by the emaployee.'}
               </p>
             </div>
@@ -361,6 +403,17 @@ function ActiveCouponCard({
             </span>
           </div>
         </button>
+
+        {(() => {
+          const resolved = resolveCouponReward(coupon.rewardType, coupon.title, coupon.description);
+          const maxDiscount = COUPON_REWARDS[0].discountPercent;
+          const canUpgrade = resolved ? resolved.discountPercent < maxDiscount : false;
+          return canUpgrade ? (
+            <p className="px-1 text-[11px] font-semibold text-[var(--yl-ink-muted)]">
+              Play again and score higher to upgrade this coupon to a bigger discount.
+            </p>
+          ) : null;
+        })()}
 
         {activeCouponId === coupon.id && uiState === "loading" ? (
           <div className="rounded-[1.25rem] border border-[var(--yl-card-border)] bg-white px-4 py-4">
@@ -438,13 +491,13 @@ function DailyLimitEmptyState({ nextIssuanceAt }: { nextIssuanceAt: string | nul
   const { formatted } = use24hCountdown(nextIssuanceAt);
   return (
     <>
-      <p className="text-lg font-black text-[var(--yl-ink-strong)]">You've used all available coupons for today.</p>
+      <p className="text-lg font-black text-[var(--yl-ink-strong)]">Coupon use is cooling down.</p>
       <p className="mt-2 text-sm font-semibold text-[var(--yl-ink-muted)]">
-        A new coupon will be available once the timer runs out.
+        You can still earn coupons and keep them here. They can be used after the unlock time.
       </p>
       <div className="mt-4 flex items-center justify-between rounded-[1rem] border border-[#c7d2fe] bg-[#eef2ff] px-4 py-3">
         <span className="text-xs font-black uppercase tracking-[0.1em] text-[#4338ca]">
-          Next coupon available in
+          Coupons unlock in
         </span>
         <span className="font-mono text-base font-black tabular-nums text-[#3730a3]">
           {formatted}
@@ -474,8 +527,8 @@ function CouponPolicyCard() {
         <div className="border-t border-[var(--yl-card-border)] px-5 pb-5 pt-4 text-xs font-semibold text-[var(--yl-ink-muted)]">
           <p className="mb-2 font-black text-[var(--yl-ink-strong)]">Daily Limits</p>
           <ul className="mb-4 list-inside list-disc space-y-1">
-            <li>You can earn <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> per day.</li>
-            <li>You can use <span className="font-black text-[var(--yl-ink-strong)]">1 coupon</span> per day.</li>
+            <li>You can keep earning coupons and save them in your wallet.</li>
+            <li>After using a coupon, the next coupon unlocks <span className="font-black text-[var(--yl-ink-strong)]">24 hours</span> later.</li>
             <li>Each coupon expires <span className="font-black text-[var(--yl-ink-strong)]">24 hours</span> after it is issued.</li>
           </ul>
 
@@ -658,17 +711,8 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
             }
             writeLocalWalletCoupons([...nextActive, ...nextHistory]);
             setError(null);
-            // Compute nextIssuanceAt from local coupons as fallback
             const allLocal = [...nextActive, ...nextHistory];
-            const gameDayStartMs = getDallasDayStart().getTime();
-            const localLatest = allLocal.length > 0
-              ? allLocal.reduce((a, b) => new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b)
-              : null;
-            setNextIssuanceAt(
-              localLatest && new Date(localLatest.createdAt).getTime() >= gameDayStartMs
-                ? getNextDallasDayStart().toISOString()
-                : null
-            );
+            setNextIssuanceAt(getLatestRedeemUnlockIso(allLocal));
             return;
           }
 
@@ -720,17 +764,15 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
         }
         writeLocalWalletCoupons([...reconciled.activeCoupons, ...nextHistory]);
 
-        // Derive nextIssuanceAt from the full merged coupon list as a fallback.
-        // The server may lag when a coupon was just issued, so we take whichever
-        // value is later: the server's or the one derived from local+server data.
+        // Derive the 24-hour redeem unlock from the full merged coupon list as a fallback.
         const allKnownCoupons = [...reconciled.activeCoupons, ...nextHistory];
-        const gameDayStartMs = getDallasDayStart().getTime();
-        const hasCouponToday = allKnownCoupons.some((c) => {
-          const t = new Date(c.createdAt).getTime();
-          return Number.isFinite(t) && t >= gameDayStartMs;
-        });
-        const derivedNextIssuanceAt = hasCouponToday ? getNextDallasDayStart().toISOString() : null;
-        const serverNextIssuanceAt = typeof json.nextIssuanceAt === "string" ? json.nextIssuanceAt : null;
+        const derivedNextIssuanceAt = getLatestRedeemUnlockIso(allKnownCoupons);
+        const serverNextIssuanceAt =
+          typeof json.nextRedeemAvailableAt === "string"
+            ? json.nextRedeemAvailableAt
+            : typeof json.nextIssuanceAt === "string"
+              ? json.nextIssuanceAt
+              : null;
         setNextIssuanceAt(
           serverNextIssuanceAt && derivedNextIssuanceAt
             ? (serverNextIssuanceAt > derivedNextIssuanceAt ? serverNextIssuanceAt : derivedNextIssuanceAt)
@@ -841,6 +883,8 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
   };
 
   const startCouponFlow = (coupon: WalletCoupon) => {
+    if (!canUseToday) return;
+
     // resolveCouponQrValue always returns a string (fallback to 3% QR value),
     // so we proceed regardless. If the value is somehow null, the QR image
     // will show "Loading QR..." but the loading/active/expired flow still works.
@@ -889,25 +933,16 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
     [historyCoupons]
   );
 
-  // Supplement server canActivateToday with local history data.
-  // If the expire API call was delayed or failed, the server may still return
-  // canActivateToday:true even though the user already activated a coupon today.
-  const usedTodayLocal = useMemo(() => {
-    const todayStr = getDallasDayKey();
-    return historyCoupons.some((c) => {
-      if (c.status === "redeemed" && c.redeemedAt) {
-        return getDallasDayKey(new Date(c.redeemedAt)) === todayStr;
-      }
-      if (c.status === "expired" && c.createdAt) {
-        return getDallasDayKey(new Date(c.createdAt)) === todayStr;
-      }
-      return false;
-    });
-  }, [historyCoupons]);
+  const localNextRedeemAvailableAt = useMemo(
+    () => getLatestRedeemUnlockIso(historyCoupons),
+    [historyCoupons]
+  );
+  const localRedeemLocked = Boolean(
+    localNextRedeemAvailableAt && new Date(localNextRedeemAvailableAt).getTime() > Date.now()
+  );
 
-  const canUseToday = canActivateToday && !usedTodayLocal;
-  const effectiveNextIssuanceAt =
-    nextIssuanceAt || (!canUseToday ? getNextDallasDayStart().toISOString() : null);
+  const canUseToday = canActivateToday && !localRedeemLocked;
+  const effectiveNextIssuanceAt = nextIssuanceAt || localNextRedeemAvailableAt;
 
   const issuanceBlockedMs = useMemo(() => {
     if (!effectiveNextIssuanceAt) return 0;
@@ -1045,6 +1080,7 @@ export default function WalletSecurePageClient({ initialTab }: { initialTab?: st
                       secondsLeft={secondsLeft}
                       qrDataUrl={qrDataUrl}
                       canActivateToday={canUseToday}
+                      nextRedeemAvailableAt={effectiveNextIssuanceAt}
                       onStart={() => startCouponFlow(coupon)}
                       onCancel={() => cancelCouponFlow(coupon.id)}
                     />
