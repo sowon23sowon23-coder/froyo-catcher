@@ -12,6 +12,7 @@ import Game from "./Game";
 
 type DashboardStats = {
   filter?: { mode: "latest" | "day" | "range"; date: string | null; startDate: string | null; endDate: string | null };
+  totalUsers?: number;
   coupons: {
     issued: number;
     redeemed: number;
@@ -59,6 +60,17 @@ type WalletCoupon = { id: number; title: string; reward_type: string; status: st
 type UserEntry = { id: number; nickname_display: string; nickname_key: string; contact_type: string | null; contact_value: string | null; created_at: string; walletCoupons: WalletCoupon[] };
 type FeedbackRow = { id: number; message: string; nickname: string | null; store: string | null; source: string | null; created_at: string };
 
+type UserStats = {
+  totalUsers: number;
+  usersWhoPlayed: number;
+  neverPlayed: number;
+  avgSessionsPerUser: number;
+  returningUsers: number;
+  returningRate: number;
+  playCountDistribution: Array<{ label: string; count: number }>;
+  newUsersByDay: Array<{ date: string; count: number }>;
+};
+
 type CouponRewardTier = { threshold: number; discountPercent: number; fixedQrValue?: string | null; active?: boolean };
 type CouponSettings = {
   issuanceLimit: {
@@ -79,7 +91,7 @@ type CouponSettings = {
   history?: Array<{ id: number; changed_by: string | null; changes: unknown; created_at: string }>;
 };
 
-type NavItem = "dashboard" | "couponSettings" | "game" | "users" | "feedback" | "logs" | "gameSettings" | "bgPreview";
+type NavItem = "dashboard" | "couponSettings" | "game" | "users" | "feedback" | "logs" | "gameSettings" | "bgPreview" | "userStats";
 type DashboardFilter = { mode: "latest" | "day" | "range"; date: string; startDate: string; endDate: string };
 
 function parseCampaignDateParts(date: string) {
@@ -161,7 +173,7 @@ function buildPeriodCsvHref(path: string, filter: DashboardFilter) {
 // ??? Main Component ???????????????????????????????????????????????????????????
 
 export default function AdminDashboardClient() {
-  const NAV_ITEMS: NavItem[] = ["dashboard", "gameSettings", "couponSettings", "users", "logs", "game", "feedback", "bgPreview"];
+  const NAV_ITEMS: NavItem[] = ["dashboard", "gameSettings", "couponSettings", "users", "userStats", "logs", "game", "feedback", "bgPreview"];
   const savedNav = typeof window !== "undefined" ? localStorage.getItem("adminNav") : null;
   const [nav, setNav] = useState<NavItem>(NAV_ITEMS.includes(savedNav as NavItem) ? (savedNav as NavItem) : "dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -200,6 +212,10 @@ export default function AdminDashboardClient() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackLoaded, setFeedbackLoaded] = useState(false);
 
+  // User stats
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [userStatsLoading, setUserStatsLoading] = useState(false);
+
   const loadedRef = useRef<Partial<Record<NavItem, boolean>>>({});
 
   // ?? Loaders ?????????????????????????????????????????????????????????????????
@@ -208,8 +224,13 @@ export default function AdminDashboardClient() {
     setDashLoading(true);
     try {
       const query = buildPeriodQuery(dashboardFilter);
-      const res = await fetch(`/api/admin/dashboard-stats${query}`, { cache: "no-store" });
-      setDashStats((await res.json()) as DashboardStats);
+      const [dashRes, userStatsRes] = await Promise.all([
+        fetch(`/api/admin/dashboard-stats${query}`, { cache: "no-store" }),
+        fetch("/api/admin/user-stats", { cache: "no-store" }),
+      ]);
+      const dashJson = (await dashRes.json()) as DashboardStats;
+      const userStatsJson = (await userStatsRes.json().catch(() => ({}))) as { totalUsers?: number };
+      setDashStats({ ...dashJson, totalUsers: userStatsJson.totalUsers });
       loadedRef.current.dashboard = true;
     } finally { setDashLoading(false); }
   };
@@ -296,6 +317,17 @@ export default function AdminDashboardClient() {
       setFeedbackLoaded(true);
       loadedRef.current.feedback = true;
     } finally { setFeedbackLoading(false); }
+  };
+
+  const loadUserStats = async () => {
+    setUserStatsLoading(true);
+    try {
+      const res = await fetch("/api/admin/user-stats", { cache: "no-store" });
+      const json = (await res.json().catch(() => ({}))) as UserStats & { error?: string };
+      if (!res.ok || json.error) { setNotice(json.error || "Failed to load user stats."); return; }
+      setUserStats(json);
+      loadedRef.current.userStats = true;
+    } finally { setUserStatsLoading(false); }
   };
 
   const saveCouponSettings = async (nextSettings: CouponSettings) => {
@@ -415,6 +447,7 @@ export default function AdminDashboardClient() {
       if (nav === "couponSettings") void loadCouponSettings();
       if (nav === "gameSettings") void loadGameSettings();
       if (nav === "feedback") void loadFeedback();
+      if (nav === "userStats") void loadUserStats();
     }
   }, [nav, dashboardFilter]);
 
@@ -454,6 +487,7 @@ export default function AdminDashboardClient() {
     { id: "users", label: "Players", icon: "@" },
     { id: "logs", label: "Coupon Logs", icon: "=" },
     { id: "game", label: "Games", icon: "G" },
+    { id: "userStats", label: "User Stats", icon: "U" },
     { id: "feedback", label: "Feedback", icon: "~" },
     { id: "bgPreview", label: "BG Preview", icon: "P" },
   ];
@@ -525,6 +559,7 @@ export default function AdminDashboardClient() {
           {nav === "logs" && <LogsSection data={storeStats} loading={storeLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadStore} />}
           {nav === "feedback" && <FeedbackSection rows={feedbackRows} loading={feedbackLoading} onRefresh={loadFeedback} />}
           {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
+          {nav === "userStats" && <UserStatsSection data={userStats} loading={userStatsLoading} onRefresh={loadUserStats} />}
           {nav === "bgPreview" && <BgPreviewSection />}
         </main>
       </div>
@@ -572,7 +607,18 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
       />
       {loading || !data ? <LoadingCard /> : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <KpiCard
+              label="Total Registered Users"
+              value={data.totalUsers != null ? data.totalUsers.toLocaleString() : "-"}
+              sub="All-time sign-ups"
+              color={undefined}
+            />
+            <KpiCard label={hasFilter ? "Game Plays" : "Game Plays (14 days)"} value={String(data.game.totalSessions)} sub={`${data.game.couponIssuedFromGame} reward wins`} />
+            <KpiCard label="Coupons Used" value={String(data.coupons.redeemed)} sub={`Usage rate ${data.coupons.redeemRate}%`} color="green" />
+          </div>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <KpiCard
               label="New Coupons Created"
               value={String(data.coupons.issued)}
@@ -587,14 +633,12 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
               sub="Existing coupon improved"
               color="green"
             />
-            <KpiCard label="Coupons Used" value={String(data.coupons.redeemed)} sub={`Usage rate ${data.coupons.redeemRate}%`} color="green" />
             <KpiCard
               label="Coupons Remaining"
               value={data.coupons.issuanceLimit ? String(Math.max(0, data.coupons.issuanceLimit.max - data.coupons.issuanceLimit.current)) : "-"}
               sub={data.coupons.issuanceLimit ? `${data.coupons.issuanceLimit.type} supply` : "No limit configured"}
               color="orange"
             />
-            <KpiCard label={hasFilter ? "Game Plays" : "Game Plays (14 days)"} value={String(data.game.totalSessions)} sub={`${data.game.couponIssuedFromGame} reward wins`} />
           </div>
 
           <div className="mt-3 grid gap-2 text-xs font-semibold text-[#8f6870] md:grid-cols-2 xl:grid-cols-4">
@@ -1719,6 +1763,99 @@ function formatGameClock(date: Date) {
     hourCycle: "h23",
     timeZoneName: "short",
   }).format(date);
+}
+
+// ??? Section: User Stats ?????????????????????????????????????????????????????
+
+function UserStatsSection({ data, loading, onRefresh }: {
+  data: UserStats | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <SectionShell title="User Stats" subtitle="Registered accounts and per-user play behavior" onRefresh={onRefresh} loading={loading} csvHref={undefined}>
+      {loading || !data ? <LoadingCard /> : (
+        <>
+          {/* Overview KPIs */}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              label="Total Registered Users"
+              value={data.totalUsers.toLocaleString()}
+              sub="All-time sign-ups"
+            />
+            <KpiCard
+              label="Users Who Played"
+              value={data.usersWhoPlayed.toLocaleString()}
+              sub={`${data.totalUsers > 0 ? Math.round((data.usersWhoPlayed / data.totalUsers) * 100) : 0}% of registered users`}
+              color="green"
+            />
+            <KpiCard
+              label="Never Played"
+              value={data.neverPlayed.toLocaleString()}
+              sub={`${data.totalUsers > 0 ? Math.round((data.neverPlayed / data.totalUsers) * 100) : 0}% of registered users`}
+              color="orange"
+            />
+            <KpiCard
+              label="Return Rate"
+              value={`${data.returningRate}%`}
+              sub={`${data.returningUsers.toLocaleString()} players played 2+ times`}
+              color="green"
+            />
+          </div>
+
+          {/* Avg sessions */}
+          <div className="mt-3 rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Avg Sessions per User</p>
+            <p className="mt-2 text-4xl font-black text-[#4f2832]">{data.avgSessionsPerUser}</p>
+            <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+              Among users who played at least once. Anonymous sessions (no account) are excluded.
+            </p>
+          </div>
+
+          {/* Play count distribution */}
+          <div className="mt-3 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Play Count Distribution</p>
+            <p className="mt-1 text-xs font-semibold text-[#9a6f75]">How many times each user has played</p>
+            {data.usersWhoPlayed === 0 ? (
+              <p className="mt-4 text-sm text-[#9a6f75]">No play data yet.</p>
+            ) : (
+              <div className="mt-5 space-y-3">
+                {data.playCountDistribution.map((bucket) => {
+                  const max = Math.max(...data.playCountDistribution.map((b) => b.count), 1);
+                  const pct = max > 0 ? Math.max(4, Math.round((bucket.count / max) * 100)) : 4;
+                  const userPct = data.usersWhoPlayed > 0 ? Math.round((bucket.count / data.usersWhoPlayed) * 100) : 0;
+                  return (
+                    <div key={bucket.label} className="grid grid-cols-[96px_1fr_80px] items-center gap-3">
+                      <span className="text-sm font-black text-[#5b343d]">{bucket.label}</span>
+                      <div className="h-5 overflow-hidden rounded-full bg-[#f5ede9]">
+                        <div
+                          className="h-5 rounded-full bg-[linear-gradient(135deg,#ff9473,#ff6675)] transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-right text-sm font-black text-[#5b343d]">
+                        {bucket.count.toLocaleString()} <span className="text-xs font-semibold text-[#9a6f75]">({userPct}%)</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* New users by day */}
+          <div className="mt-3 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+            <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">New Sign-ups (14 Days)</p>
+            <MiniBarChart
+              series={data.newUsersByDay}
+              color="bg-[#a78bfa]"
+              emptyText="No new sign-ups in the last 14 days."
+            />
+          </div>
+        </>
+      )}
+    </SectionShell>
+  );
 }
 
 // ??? Section: Background Preview ???????????????????????????????????????????
