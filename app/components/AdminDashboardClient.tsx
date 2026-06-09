@@ -60,6 +60,25 @@ type WalletCoupon = { id: number; title: string; reward_type: string; status: st
 type UserEntry = { id: number; nickname_display: string; nickname_key: string; contact_type: string | null; contact_value: string | null; created_at: string; walletCoupons: WalletCoupon[] };
 type FeedbackRow = { id: number; message: string; nickname: string | null; store: string | null; source: string | null; created_at: string };
 
+type EngagementStats = {
+  uniquePlayers: {
+    last14Days: number;
+    dau: number;
+    wau: number;
+    byDay: Array<{ date: string; count: number }>;
+  };
+  newVsReturning: Array<{ date: string; newPlayers: number; returningPlayers: number }>;
+  couponByRewardType: Array<{ rewardType: string; label: string; issued: number; redeemed: number; redemptionRate: number }>;
+  timeToRedemption: {
+    avgDays: number | null;
+    avgHours: number | null;
+    totalRedeemed: number;
+    distribution: Array<{ label: string; count: number }>;
+  };
+  couponStatusBreakdown: { issued: number; redeemed: number; expired: number; active: number };
+  storeRedemption: Array<{ storeId: string; count: number }>;
+};
+
 type UserStats = {
   totalUsers: number;
   usersWhoPlayed: number;
@@ -216,23 +235,34 @@ export default function AdminDashboardClient() {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [userStatsLoading, setUserStatsLoading] = useState(false);
 
+  // Engagement stats (dashboard)
+  const [engagementStats, setEngagementStats] = useState<EngagementStats | null>(null);
+  const [engagementLoading, setEngagementLoading] = useState(false);
+
   const loadedRef = useRef<Partial<Record<NavItem, boolean>>>({});
 
   // ?? Loaders ?????????????????????????????????????????????????????????????????
 
   const loadDashboard = async () => {
     setDashLoading(true);
+    setEngagementLoading(true);
     try {
       const query = buildPeriodQuery(dashboardFilter);
-      const [dashRes, userStatsRes] = await Promise.all([
+      const [dashRes, userStatsRes, engagementRes] = await Promise.all([
         fetch(`/api/admin/dashboard-stats${query}`, { cache: "no-store" }),
         fetch("/api/admin/user-stats", { cache: "no-store" }),
+        fetch("/api/admin/engagement-stats", { cache: "no-store" }),
       ]);
       const dashJson = (await dashRes.json()) as DashboardStats;
       const userStatsJson = (await userStatsRes.json().catch(() => ({}))) as { totalUsers?: number };
+      const engagementJson = (await engagementRes.json().catch(() => null)) as EngagementStats | null;
       setDashStats({ ...dashJson, totalUsers: userStatsJson.totalUsers });
+      if (engagementJson && !("error" in engagementJson)) setEngagementStats(engagementJson);
       loadedRef.current.dashboard = true;
-    } finally { setDashLoading(false); }
+    } finally {
+      setDashLoading(false);
+      setEngagementLoading(false);
+    }
   };
 
   const loadGame = async () => {
@@ -552,7 +582,7 @@ export default function AdminDashboardClient() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadDashboard} />}
+          {nav === "dashboard" && <DashboardSection data={dashStats} loading={dashLoading} engagementData={engagementStats} engagementLoading={engagementLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadDashboard} />}
           {nav === "gameSettings" && <GameSettingsSection config={gameAccessConfig} state={gameAccessState} loading={gameSettingsLoading} saving={gameSettingsSaving} onChange={setGameAccessConfig} onSave={saveGameSettings} onRefresh={loadGameSettings} />}
           {nav === "game" && <GameSection data={gameData} loading={gameLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadGame} />}
           {nav === "users" && <UserSection query={userQuery} results={userResults} loading={userSearchLoading} expiringId={expiringId} onQueryChange={setUserQuery} onSearch={searchUsers} onExpire={expireWalletCoupon} />}
@@ -569,9 +599,11 @@ export default function AdminDashboardClient() {
 
 // ??? Section: Dashboard ???????????????????????????????????????????????????????
 
-function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: {
+function DashboardSection({ data, loading, engagementData, engagementLoading, filter, onFilterChange, onRefresh }: {
   data: DashboardStats | null;
   loading: boolean;
+  engagementData: EngagementStats | null;
+  engagementLoading: boolean;
   filter: DashboardFilter;
   onFilterChange: (value: DashboardFilter) => void;
   onRefresh: () => void;
@@ -690,6 +722,195 @@ function DashboardSection({ data, loading, filter, onFilterChange, onRefresh }: 
               />
             </div>
           </div>
+
+          {/* ── Engagement Stats (14-day fixed window) ── */}
+          {engagementLoading && !engagementData && (
+            <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-6 text-center text-sm font-bold text-[#9a6f75]">
+              Loading engagement data...
+            </div>
+          )}
+          {engagementData && (
+            <>
+              {/* 1. Unique Players */}
+              <div className="mt-5">
+                <p className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-[#c36b66]">Unique Players</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">Unique Players (14 days)</p>
+                    <p className="mt-2 text-3xl font-black text-[#4f2832]">{engagementData.uniquePlayers.last14Days.toLocaleString()}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#9a6f75]">Distinct accounts who played</p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">DAU (Today)</p>
+                    <p className="mt-2 text-3xl font-black text-[#4f2832]">{engagementData.uniquePlayers.dau.toLocaleString()}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#9a6f75]">Daily active users</p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[#c36b66]">WAU (Last 7 Days)</p>
+                    <p className="mt-2 text-3xl font-black text-[#4f2832]">{engagementData.uniquePlayers.wau.toLocaleString()}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#9a6f75]">Weekly active users</p>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+                  <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Daily Unique Players (14 Days)</p>
+                  <MiniBarChart series={engagementData.uniquePlayers.byDay} color="bg-[#60a5fa]" emptyText="No player data yet." />
+                </div>
+              </div>
+
+              {/* 5. New vs Returning Players */}
+              <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">New vs Returning Players (14 Days)</p>
+                <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+                  New = first session ever on that day. Returning = played on a previous day.
+                </p>
+                <div className="mt-4 space-y-2">
+                  {engagementData.newVsReturning.map((row) => {
+                    const total = row.newPlayers + row.returningPlayers;
+                    const newPct = total > 0 ? Math.round((row.newPlayers / total) * 100) : 0;
+                    const retPct = total > 0 ? 100 - newPct : 0;
+                    return (
+                      <div key={row.date} className="grid grid-cols-[56px_1fr_96px] items-center gap-2">
+                        <span className="text-xs font-black text-[#8a6670]">{row.date.slice(5)}</span>
+                        <div className="flex h-4 overflow-hidden rounded-full bg-[#f5ede9]">
+                          {newPct > 0 && <div className="h-full bg-[#a78bfa]" style={{ width: `${newPct}%` }} />}
+                          {retPct > 0 && <div className="h-full bg-[#fb923c]" style={{ width: `${retPct}%` }} />}
+                        </div>
+                        <span className="text-right text-xs font-semibold text-[#5b343d]">
+                          <span className="font-black text-[#a78bfa]">{row.newPlayers}</span>
+                          <span className="text-[#9a6f75]"> / </span>
+                          <span className="font-black text-[#fb923c]">{row.returningPlayers}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex gap-4 text-xs font-semibold text-[#9a6f75]">
+                  <span><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#a78bfa] mr-1" />New</span>
+                  <span><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#fb923c] mr-1" />Returning</span>
+                </div>
+              </div>
+
+              {/* 3. Coupon Status Breakdown */}
+              <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Coupon Status Breakdown (All-time)</p>
+                {(() => {
+                  const { issued, redeemed, expired, active } = engagementData.couponStatusBreakdown;
+                  const items = [
+                    { label: "Total Issued", value: issued, color: "bg-[#60a5fa]" },
+                    { label: "Redeemed", value: redeemed, color: "bg-[#34d399]" },
+                    { label: "Expired", value: expired, color: "bg-[#fb923c]" },
+                    { label: "Active", value: active, color: "bg-[#a78bfa]" },
+                  ];
+                  return (
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {items.map((item) => (
+                        <div key={item.label} className="rounded-2xl bg-[#fff9f4] p-4 text-center">
+                          <div className={`mx-auto mb-2 h-2 w-10 rounded-full ${item.color}`} />
+                          <p className="text-2xl font-black text-[#4f2832]">{item.value.toLocaleString()}</p>
+                          <p className="mt-0.5 text-xs font-semibold text-[#9a6f75]">{item.label}</p>
+                          <p className="mt-0.5 text-[11px] font-black text-[#c36b66]">
+                            {issued > 0 ? `${Math.round((item.value / issued) * 100)}%` : "–"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* 2. Coupon Performance by Reward Type */}
+              {engagementData.couponByRewardType.length > 0 && (
+                <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+                  <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Coupon Performance by Reward Type (All-time)</p>
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full min-w-[480px] text-sm">
+                      <thead>
+                        <tr className="border-b border-[#f5e4de]">
+                          <th className="pb-2 text-left text-xs font-black uppercase tracking-[0.12em] text-[#9a6f75]">Reward Type</th>
+                          <th className="pb-2 text-right text-xs font-black uppercase tracking-[0.12em] text-[#9a6f75]">Issued</th>
+                          <th className="pb-2 text-right text-xs font-black uppercase tracking-[0.12em] text-[#9a6f75]">Redeemed</th>
+                          <th className="pb-2 text-right text-xs font-black uppercase tracking-[0.12em] text-[#9a6f75]">Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {engagementData.couponByRewardType.map((row) => (
+                          <tr key={row.rewardType} className="border-b border-[#fdf0ec]">
+                            <td className="py-2.5 font-black text-[#4f2832]">{row.label || row.rewardType}</td>
+                            <td className="py-2.5 text-right font-semibold text-[#5b343d]">{row.issued.toLocaleString()}</td>
+                            <td className="py-2.5 text-right font-semibold text-[#2a8a50]">{row.redeemed.toLocaleString()}</td>
+                            <td className="py-2.5 text-right">
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-black ${row.redemptionRate >= 30 ? "bg-[#e6f9ee] text-[#2a8a50]" : row.redemptionRate >= 10 ? "bg-[#fff0e8] text-[#c0502a]" : "bg-[#f5ede9] text-[#9a6f75]"}`}>
+                                {row.redemptionRate}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Average Time to Redemption */}
+              {engagementData.timeToRedemption.totalRedeemed > 0 && (
+                <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+                  <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Average Time to Redemption (All-time)</p>
+                  <div className="mt-4 flex flex-wrap items-end gap-6">
+                    <div>
+                      <p className="text-4xl font-black text-[#4f2832]">
+                        {engagementData.timeToRedemption.avgHours !== null
+                          ? engagementData.timeToRedemption.avgHours < 24
+                            ? `${engagementData.timeToRedemption.avgHours}h`
+                            : `${engagementData.timeToRedemption.avgDays}d`
+                          : "—"}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+                        Average · {engagementData.timeToRedemption.totalRedeemed.toLocaleString()} redeemed coupons
+                      </p>
+                    </div>
+                    <div className="flex-1 min-w-[200px] space-y-2">
+                      {engagementData.timeToRedemption.distribution.map((bucket) => {
+                        const max = Math.max(...engagementData.timeToRedemption.distribution.map((b) => b.count), 1);
+                        const pct = max > 0 ? Math.max(4, Math.round((bucket.count / max) * 100)) : 4;
+                        const userPct = engagementData.timeToRedemption.totalRedeemed > 0
+                          ? Math.round((bucket.count / engagementData.timeToRedemption.totalRedeemed) * 100) : 0;
+                        return (
+                          <div key={bucket.label} className="grid grid-cols-[88px_1fr_56px] items-center gap-2">
+                            <span className="text-xs font-black text-[#5b343d]">{bucket.label}</span>
+                            <div className="h-4 overflow-hidden rounded-full bg-[#f5ede9]">
+                              <div className="h-4 rounded-full bg-[linear-gradient(135deg,#fb923c,#f87171)]" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-right text-xs font-black text-[#5b343d]">{userPct}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Store-Level Redemption */}
+              {engagementData.storeRedemption.length > 0 && (
+                <div className="mt-5 rounded-[2rem] border border-[#f0ddd8] bg-white p-5">
+                  <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Store-Level Redemption (All-time)</p>
+                  <div className="mt-4 space-y-3">
+                    {(() => {
+                      const max = Math.max(...engagementData.storeRedemption.map((s) => s.count), 1);
+                      return engagementData.storeRedemption.map((item) => (
+                        <div key={item.storeId} className="grid grid-cols-[1fr_80px_56px] items-center gap-3">
+                          <span className="truncate text-sm font-black text-[#5b343d]">{item.storeId}</span>
+                          <div className="h-4 overflow-hidden rounded-full bg-[#f5ede9]">
+                            <div className="h-4 rounded-full bg-[#34d399]" style={{ width: `${Math.max(6, (item.count / max) * 100)}%` }} />
+                          </div>
+                          <span className="text-right text-sm font-black text-[#5b343d]">{item.count.toLocaleString()}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           {/* Recent redeems */}
           {data.recentRedeems.length > 0 && (
