@@ -656,7 +656,7 @@ export default function Game({
 
   const move = (clientX: number) => {
     if (isPaused) return;
-    const r = areaRectRef.current ?? updateAreaRect();
+    const r = updateAreaRect();
     if (!r) return;
 
     const xPx = clientX - r.left;
@@ -707,23 +707,22 @@ export default function Game({
     const el = areaRef.current;
     if (!el) return;
 
-    const handler = (e: TouchEvent) => {
+    const handleTouch = (e: TouchEvent) => {
       if (phase !== "play" || isPaused) return;
       e.preventDefault();
       if (e.touches && e.touches.length > 0) move(e.touches[0].clientX);
     };
-    const refreshRect = () => {
-      updateAreaRect();
-    };
 
     updateAreaRect();
-    el.addEventListener("touchstart", refreshRect, { passive: true });
-    el.addEventListener("touchmove", handler, { passive: false });
-    window.addEventListener("resize", refreshRect);
+    el.addEventListener("touchstart", handleTouch, { passive: false });
+    el.addEventListener("touchmove", handleTouch, { passive: false });
+    window.addEventListener("resize", updateAreaRect);
+    window.addEventListener("scroll", updateAreaRect, true);
     return () => {
-      el.removeEventListener("touchstart", refreshRect);
-      el.removeEventListener("touchmove", handler);
-      window.removeEventListener("resize", refreshRect);
+      el.removeEventListener("touchstart", handleTouch);
+      el.removeEventListener("touchmove", handleTouch);
+      window.removeEventListener("resize", updateAreaRect);
+      window.removeEventListener("scroll", updateAreaRect, true);
       areaRectRef.current = null;
     };
   }, [phase, isPaused]);
