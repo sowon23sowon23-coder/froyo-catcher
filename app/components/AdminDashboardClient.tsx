@@ -859,9 +859,7 @@ function DashboardSection({ data, loading, engagementData, engagementLoading, fi
                     <div>
                       <p className="text-4xl font-black text-[#4f2832]">
                         {engagementData.timeToRedemption.avgHours !== null
-                          ? engagementData.timeToRedemption.avgHours < 24
-                            ? `${engagementData.timeToRedemption.avgHours}h`
-                            : `${engagementData.timeToRedemption.avgDays}d`
+                          ? `${engagementData.timeToRedemption.avgHours}h`
                           : "—"}
                       </p>
                       <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
@@ -875,7 +873,7 @@ function DashboardSection({ data, loading, engagementData, engagementLoading, fi
                         const userPct = engagementData.timeToRedemption.totalRedeemed > 0
                           ? Math.round((bucket.count / engagementData.timeToRedemption.totalRedeemed) * 100) : 0;
                         return (
-                          <div key={bucket.label} className="grid grid-cols-[88px_1fr_56px] items-center gap-2">
+                          <div key={bucket.label} className="grid grid-cols-[72px_1fr_44px] items-center gap-2">
                             <span className="text-xs font-black text-[#5b343d]">{bucket.label}</span>
                             <div className="h-4 overflow-hidden rounded-full bg-[#f5ede9]">
                               <div className="h-4 rounded-full bg-[linear-gradient(135deg,#fb923c,#f87171)]" style={{ width: `${pct}%` }} />

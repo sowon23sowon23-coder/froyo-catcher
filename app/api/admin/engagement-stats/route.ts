@@ -138,23 +138,24 @@ export async function GET(req: NextRequest) {
     const avgDays = avgHours !== null ? Math.round(avgHours / 24 * 10) / 10 : null;
     const avgHoursRounded = avgHours !== null ? Math.round(avgHours * 10) / 10 : null;
 
-    let within24 = 0, oneTo3days = 0, fourTo7days = 0, over7days = 0;
+    let within1h = 0, h1to6 = 0, h6to12 = 0, h12to24 = 0, h24to36 = 0;
     for (const h of redemptionHours) {
-      const d = h / 24;
-      if (d <= 1) within24++;
-      else if (d <= 3) oneTo3days++;
-      else if (d <= 7) fourTo7days++;
-      else over7days++;
+      if (h <= 1) within1h++;
+      else if (h <= 6) h1to6++;
+      else if (h <= 12) h6to12++;
+      else if (h <= 24) h12to24++;
+      else h24to36++;
     }
     const timeToRedemption = {
       avgDays,
       avgHours: avgHoursRounded,
       totalRedeemed: redemptionHours.length,
       distribution: [
-        { label: "Within 24h", count: within24 },
-        { label: "1–3 days", count: oneTo3days },
-        { label: "4–7 days", count: fourTo7days },
-        { label: "7+ days", count: over7days },
+        { label: "Within 1h", count: within1h },
+        { label: "1–6h", count: h1to6 },
+        { label: "6–12h", count: h6to12 },
+        { label: "12–24h", count: h12to24 },
+        { label: "24–36h", count: h24to36 },
       ],
     };
 
