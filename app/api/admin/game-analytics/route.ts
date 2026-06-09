@@ -48,6 +48,43 @@ function buildRangeChartSeries(startDate: string, endDate: string, timestamps: s
   return buildGameRangeDateKeys(startDate, endDate).map((date) => ({ date, count: counts.get(date) ?? 0 }));
 }
 
+async function fetchAllSessions(
+  supabase: ReturnType<typeof getServiceSupabaseOrThrow>,
+  filters: { startIso: string; endIso: string } | null,
+) {
+  const PAGE_SIZE = 1000;
+  const allRows: Array<{
+    score: number;
+    mode: string;
+    play_time_sec: number | null;
+    coupon_issued: boolean;
+    coupon_reward_type: string | null;
+    completed: boolean;
+    created_at: string;
+  }> = [];
+  let from = 0;
+
+  while (true) {
+    let q = supabase
+      .from("game_sessions")
+      .select("score,mode,play_time_sec,coupon_issued,coupon_reward_type,completed,created_at")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (filters) {
+      q = q.gte("created_at", filters.startIso).lt("created_at", filters.endIso);
+    }
+
+    const { data, error } = await q;
+    if (error) throw error;
+    allRows.push(...(data ?? []));
+    if ((data?.length ?? 0) < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+
+  return allRows;
+}
+
 export async function GET(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
   if (!session) return NextResponse.json({ error: "Admin login required." }, { status: 401 });
@@ -56,11 +93,6 @@ export async function GET(req: NextRequest) {
     const supabase = getServiceSupabaseOrThrow();
     const dateRange = getDateRange(req);
 
-    let sessionsQuery = supabase
-      .from("game_sessions")
-      .select("score,mode,play_time_sec,coupon_issued,coupon_reward_type,completed,created_at")
-      .order("created_at", { ascending: false })
-      .limit(5000);
     let recentQuery = supabase
       .from("game_sessions")
       .select("score,mode,nickname_key,coupon_issued,coupon_reward_type,created_at")
@@ -68,17 +100,18 @@ export async function GET(req: NextRequest) {
       .limit(20);
 
     if (dateRange) {
-      sessionsQuery = sessionsQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
       recentQuery = recentQuery.gte("created_at", dateRange.startIso).lt("created_at", dateRange.endIso);
     }
 
-    const [sessionsResult, recentResult] = await Promise.all([sessionsQuery, recentQuery]);
+    const [rows, recentResult] = await Promise.all([
+      fetchAllSessions(supabase, dateRange ? { startIso: dateRange.startIso, endIso: dateRange.endIso } : null),
+      recentQuery,
+    ]);
 
-    if (sessionsResult.error) {
+    if (!rows) {
       return NextResponse.json({ error: "Failed to load game analytics." }, { status: 500 });
     }
 
-    const rows = sessionsResult.data ?? [];
     const totalSessions = rows.length;
 
     if (totalSessions === 0) {
