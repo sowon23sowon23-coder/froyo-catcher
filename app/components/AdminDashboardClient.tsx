@@ -1858,25 +1858,103 @@ function UserStatsSection({ data, loading, onRefresh }: {
   );
 }
 
+// ??? IndexedDB helpers for BG Preview ???????????????????????????????????????
+
+const BG_DB_NAME = "yl-bg-preview";
+const BG_STORE = "images";
+
+function openBgDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BG_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(BG_STORE, { keyPath: "name" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function bgDbGetAll(): Promise<Array<{ name: string; blob: Blob }>> {
+  const db = await openBgDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(BG_STORE, "readonly").objectStore(BG_STORE).getAll();
+    req.onsuccess = () => resolve(req.result as Array<{ name: string; blob: Blob }>);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function bgDbSave(name: string, blob: Blob): Promise<void> {
+  const db = await openBgDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BG_STORE, "readwrite");
+    tx.objectStore(BG_STORE).put({ name, blob });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function bgDbDelete(name: string): Promise<void> {
+  const db = await openBgDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BG_STORE, "readwrite");
+    tx.objectStore(BG_STORE).delete(name);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 // ??? Section: Background Preview ???????????????????????????????????????????
 
 function BgPreviewSection() {
   const [uploadedImages, setUploadedImages] = useState<Array<{ name: string; url: string }>>([]);
   const [selectedBg, setSelectedBg] = useState<string | null>(null);
   const [startSignal, setStartSignal] = useState(0);
+  const [dbLoading, setDbLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const blobUrlsRef = useRef<Map<string, string>>(new Map());
+
+  // Load saved images from IndexedDB on mount
+  useEffect(() => {
+    bgDbGetAll()
+      .then((rows) => {
+        const imgs = rows.map(({ name, blob }) => {
+          const url = URL.createObjectURL(blob);
+          blobUrlsRef.current.set(name, url);
+          return { name, url };
+        });
+        setUploadedImages(imgs);
+      })
+      .catch(() => {})
+      .finally(() => setDbLoading(false));
+
+    return () => {
+      blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      blobUrlsRef.current.clear();
+    };
+  }, []);
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
-    const newImgs = Array.from(files)
+    Array.from(files)
       .filter((f) => f.type.startsWith("image/"))
-      .map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
-    setUploadedImages((prev) => [...prev, ...newImgs]);
+      .forEach((file) => {
+        const existing = blobUrlsRef.current.get(file.name);
+        if (existing) URL.revokeObjectURL(existing);
+        const url = URL.createObjectURL(file);
+        blobUrlsRef.current.set(file.name, url);
+        void bgDbSave(file.name, file);
+        setUploadedImages((prev) => {
+          const filtered = prev.filter((img) => img.name !== file.name);
+          return [...filtered, { name: file.name, url }];
+        });
+      });
   };
 
-  const removeImage = (url: string) => {
+  const removeImage = (name: string, url: string) => {
     URL.revokeObjectURL(url);
-    setUploadedImages((prev) => prev.filter((img) => img.url !== url));
+    blobUrlsRef.current.delete(name);
+    void bgDbDelete(name);
+    setUploadedImages((prev) => prev.filter((img) => img.name !== name));
     if (selectedBg === url) setSelectedBg(null);
   };
 
@@ -1885,16 +1963,10 @@ function BgPreviewSection() {
     setStartSignal((s) => s + 1);
   };
 
-  useEffect(() => {
-    return () => {
-      uploadedImages.forEach((img) => URL.revokeObjectURL(img.url));
-    };
-  }, [uploadedImages]);
-
   return (
     <SectionShell
       title="BG Preview"
-      subtitle="Upload images and preview them in the game — nothing is saved"
+      subtitle="Upload images and preview them in the game — saved in your browser"
       onRefresh={() => {}}
       loading={false}
       csvHref={undefined}
@@ -1903,7 +1975,7 @@ function BgPreviewSection() {
       <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
         <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Upload Background Images</p>
         <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
-          Images load locally in your browser only — nothing is sent to the server and the live game is unaffected.
+          Images are saved in your browser (IndexedDB) and will still be here after a page refresh. Nothing is sent to the server.
         </p>
         <input
           ref={fileInputRef}
@@ -1923,13 +1995,19 @@ function BgPreviewSection() {
       </div>
 
       {/* Thumbnails */}
-      {uploadedImages.length > 0 && (
+      {dbLoading ? (
+        <div className="rounded-[2rem] border border-[#f0ddd8] bg-white p-6 text-center text-sm font-bold text-[#9a6f75]">
+          Loading saved images...
+        </div>
+      ) : uploadedImages.length > 0 ? (
         <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Uploaded Images — click to preview</p>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">
+            Saved Images ({uploadedImages.length}) — click to preview
+          </p>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {uploadedImages.map((img) => (
               <div
-                key={img.url}
+                key={img.name}
                 className={`group relative cursor-pointer overflow-hidden rounded-2xl border-2 transition ${
                   selectedBg === img.url ? "border-[#ff8a70]" : "border-transparent hover:border-[#f0ddd8]"
                 }`}
@@ -1947,7 +2025,7 @@ function BgPreviewSection() {
                 <button
                   type="button"
                   title="Remove"
-                  onClick={(e) => { e.stopPropagation(); removeImage(img.url); }}
+                  onClick={(e) => { e.stopPropagation(); removeImage(img.name, img.url); }}
                   className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-[11px] font-black text-white opacity-0 transition group-hover:opacity-100"
                 >
                   x
@@ -1956,7 +2034,7 @@ function BgPreviewSection() {
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Game preview */}
       {selectedBg ? (
@@ -1991,7 +2069,7 @@ function BgPreviewSection() {
             </div>
           </div>
         </div>
-      ) : uploadedImages.length > 0 ? (
+      ) : !dbLoading && uploadedImages.length > 0 ? (
         <div className="rounded-[2rem] border border-dashed border-[#f0ddd8] bg-white p-10 text-center">
           <p className="text-sm font-black text-[#4f2832]">Select an image above to preview in the game</p>
         </div>
