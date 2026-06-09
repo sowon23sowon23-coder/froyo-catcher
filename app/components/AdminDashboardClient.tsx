@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import { formatCurrency, formatDateTime } from "../lib/couponMvp";
 import { GAME_TIME_ZONE, GAME_TIME_ZONE_LABEL, dallasWallTimeToUtc } from "../lib/dallasTime";
 import { resolveGameAccessState, type GameAccessConfig, type GameAccessState } from "../lib/gameAccess";
+import Game from "./Game";
 
 // ??? Types ???????????????????????????????????????????????????????????????????
 
@@ -78,7 +79,7 @@ type CouponSettings = {
   history?: Array<{ id: number; changed_by: string | null; changes: unknown; created_at: string }>;
 };
 
-type NavItem = "dashboard" | "couponSettings" | "game" | "users" | "feedback" | "logs" | "gameSettings";
+type NavItem = "dashboard" | "couponSettings" | "game" | "users" | "feedback" | "logs" | "gameSettings" | "bgPreview";
 type DashboardFilter = { mode: "latest" | "day" | "range"; date: string; startDate: string; endDate: string };
 
 function parseCampaignDateParts(date: string) {
@@ -160,7 +161,7 @@ function buildPeriodCsvHref(path: string, filter: DashboardFilter) {
 // ??? Main Component ???????????????????????????????????????????????????????????
 
 export default function AdminDashboardClient() {
-  const NAV_ITEMS: NavItem[] = ["dashboard", "gameSettings", "couponSettings", "users", "logs", "game", "feedback"];
+  const NAV_ITEMS: NavItem[] = ["dashboard", "gameSettings", "couponSettings", "users", "logs", "game", "feedback", "bgPreview"];
   const savedNav = typeof window !== "undefined" ? localStorage.getItem("adminNav") : null;
   const [nav, setNav] = useState<NavItem>(NAV_ITEMS.includes(savedNav as NavItem) ? (savedNav as NavItem) : "dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -454,6 +455,7 @@ export default function AdminDashboardClient() {
     { id: "logs", label: "Coupon Logs", icon: "=" },
     { id: "game", label: "Games", icon: "G" },
     { id: "feedback", label: "Feedback", icon: "~" },
+    { id: "bgPreview", label: "BG Preview", icon: "P" },
   ];
 
   // ?? Render ???????????????????????????????????????????????????????????????????
@@ -523,6 +525,7 @@ export default function AdminDashboardClient() {
           {nav === "logs" && <LogsSection data={storeStats} loading={storeLoading} filter={dashboardFilter} onFilterChange={setDashboardFilter} onRefresh={loadStore} />}
           {nav === "feedback" && <FeedbackSection rows={feedbackRows} loading={feedbackLoading} onRefresh={loadFeedback} />}
           {nav === "couponSettings" && <CouponSettingsSection settings={couponSettings} loading={couponSettingsLoading} saving={couponSettingsSaving} onChange={setCouponSettings} onSave={saveCouponSettings} onRefresh={loadCouponSettings} />}
+          {nav === "bgPreview" && <BgPreviewSection />}
         </main>
       </div>
     </div>
@@ -1716,6 +1719,131 @@ function formatGameClock(date: Date) {
     hourCycle: "h23",
     timeZoneName: "short",
   }).format(date);
+}
+
+// ??? Section: Background Preview ???????????????????????????????????????????
+
+function BgPreviewSection() {
+  const [uploadedImages, setUploadedImages] = useState<Array<{ name: string; url: string }>>([]);
+  const [selectedBg, setSelectedBg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return;
+    const newImgs = Array.from(files)
+      .filter((f) => f.type.startsWith("image/"))
+      .map((f) => ({ name: f.name, url: URL.createObjectURL(f) }));
+    setUploadedImages((prev) => [...prev, ...newImgs]);
+  };
+
+  const removeImage = (url: string) => {
+    URL.revokeObjectURL(url);
+    setUploadedImages((prev) => prev.filter((img) => img.url !== url));
+    if (selectedBg === url) setSelectedBg(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      uploadedImages.forEach((img) => URL.revokeObjectURL(img.url));
+    };
+  }, [uploadedImages]);
+
+  return (
+    <SectionShell
+      title="BG Preview"
+      subtitle="Upload images and preview them in the game — nothing is saved"
+      onRefresh={() => {}}
+      loading={false}
+      csvHref={undefined}
+    >
+      {/* Upload */}
+      <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+        <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Upload Background Images</p>
+        <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+          Images load locally in your browser only — nothing is sent to the server and the live game is unaffected.
+        </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="mt-4 rounded-2xl border border-[#edd9d5] px-5 py-2.5 text-sm font-black text-[#764a56] hover:bg-[#fff0e8]"
+        >
+          Choose Images
+        </button>
+      </div>
+
+      {/* Thumbnails */}
+      {uploadedImages.length > 0 && (
+        <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Uploaded Images — click to preview</p>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {uploadedImages.map((img) => (
+              <div
+                key={img.url}
+                className={`group relative cursor-pointer overflow-hidden rounded-2xl border-2 transition ${
+                  selectedBg === img.url ? "border-[#ff8a70]" : "border-transparent hover:border-[#f0ddd8]"
+                }`}
+                onClick={() => setSelectedBg(img.url)}
+              >
+                <img src={img.url} alt={img.name} className="aspect-[9/16] w-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                  <p className="truncate text-[10px] font-black text-white">{img.name}</p>
+                </div>
+                {selectedBg === img.url && (
+                  <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-1.5">
+                    <span className="rounded-full bg-[#ff8a70] px-2 py-0.5 text-[9px] font-black text-white">Selected</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  title="Remove"
+                  onClick={(e) => { e.stopPropagation(); removeImage(img.url); }}
+                  className="absolute left-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-[11px] font-black text-white opacity-0 transition group-hover:opacity-100"
+                >
+                  x
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Game preview */}
+      {selectedBg ? (
+        <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Live Game Preview</p>
+          <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+            Scores and session data are not recorded in this preview.
+          </p>
+          <div className="mt-5 flex justify-center">
+            <div className="overflow-hidden rounded-[1.4rem] shadow-xl" style={{ width: 195, height: 346 }}>
+              <div style={{ width: 390, height: 692, transform: "scale(0.5)", transformOrigin: "top left" }}>
+                <Game
+                  character="green"
+                  mode="free"
+                  startSignal={0}
+                  onExitToHome={() => {}}
+                  onBestScore={() => {}}
+                  previewBg={selectedBg}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : uploadedImages.length > 0 ? (
+        <div className="rounded-[2rem] border border-dashed border-[#f0ddd8] bg-white p-10 text-center">
+          <p className="text-sm font-black text-[#4f2832]">Select an image above to preview in the game</p>
+        </div>
+      ) : null}
+    </SectionShell>
+  );
 }
 
 

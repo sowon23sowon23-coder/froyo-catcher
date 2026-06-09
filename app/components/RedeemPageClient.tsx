@@ -18,8 +18,21 @@ type RedeemCoupon = {
 type RedeemResponse = {
   state: CouponState;
   redeemedNow?: boolean;
+  nextRedeemAvailableAt?: string | null;
   coupon?: RedeemCoupon;
 };
+
+function formatUnlockTime(iso: string | null | undefined) {
+  const date = new Date(String(iso || ""));
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 function stateLabel(state: CouponState) {
   if (state === "valid") return "Valid";
@@ -68,7 +81,8 @@ export default function RedeemPageClient({
       });
       const json = (await res.json().catch(() => ({}))) as RedeemResponse & { error?: string };
       if (!res.ok) {
-        setError(json.error || "Failed to redeem coupon.");
+        const unlockText = formatUnlockTime(json.nextRedeemAvailableAt);
+        setError(unlockText ? `${json.error || "Coupon is not ready to use yet"} Opens ${unlockText}.` : json.error || "Failed to redeem coupon.");
         return;
       }
       setData(json);

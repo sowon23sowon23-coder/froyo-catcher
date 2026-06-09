@@ -390,6 +390,7 @@ export default function Page() {
   const [activeGameSessionId, setActiveGameSessionId] = useState<string>("");
   const [gameAccess, setGameAccess] = useState<GameAccessState | null>(null);
   const [gameAccessLoaded, setGameAccessLoaded] = useState(false);
+  const activeGameSessionIdRef = useRef<string>("");
   const gameStartTimeRef = useRef<number>(0);
 
   const clearClientAuthState = () => {
@@ -1173,6 +1174,46 @@ export default function Page() {
     }
   };
 
+  const recordGameSession = (payload: {
+    sessionId: string;
+    score: number;
+    completed: boolean;
+    playTimeSec?: number;
+    couponIssued?: boolean;
+    couponUpgraded?: boolean;
+    couponRewardType?: WalletCoupon["rewardType"] | null;
+  }) => {
+    const nick = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
+    fetch("/api/game-sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: payload.sessionId,
+        mode: "free",
+        score: payload.score,
+        playTimeSec: payload.playTimeSec,
+        completed: payload.completed,
+        couponIssued: payload.couponIssued === true,
+        couponUpgraded: payload.couponUpgraded === true,
+        couponRewardType: payload.couponRewardType ?? null,
+        nicknameKey: nick.length >= 2 ? nick.toLowerCase() : null,
+      }),
+    }).catch(() => undefined);
+  };
+
+  const beginGameSession = () => {
+    const nextSessionId = createGameSessionId();
+    activeGameSessionIdRef.current = nextSessionId;
+    setActiveGameSessionId(nextSessionId);
+    gameStartTimeRef.current = Date.now();
+    recordGameSession({
+      sessionId: nextSessionId,
+      score: 0,
+      completed: false,
+    });
+    return nextSessionId;
+  };
+
   const onLogin = async (payload: LoginPayload) => {
     const trimmed = payload.nickname.trim();
     setLoginLoading(true);
@@ -1371,8 +1412,6 @@ export default function Page() {
                   }
                   setCharacter(char);
                   setCouponNotice(null);
-                  setActiveGameSessionId(createGameSessionId());
-                  gameStartTimeRef.current = Date.now();
                   setLastNick(authNick ?? localStorage.getItem("nickname") ?? undefined);
                   setPhase("game");
                   setStartSignal((n) => n + 1);
@@ -1397,38 +1436,34 @@ export default function Page() {
                   setBest(newBest);
                   localStorage.setItem("bestScore", String(newBest));
                 }}
+                onGameStart={beginGameSession}
                 onGameOver={async (
                   finalScore: number,
                   options?: { openLeaderboard?: boolean }
                 ) => {
                   const nick = (authNick ?? localStorage.getItem("nickname") ?? "").trim();
+                  const gameSessionId = activeGameSessionIdRef.current || activeGameSessionId;
                   const normalizedStore = "__ALL__";
                   const leaderboardMode: LeaderMode = "today";
                   const isFreePlay = true;
                   const previousBest = readSyncedLocalAllTimeBest(nick || "guest", normalizedStore) ?? 0;
                   const isNewPersonalBest = finalScore > previousBest;
                   const shouldOpenLeaderboard = !!options?.openLeaderboard;
-                  const issuedCoupon = await issueCouponReward(finalScore, activeGameSessionId, "free");
+                  const issuedCoupon = await issueCouponReward(finalScore, gameSessionId, "free");
 
                   // Fire-and-forget: record the game session for analytics
                   const playTimeSec = gameStartTimeRef.current > 0
                     ? Math.round((Date.now() - gameStartTimeRef.current) / 1000)
                     : undefined;
-                  fetch("/api/game-sessions", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      sessionId: activeGameSessionId,
-                      mode: "free",
-                      score: finalScore,
-                      playTimeSec,
-                      completed: true,
-                      couponIssued: !!issuedCoupon,
-                      couponUpgraded: issuedCoupon?.upgraded === true,
-                      couponRewardType: issuedCoupon?.rewardType ?? null,
-                      nicknameKey: nick.length >= 2 ? nick.toLowerCase() : null,
-                    }),
-                  }).catch(() => undefined);
+                  recordGameSession({
+                    sessionId: gameSessionId,
+                    score: finalScore,
+                    playTimeSec,
+                    completed: true,
+                    couponIssued: !!issuedCoupon,
+                    couponUpgraded: issuedCoupon?.upgraded === true,
+                    couponRewardType: issuedCoupon?.rewardType ?? null,
+                  });
 
                   if (issuedCoupon) {
                     upsertLocalWalletCoupon({

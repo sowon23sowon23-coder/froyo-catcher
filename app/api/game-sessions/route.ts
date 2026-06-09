@@ -50,12 +50,46 @@ export async function POST(req: NextRequest) {
       coupon_issued: body.couponIssued === true,
       coupon_reward_type: body.couponRewardType ? String(body.couponRewardType) : null,
     };
-    const inserted = await supabase.from("game_sessions").insert([
-      {
-        ...row,
-        coupon_upgraded: body.couponUpgraded === true,
-      },
-    ]);
+    const rowWithUpgrade = {
+      ...row,
+      coupon_upgraded: body.couponUpgraded === true,
+    };
+
+    const insertSession = async (includeCouponUpgrade: boolean) =>
+      supabase.from("game_sessions").insert([includeCouponUpgrade ? rowWithUpgrade : row]);
+
+    const updateSession = async (includeCouponUpgrade: boolean) =>
+      supabase
+        .from("game_sessions")
+        .update(includeCouponUpgrade ? rowWithUpgrade : row)
+        .eq("session_id", sessionId)
+        .select("id")
+        .limit(1);
+
+    if (body.completed !== false) {
+      const updated = await updateSession(true);
+      if (updated.error) {
+        const message = String(updated.error.message || "");
+        const missingCouponUpgradedColumn = message.includes("coupon_upgraded");
+        if (!missingCouponUpgradedColumn) {
+          console.error("game_sessions update failed", updated.error);
+          return NextResponse.json({ error: "Failed to record session." }, { status: 500 });
+        }
+
+        const fallbackUpdated = await updateSession(false);
+        if (fallbackUpdated.error) {
+          console.error("game_sessions fallback update failed", fallbackUpdated.error);
+          return NextResponse.json({ error: "Failed to record session." }, { status: 500 });
+        }
+        if ((fallbackUpdated.data ?? []).length > 0) {
+          return NextResponse.json({ ok: true });
+        }
+      } else if ((updated.data ?? []).length > 0) {
+        return NextResponse.json({ ok: true });
+      }
+    }
+
+    const inserted = await insertSession(true);
 
     if (inserted.error) {
       const message = String(inserted.error.message || "");
@@ -65,7 +99,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Failed to record session." }, { status: 500 });
       }
 
-      const fallbackInserted = await supabase.from("game_sessions").insert([row]);
+      const fallbackInserted = await insertSession(false);
       if (fallbackInserted.error) {
         console.error("game_sessions fallback insert failed", fallbackInserted.error);
         return NextResponse.json({ error: "Failed to record session." }, { status: 500 });

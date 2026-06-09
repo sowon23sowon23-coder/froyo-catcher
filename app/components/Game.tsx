@@ -200,14 +200,18 @@ export default function Game({
   startSignal,
   onExitToHome,
   onBestScore,
+  onGameStart,
   onGameOver,
+  previewBg,
 }: {
   character: CharId;
   mode: GameMode;
   startSignal: number;
   onExitToHome: () => void;
   onBestScore: (best: number) => void;
+  onGameStart?: () => void;
   onGameOver?: (finalScore: number, options?: { openLeaderboard?: boolean }) => void;
+  previewBg?: string;
 }) {
   const [phase, setPhase] = useState<"idle" | "play" | "over">("idle");
   const [countdown, setCountdown] = useState<"mission" | "ready" | "go" | null>(null);
@@ -303,6 +307,11 @@ export default function Game({
   );
 
   useEffect(() => {
+    if (previewBg) {
+      setGameBg(previewBg);
+      return;
+    }
+
     let active = true;
 
     runAfterFirstPaint(() => {
@@ -317,7 +326,7 @@ export default function Game({
     return () => {
       active = false;
     };
-  }, []);
+  }, [previewBg]);
 
   useEffect(() => {
     const available = [...FALLING_ITEM_CANDIDATES];
@@ -432,6 +441,7 @@ export default function Game({
     }
 
     trackEvent({ action: "game_start", category: "game", label: mode, value: 0 });
+    onGameStart?.();
 
     if (mode === "mission") {
       const missionPool = fallingItemImages.length > 0 ? fallingItemImages : ["gummy-bear.png"];

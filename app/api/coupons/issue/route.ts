@@ -346,48 +346,41 @@ export async function POST(req: NextRequest) {
         redeemedAt: todayCoupon.redeemed_at,
       });
 
-      if (existingState !== "valid") {
+      if (existingState === "valid") {
+        const existingDiscount = getCouponDiscountPercent(todayCoupon.reward_type) ?? 0;
+        if (reward.discountPercent <= existingDiscount) {
+          return NextResponse.json({
+            eligible: true,
+            issued: false,
+            reason: "user_daily_limit_reached",
+            message: "You've already earned today's best available coupon. Check My Wallet.",
+          });
+        }
+
+        // Upgrade the existing active coupon to the higher tier
+        const upgraded = await supabase
+          .from("wallet_coupons")
+          .update({ reward_type: reward.type, title: reward.title, description: reward.description })
+          .eq("id", todayCoupon.id)
+          .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
+          .single();
+
+        if (upgraded.error || !upgraded.data?.id) {
+          console.error("Coupon upgrade failed", upgraded.error);
+          return NextResponse.json({
+            error: "Failed to upgrade coupon.",
+            detail: upgraded.error?.message ?? null,
+          }, { status: 500 });
+        }
+
         return NextResponse.json({
           eligible: true,
-          issued: false,
-          reason: "user_daily_limit_reached",
-          message: "You've used all available coupons for today.",
+          issued: true,
+          upgraded: true,
+          coupon: serializeIssuedCoupon(upgraded.data),
+          qrPayload: reward.fixedQrValue,
         });
       }
-
-      const existingDiscount = getCouponDiscountPercent(todayCoupon.reward_type) ?? 0;
-      if (reward.discountPercent <= existingDiscount) {
-        return NextResponse.json({
-          eligible: true,
-          issued: false,
-          reason: "user_daily_limit_reached",
-          message: "You've used all available coupons for today.",
-        });
-      }
-
-      // Upgrade the existing active coupon to the higher tier
-      const upgraded = await supabase
-        .from("wallet_coupons")
-        .update({ reward_type: reward.type, title: reward.title, description: reward.description })
-        .eq("id", todayCoupon.id)
-        .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
-        .single();
-
-      if (upgraded.error || !upgraded.data?.id) {
-        console.error("Coupon upgrade failed", upgraded.error);
-        return NextResponse.json({
-          error: "Failed to upgrade coupon.",
-          detail: upgraded.error?.message ?? null,
-        }, { status: 500 });
-      }
-
-      return NextResponse.json({
-        eligible: true,
-        issued: true,
-        upgraded: true,
-        coupon: serializeIssuedCoupon(upgraded.data),
-        qrPayload: reward.fixedQrValue,
-      });
     }
 
     const evaluation = await supabase

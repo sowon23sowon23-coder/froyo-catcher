@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCouponState, getWalletCouponStatus, type CouponState } from "../../../../lib/coupons";
+import {
+  COUPON_REDEEM_COOLDOWN_HOURS,
+  getCouponRedeemUnlockIso,
+  getCouponState,
+  getWalletCouponStatus,
+  type CouponState,
+} from "../../../../lib/coupons";
 import { isCompleteBlockActive } from "../../../../lib/gameAccessServer";
 import { getServerSupabase } from "../../../../lib/serverSupabase";
 import { requirePortalRole } from "../../../../lib/portalAuth";
@@ -11,7 +17,7 @@ function buildInvalidResponse(status = 404) {
 async function loadCoupon(supabase: NonNullable<ReturnType<typeof getServerSupabase>>, token: string) {
   return supabase
     .from("wallet_coupons")
-    .select("id,title,description,status,expires_at,redeemed_at,redeemed_staff_name,redeemed_store_name")
+    .select("id,entry_id,title,description,status,expires_at,redeemed_at,redeemed_staff_name,redeemed_store_name")
     .eq("redeem_token", token)
     .maybeSingle();
 }
@@ -114,6 +120,44 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
 
   if (!staffName || !storeName) {
     return NextResponse.json({ error: "Store name and staff name are required." }, { status: 400 });
+  }
+
+  const target = await loadCoupon(supabase, token);
+  if (target.error) {
+    return NextResponse.json({ error: target.error.message || "Failed to load coupon." }, { status: 500 });
+  }
+  if (!target.data?.id || !target.data?.entry_id) {
+    return buildInvalidResponse();
+  }
+
+  const cooldownStart = new Date(Date.now() - COUPON_REDEEM_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+  const recentRedeem = await supabase
+    .from("wallet_coupons")
+    .select("id,redeemed_at")
+    .eq("entry_id", target.data.entry_id)
+    .neq("id", target.data.id)
+    .eq("status", "redeemed")
+    .gte("redeemed_at", cooldownStart)
+    .order("redeemed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentRedeem.error) {
+    return NextResponse.json({ error: recentRedeem.error.message || "Failed to check coupon cooldown." }, { status: 500 });
+  }
+
+  const nextRedeemAvailableAt = getCouponRedeemUnlockIso(recentRedeem.data?.redeemed_at);
+  if (nextRedeemAvailableAt && new Date(nextRedeemAvailableAt).getTime() > Date.now()) {
+    return NextResponse.json(
+      {
+        error: "Coupon use is locked for 24 hours after the last redemption.",
+        state: "valid" satisfies CouponState,
+        redeemedNow: false,
+        nextRedeemAvailableAt,
+        coupon: serializeCouponState(target.data).coupon,
+      },
+      { status: 429 }
+    );
   }
 
   const updated = await supabase

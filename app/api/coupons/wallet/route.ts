@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCouponState, getWalletCouponStatus, resolveCouponReward } from "../../../lib/coupons";
+import { getCouponRedeemUnlockIso, getCouponState, getWalletCouponStatus, resolveCouponReward } from "../../../lib/coupons";
 import { type EntryContactType, normalizeEmail, normalizeUsPhone } from "../../../lib/entry";
 import { getServerSupabase } from "../../../lib/serverSupabase";
 import { requireAuthenticatedEntry } from "../../../lib/serverEntrySession";
-import { getDallasDayStart, getNextDallasDayStart } from "../../../lib/dallasTime";
 import { isCompleteBlockActive } from "../../../lib/gameAccessServer";
 
 export async function GET(req: NextRequest) {
@@ -75,8 +74,6 @@ export async function GET(req: NextRequest) {
     };
   }
 
-  const todayMidnightDallas = getDallasDayStart();
-
   const rows = await supabase
     .from("wallet_coupons")
     .select("id,reward_type,title,description,status,expires_at,redeem_token,created_at,redeemed_at,redeemed_staff_name,redeemed_store_name")
@@ -114,23 +111,19 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  // canActivateToday: false if the user already activated or redeemed a coupon today.
-  const todayIso = todayMidnightDallas.toISOString();
-  const activatedTodayCount = (rows.data ?? []).filter(
-    (row) =>
-      (row.status === "expired" && row.created_at >= todayIso) ||
-      (row.status === "redeemed" && row.redeemed_at && row.redeemed_at >= todayIso)
-  ).length;
-
-  const latestIssuedRow = (rows.data ?? []).find((row) => row.created_at >= todayIso);
-  const nextIssuanceAt = latestIssuedRow || activatedTodayCount > 0 ? getNextDallasDayStart().toISOString() : null;
+  const latestRedeemedRow = (rows.data ?? [])
+    .filter((row) => row.status === "redeemed" && row.redeemed_at)
+    .sort((a, b) => new Date(String(b.redeemed_at)).getTime() - new Date(String(a.redeemed_at)).getTime())[0];
+  const nextRedeemAvailableAt = getCouponRedeemUnlockIso(latestRedeemedRow?.redeemed_at);
+  const redeemLocked = nextRedeemAvailableAt ? new Date(nextRedeemAvailableAt).getTime() > Date.now() : false;
 
   return NextResponse.json({
     nickname: entry.nickname,
     coupons,
     activeCoupons: coupons.filter((coupon) => coupon.status === "active"),
     historyCoupons: coupons.filter((coupon) => coupon.status !== "active"),
-    canActivateToday: activatedTodayCount < 1,
-    nextIssuanceAt,
+    canActivateToday: !redeemLocked,
+    nextIssuanceAt: redeemLocked ? nextRedeemAvailableAt : null,
+    nextRedeemAvailableAt: redeemLocked ? nextRedeemAvailableAt : null,
   });
 }

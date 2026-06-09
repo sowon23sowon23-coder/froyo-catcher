@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getServiceSupabaseOrThrow } from "../../../../lib/couponData";
-import { getDallasDayStart } from "../../../../lib/dallasTime";
+import { COUPON_REDEEM_COOLDOWN_HOURS, getCouponRedeemUnlockIso } from "../../../../lib/coupons";
 import { isCompleteBlockActive } from "../../../../lib/gameAccessServer";
 
 const expireWalletCouponSchema = z.object({
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = getServiceSupabaseOrThrow();
 
-    // Fetch coupon to get entry_id for the daily-limit check.
+    // Fetch coupon to get entry_id for the 24-hour redeem cooldown check.
     const couponLookup = await supabase
       .from("wallet_coupons")
       .select("id,entry_id")
@@ -44,14 +44,40 @@ export async function POST(req: NextRequest) {
     }
 
     const entryId = couponLookup.data.entry_id;
-    const todayMidnightDallas = getDallasDayStart();
     const isRedeemAction = parsed.data.action === "redeemed";
 
-    // Attempt the update first (conditional on status='active').
-    // This acts as a lightweight lock: only one concurrent caller can flip a
-    // given coupon from active → expired. We verify the daily cap AFTER the
-    // update and revert if exceeded, which collapses the race window compared
-    // to checking before.
+    if (isRedeemAction) {
+      const cooldownStart = new Date(Date.now() - COUPON_REDEEM_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+      const recentRedeem = await supabase
+        .from("wallet_coupons")
+        .select("id,redeemed_at")
+        .eq("entry_id", entryId)
+        .neq("id", parsed.data.couponId)
+        .eq("status", "redeemed")
+        .gte("redeemed_at", cooldownStart)
+        .order("redeemed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recentRedeem.error) {
+        return NextResponse.json({ error: recentRedeem.error.message || "Failed to check coupon cooldown." }, { status: 500 });
+      }
+
+      const nextRedeemAvailableAt = getCouponRedeemUnlockIso(recentRedeem.data?.redeemed_at);
+      if (nextRedeemAvailableAt && new Date(nextRedeemAvailableAt).getTime() > Date.now()) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Coupon use is locked for 24 hours after your last redemption.",
+            nextRedeemAvailableAt,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // Conditional on status='active', so only one concurrent caller can consume
+    // a given coupon.
     const result = await supabase
       .from("wallet_coupons")
       .update(
@@ -73,30 +99,6 @@ export async function POST(req: NextRequest) {
     }
 
     const didExpire = Boolean(result.data?.id);
-
-    if (didExpire) {
-      // Count how many coupons for this entry were expired (activated) today,
-      // including the one we just flipped.
-      const activatedToday = await supabase
-        .from("wallet_coupons")
-        .select("id", { count: "exact", head: true })
-        .eq("entry_id", entryId)
-        .in("status", ["expired", "redeemed"])
-        .gte("created_at", todayMidnightDallas.toISOString());
-
-      if (!activatedToday.error && (activatedToday.count ?? 0) > 1) {
-        // Daily limit exceeded — revert this coupon back to active.
-        await supabase
-          .from("wallet_coupons")
-          .update({ status: "active" })
-          .eq("id", parsed.data.couponId);
-
-        return NextResponse.json(
-          { success: false, error: "Daily activation limit reached. Only 1 coupon can be used per day." },
-          { status: 429 }
-        );
-      }
-    }
 
     return NextResponse.json({
       success: true,
