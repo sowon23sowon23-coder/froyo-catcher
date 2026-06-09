@@ -1863,6 +1863,7 @@ function UserStatsSection({ data, loading, onRefresh }: {
 function BgPreviewSection() {
   const [uploadedImages, setUploadedImages] = useState<Array<{ name: string; url: string }>>([]);
   const [selectedBg, setSelectedBg] = useState<string | null>(null);
+  const [startSignal, setStartSignal] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = (files: FileList | null) => {
@@ -1877,6 +1878,11 @@ function BgPreviewSection() {
     URL.revokeObjectURL(url);
     setUploadedImages((prev) => prev.filter((img) => img.url !== url));
     if (selectedBg === url) setSelectedBg(null);
+  };
+
+  const selectBg = (url: string) => {
+    setSelectedBg(url);
+    setStartSignal((s) => s + 1);
   };
 
   useEffect(() => {
@@ -1927,7 +1933,7 @@ function BgPreviewSection() {
                 className={`group relative cursor-pointer overflow-hidden rounded-2xl border-2 transition ${
                   selectedBg === img.url ? "border-[#ff8a70]" : "border-transparent hover:border-[#f0ddd8]"
                 }`}
-                onClick={() => setSelectedBg(img.url)}
+                onClick={() => selectBg(img.url)}
               >
                 <img src={img.url} alt={img.name} className="aspect-[9/16] w-full object-cover" />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
@@ -1955,18 +1961,29 @@ function BgPreviewSection() {
       {/* Game preview */}
       {selectedBg ? (
         <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Live Game Preview</p>
-          <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
-            Scores and session data are not recorded in this preview.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Live Game Preview</p>
+              <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+                Scores and session data are not recorded in this preview.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStartSignal((s) => s + 1)}
+              className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56] hover:bg-[#fff0e8]"
+            >
+              Restart
+            </button>
+          </div>
           <div className="mt-5 flex justify-center">
             <div className="overflow-hidden rounded-[1.4rem] shadow-xl" style={{ width: 195, height: 346 }}>
               <div style={{ width: 390, height: 692, transform: "scale(0.5)", transformOrigin: "top left" }}>
                 <Game
                   character="green"
                   mode="free"
-                  startSignal={0}
-                  onExitToHome={() => {}}
+                  startSignal={startSignal}
+                  onExitToHome={() => setStartSignal((s) => s + 1)}
                   onBestScore={() => {}}
                   previewBg={selectedBg}
                 />
