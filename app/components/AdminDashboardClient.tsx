@@ -2276,8 +2276,8 @@ function BgPreviewSection() {
             </button>
           </div>
           <div className="mt-5 flex justify-center">
-            <div className="overflow-hidden rounded-[1.4rem] shadow-xl" style={{ width: 293, height: 519 }}>
-              <div style={{ width: 390, height: 692, transform: "scale(0.75)", transformOrigin: "top left" }}>
+            <div className="overflow-hidden rounded-[1.4rem] shadow-xl" style={{ width: 390, height: 692 }}>
+              <div style={{ width: 390, height: 692 }}>
                 <Game
                   character="green"
                   mode="free"
