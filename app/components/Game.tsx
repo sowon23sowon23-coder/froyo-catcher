@@ -7,7 +7,7 @@ import { COUPON_REWARDS, getEligibleCouponReward } from "../lib/coupons";
 
 type CharId = "green" | "berry" | "sprinkle";
 type GameMode = "free" | "mission" | "timeAttack";
-const HEART_EMOJI = "💗";
+const HEART_EMOJI = "⚽";
 const FREE_HEART_SPAWN_CHANCE = 0.08;
 const FREE_HEART_MIN_INTERVAL_MS = 7000;
 const FREE_HEART_MAX_ACTIVE = 1;
