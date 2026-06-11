@@ -7,7 +7,7 @@ import { COUPON_REWARDS, getEligibleCouponReward } from "../lib/coupons";
 
 type CharId = "green" | "berry" | "sprinkle";
 type GameMode = "free" | "mission" | "timeAttack";
-const HEART_EMOJI = "⚽";
+const SOCCER_BALL_IMAGE = "soccer-ball.png";
 const FREE_HEART_SPAWN_CHANCE = 0.08;
 const FREE_HEART_MIN_INTERVAL_MS = 7000;
 const FREE_HEART_MAX_ACTIVE = 1;
@@ -792,7 +792,7 @@ export default function Game({
     spawnRef.current = window.setInterval(() => {
       setItems((currentItems) => {
         const nowMs = Date.now();
-        const activeHeartCount = currentItems.filter((item) => item.emoji === HEART_EMOJI).length;
+        const activeHeartCount = currentItems.filter((item) => item.image === SOCCER_BALL_IMAGE).length;
         const canSpawnHeartByInterval =
           nowMs - lastHeartSpawnAtRef.current >= FREE_HEART_MIN_INTERVAL_MS;
         const shouldSpawnHeart =
@@ -803,7 +803,7 @@ export default function Game({
 
         let itemData: { emoji?: string; image?: string } | null = null;
         if (shouldSpawnHeart) {
-          itemData = { emoji: HEART_EMOJI };
+          itemData = { image: "soccer-ball.png" };
           lastHeartSpawnAtRef.current = nowMs;
         }
 
@@ -880,7 +880,7 @@ export default function Game({
                 if (!lifeLossReason) lifeLossReason = { x: item.x, text: "WRONG" };
               }
             } else {
-              const isHeart = mode === "free" && item.emoji === HEART_EMOJI;
+              const isHeart = mode === "free" && item.image === SOCCER_BALL_IMAGE;
               if (isHeart) {
                 lifeGain += 1;
                 popsToAdd.push({
@@ -920,7 +920,7 @@ export default function Game({
           }
 
           if (ny > MISS_Y_PCT) {
-            const isHeart = mode === "free" && item.emoji === HEART_EMOJI;
+            const isHeart = mode === "free" && item.image === SOCCER_BALL_IMAGE;
             if (mode === "mission") {
               if (isMissionTarget) {
                 lifeLoss += 1;
