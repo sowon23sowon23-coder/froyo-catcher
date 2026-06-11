@@ -1112,7 +1112,11 @@ export default function Game({
               <span className="text-xs font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">LIVES</span>
               <div className="mt-0.5 flex items-center gap-1">
                 {Array.from({ length: MAX_LIVES }).map((_, i) => (
-                  <span key={i} className="text-lg leading-none">{i < visibleLives ? "❤️" : "🤍"}</span>
+                  <span key={i} className="text-lg leading-none">
+                    {i < visibleLives
+                      ? <img src="/soccer-ball.png" alt="life" draggable={false} className="w-5 h-5 inline-block" />
+                      : <img src="/soccer-ball.png" alt="life" draggable={false} className="w-5 h-5 inline-block opacity-25 grayscale" />}
+                  </span>
                 ))}
                 {extraLives > 0 && (
                   <span className="ml-1 text-sm font-black leading-none text-[var(--yl-primary)]">
