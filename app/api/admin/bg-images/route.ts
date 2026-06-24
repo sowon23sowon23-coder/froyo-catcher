@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export const ACTIVE_BG_KEY = "game_bg_url";
+const ACTIVE_BG_KEY = "game_bg_url";
 
 export async function PATCH(req: NextRequest) {
   const session = requirePortalRole(req, ["admin"]);
