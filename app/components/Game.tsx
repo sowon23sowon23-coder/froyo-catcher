@@ -237,6 +237,7 @@ export default function Game({
   const [shake, setShake] = useState(false);
   const [dangerFlash, setDangerFlash] = useState(false);
   const [gameBg, setGameBg] = useState<string | null>(null);
+  const [livesIcon, setLivesIcon] = useState<{ type: string; value: string } | null>(null);
   const [finalCupLoadFailed, setFinalCupLoadFailed] = useState(false);
 
   const [collectedToppings, setCollectedToppings] = useState<CaughtItem[]>([]);
@@ -339,6 +340,15 @@ export default function Game({
       active = false;
     };
   }, [previewBg]);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/game-lives-icon", { cache: "no-store" })
+      .then((r) => r.json() as Promise<{ icon: { type: string; value: string } | null }>)
+      .then(({ icon }) => { if (active) setLivesIcon(icon); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const available = [...FALLING_ITEM_CANDIDATES];
@@ -1125,9 +1135,13 @@ export default function Game({
               <div className="mt-0.5 flex items-center gap-1">
                 {Array.from({ length: MAX_LIVES }).map((_, i) => (
                   <span key={i} className="text-lg leading-none">
-                    {i < visibleLives
-                      ? <img src="/soccer-ball.png" alt="life" draggable={false} className="w-5 h-5 inline-block" />
-                      : <img src="/soccer-ball.png" alt="life" draggable={false} className="w-5 h-5 inline-block opacity-25 grayscale" />}
+                    {livesIcon?.type === "emoji"
+                      ? <span className={`text-xl ${i < visibleLives ? "" : "opacity-25 grayscale"}`}>{livesIcon.value}</span>
+                      : livesIcon?.type === "image"
+                        ? <img src={livesIcon.value} alt="life" draggable={false} className={`w-5 h-5 inline-block ${i < visibleLives ? "" : "opacity-25 grayscale"}`} />
+                        : i < visibleLives
+                          ? <img src="/soccer-ball.png" alt="life" draggable={false} className="w-5 h-5 inline-block" />
+                          : <img src="/soccer-ball.png" alt="life" draggable={false} className="w-5 h-5 inline-block opacity-25 grayscale" />}
                   </span>
                 ))}
                 {extraLives > 0 && (

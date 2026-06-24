@@ -2079,6 +2079,8 @@ function UserStatsSection({ data, loading, onRefresh }: {
 
 // ??? Section: Background Preview ???????????????????????????????????????????
 
+const EMOJI_PRESETS = ["⚽", "❤️", "🧡", "⭐", "🌟", "🍦", "🍬", "🎯", "💎", "🔥"];
+
 function BgPreviewSection() {
   const [uploadedImages, setUploadedImages] = useState<Array<{ name: string; url: string }>>([]);
   const [selectedBg, setSelectedBg] = useState<string | null>(null);
@@ -2089,15 +2091,41 @@ function BgPreviewSection() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Lives icon state
+  const [livesIcon, setLivesIcon] = useState<{ type: string; value: string } | null>(null);
+  const [livesIconInput, setLivesIconInput] = useState("");
+  const [savingLivesIcon, setSavingLivesIcon] = useState(false);
+
   const loadImages = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/bg-images", { cache: "no-store" });
-      const data = (await res.json()) as { images?: Array<{ name: string; url: string }>; activeBgUrl?: string | null };
-      setUploadedImages(data.images ?? []);
-      setActiveBgUrl(data.activeBgUrl ?? null);
+      const [bgRes, iconRes] = await Promise.all([
+        fetch("/api/admin/bg-images", { cache: "no-store" }),
+        fetch("/api/admin/lives-icon", { cache: "no-store" }),
+      ]);
+      const bgData = (await bgRes.json()) as { images?: Array<{ name: string; url: string }>; activeBgUrl?: string | null };
+      const iconData = (await iconRes.json()) as { icon?: { type: string; value: string } | null };
+      setUploadedImages(bgData.images ?? []);
+      setActiveBgUrl(bgData.activeBgUrl ?? null);
+      const icon = iconData.icon ?? null;
+      setLivesIcon(icon);
+      setLivesIconInput(icon?.type === "emoji" ? icon.value : "");
     } catch {}
     finally { setLoading(false); }
+  };
+
+  const saveLivesIcon = async (icon: { type: string; value: string } | null) => {
+    setSavingLivesIcon(true);
+    try {
+      const res = await fetch("/api/admin/lives-icon", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ icon }),
+      });
+      const data = (await res.json()) as { ok?: boolean; icon?: { type: string; value: string } | null };
+      if (data.ok !== false) setLivesIcon(icon);
+    } catch {}
+    finally { setSavingLivesIcon(false); }
   };
 
   const setLiveBg = async (url: string | null) => {
@@ -2180,6 +2208,70 @@ function BgPreviewSection() {
         >
           {uploading ? "Uploading..." : "Choose Images"}
         </button>
+      </div>
+
+      {/* Lives Icon */}
+      <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
+        <p className="text-sm font-black uppercase tracking-[0.16em] text-[#cd6d66]">Lives Icon</p>
+        <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
+          Change the icon shown in the LIVES display. Default is the soccer ball image.
+        </p>
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <span className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Current:</span>
+          {livesIcon?.type === "emoji"
+            ? <span className="text-2xl">{livesIcon.value}</span>
+            : livesIcon?.type === "image"
+              ? <img src={livesIcon.value} alt="lives icon" className="w-7 h-7 object-cover rounded-lg" />
+              : <img src="/soccer-ball.png" alt="lives icon" className="w-7 h-7 object-cover" />}
+          {livesIcon && (
+            <button
+              type="button"
+              onClick={() => void saveLivesIcon(null)}
+              disabled={savingLivesIcon}
+              className="rounded-2xl border border-[#f0ccc5] px-3 py-1 text-xs font-black text-[#c0502a] hover:bg-[#fff0e8] disabled:opacity-50"
+            >
+              Reset to Default
+            </button>
+          )}
+        </div>
+        <div className="mt-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75] mb-2">Quick Pick</p>
+          <div className="flex flex-wrap gap-2">
+            {EMOJI_PRESETS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => { setLivesIconInput(emoji); void saveLivesIcon({ type: "emoji", value: emoji }); }}
+                disabled={savingLivesIcon}
+                className={`rounded-2xl border px-3 py-1.5 text-xl transition disabled:opacity-50 ${livesIcon?.type === "emoji" && livesIcon.value === emoji ? "border-[#ff8a70] bg-[#fff0e8]" : "border-[#edd9d5] hover:border-[#ff8a70]"}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-2">
+          <input
+            type="text"
+            value={livesIconInput}
+            onChange={(e) => setLivesIconInput(e.target.value)}
+            placeholder="Or type any emoji..."
+            className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-lg font-bold text-[#4d2931] outline-none w-44"
+            maxLength={4}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const v = livesIconInput.trim();
+              if (!v) return;
+              void saveLivesIcon({ type: "emoji", value: v });
+            }}
+            disabled={savingLivesIcon || !livesIconInput.trim()}
+            className="rounded-2xl border border-[#75c28b] bg-[#e8f8ee] px-4 py-2 text-sm font-black text-[#2a8a50] hover:bg-[#d4f0de] disabled:opacity-50"
+          >
+            {savingLivesIcon ? "Saving..." : "Apply"}
+          </button>
+        </div>
       </div>
 
       {/* Thumbnails */}
