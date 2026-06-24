@@ -315,12 +315,24 @@ export default function Game({
     let active = true;
 
     runAfterFirstPaint(() => {
-      const img = new Image();
-      img.decoding = "async";
-      img.onload = () => {
-        if (active) setGameBg("/game-bg-1.png");
-      };
-      img.src = "/game-bg-1.png";
+      void fetch("/api/game-bg", { cache: "no-store" })
+        .then((r) => r.json() as Promise<{ url: string | null }>)
+        .then(({ url }) => {
+          if (!active) return;
+          const src = url || "/game-bg-1.png";
+          const img = new Image();
+          img.decoding = "async";
+          img.onload = () => { if (active) setGameBg(src); };
+          img.onerror = () => { if (active) setGameBg("/game-bg-1.png"); };
+          img.src = src;
+        })
+        .catch(() => {
+          if (!active) return;
+          const img = new Image();
+          img.decoding = "async";
+          img.onload = () => { if (active) setGameBg("/game-bg-1.png"); };
+          img.src = "/game-bg-1.png";
+        });
     });
 
     return () => {

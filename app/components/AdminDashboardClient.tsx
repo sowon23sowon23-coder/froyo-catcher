@@ -2082,6 +2082,8 @@ function UserStatsSection({ data, loading, onRefresh }: {
 function BgPreviewSection() {
   const [uploadedImages, setUploadedImages] = useState<Array<{ name: string; url: string }>>([]);
   const [selectedBg, setSelectedBg] = useState<string | null>(null);
+  const [activeBgUrl, setActiveBgUrl] = useState<string | null>(null);
+  const [settingLive, setSettingLive] = useState(false);
   const [startSignal, setStartSignal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -2091,10 +2093,25 @@ function BgPreviewSection() {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/bg-images", { cache: "no-store" });
-      const data = (await res.json()) as { images?: Array<{ name: string; url: string }> };
+      const data = (await res.json()) as { images?: Array<{ name: string; url: string }>; activeBgUrl?: string | null };
       setUploadedImages(data.images ?? []);
+      setActiveBgUrl(data.activeBgUrl ?? null);
     } catch {}
     finally { setLoading(false); }
+  };
+
+  const setLiveBg = async (url: string | null) => {
+    setSettingLive(true);
+    try {
+      const res = await fetch("/api/admin/bg-images", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (data.ok) setActiveBgUrl(url);
+    } catch {}
+    finally { setSettingLive(false); }
   };
 
   useEffect(() => { void loadImages(); }, []);
@@ -2172,9 +2189,21 @@ function BgPreviewSection() {
         </div>
       ) : uploadedImages.length > 0 ? (
         <div className="rounded-[1.6rem] border border-[#f0ddd8] bg-white p-5">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">
-            Saved Images ({uploadedImages.length}) — click to preview
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">
+              Saved Images ({uploadedImages.length}) — click to preview
+            </p>
+            {activeBgUrl && (
+              <button
+                type="button"
+                onClick={() => void setLiveBg(null)}
+                disabled={settingLive}
+                className="rounded-2xl border border-[#f0ccc5] px-3 py-1.5 text-xs font-black text-[#c0502a] hover:bg-[#fff0e8] disabled:opacity-50"
+              >
+                Reset to Default BG
+              </button>
+            )}
+          </div>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {uploadedImages.map((img) => (
               <div
@@ -2188,11 +2217,14 @@ function BgPreviewSection() {
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
                   <p className="truncate text-[10px] font-black text-white">{img.name}</p>
                 </div>
-                {selectedBg === img.url && (
-                  <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-1.5">
+                <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-1.5 gap-1 flex-wrap">
+                  {selectedBg === img.url && (
                     <span className="rounded-full bg-[#ff8a70] px-2 py-0.5 text-[9px] font-black text-white">Selected</span>
-                  </div>
-                )}
+                  )}
+                  {activeBgUrl === img.url && (
+                    <span className="rounded-full bg-[#2a8a50] px-2 py-0.5 text-[9px] font-black text-white">Live</span>
+                  )}
+                </div>
                 <button
                   type="button"
                   title="Remove"
@@ -2213,17 +2245,27 @@ function BgPreviewSection() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Live Game Preview</p>
-              <p className="mt-1 text-xs font-semibond text-[#9a6f75]">
+              <p className="mt-1 text-xs font-semibold text-[#9a6f75]">
                 Scores and session data are not recorded in this preview.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setStartSignal((s) => s + 1)}
-              className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56] hover:bg-[#fff0e8]"
-            >
-              Restart
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void setLiveBg(selectedBg)}
+                disabled={settingLive || activeBgUrl === selectedBg}
+                className="rounded-2xl border border-[#75c28b] bg-[#e8f8ee] px-4 py-2 text-sm font-black text-[#2a8a50] hover:bg-[#d4f0de] disabled:opacity-50"
+              >
+                {settingLive ? "Applying..." : activeBgUrl === selectedBg ? "Live BG Active" : "Set as Live BG"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStartSignal((s) => s + 1)}
+                className="rounded-2xl border border-[#edd9d5] px-4 py-2 text-sm font-black text-[#764a56] hover:bg-[#fff0e8]"
+              >
+                Restart
+              </button>
+            </div>
           </div>
           <div className="mt-5 flex justify-center">
             <div className="overflow-hidden rounded-[1.4rem] shadow-xl" style={{ width: 390, height: 692 }}>

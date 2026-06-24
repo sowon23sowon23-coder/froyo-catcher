@@ -22,19 +22,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = await ensureBucket();
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .list("", { sortBy: { column: "created_at", order: "asc" } });
-    if (error) throw error;
+    const [listResult, configResult] = await Promise.all([
+      supabase.storage.from(BUCKET).list("", { sortBy: { column: "created_at", order: "asc" } }),
+      supabase.from("coupon_config").select("value").eq("key", ACTIVE_BG_KEY).maybeSingle(),
+    ]);
+    if (listResult.error) throw listResult.error;
 
-    const images = (data ?? [])
+    const images = (listResult.data ?? [])
       .filter((f: { name: string }) => f.name !== ".emptyFolderPlaceholder")
       .map((f: { name: string }) => ({
         name: f.name,
         url: supabase.storage.from(BUCKET).getPublicUrl(f.name).data.publicUrl,
       }));
 
-    return NextResponse.json({ images });
+    const activeBgUrl = (configResult.data?.value as string | null) ?? null;
+    return NextResponse.json({ images, activeBgUrl });
   } catch (err) {
     console.error("bg-images GET error", err);
     return NextResponse.json({ error: "Failed to list images." }, { status: 500 });
@@ -66,6 +68,26 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("bg-images POST error", err);
     return NextResponse.json({ error: "Failed to upload image." }, { status: 500 });
+  }
+}
+
+export const ACTIVE_BG_KEY = "game_bg_url";
+
+export async function PATCH(req: NextRequest) {
+  const session = requirePortalRole(req, ["admin"]);
+  if (!session) return NextResponse.json({ error: "Admin login is required." }, { status: 401 });
+
+  try {
+    const { url } = (await req.json()) as { url: string | null };
+    const supabase = getServiceSupabaseOrThrow();
+    const { error } = await supabase
+      .from("coupon_config")
+      .upsert({ key: ACTIVE_BG_KEY, value: url ?? null }, { onConflict: "key" });
+    if (error) throw error;
+    return NextResponse.json({ ok: true, url });
+  } catch (err) {
+    console.error("bg-images PATCH error", err);
+    return NextResponse.json({ error: "Failed to set active background." }, { status: 500 });
   }
 }
 
