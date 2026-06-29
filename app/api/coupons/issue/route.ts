@@ -325,7 +325,7 @@ export async function POST(req: NextRequest) {
 
     const todayCouponResult = await supabase
       .from("wallet_coupons")
-      .select("id,reward_type,status,expires_at,redeemed_at")
+      .select("id,reward_type,status,expires_at,redeemed_at,created_at")
       .eq("entry_id", entry.id)
       .gte("created_at", gameDayStart.toISOString())
       .order("created_at", { ascending: false })
@@ -344,9 +344,10 @@ export async function POST(req: NextRequest) {
         status: todayCoupon.status,
         expiresAt: todayCoupon.expires_at,
         redeemedAt: todayCoupon.redeemed_at,
+        createdAt: todayCoupon.created_at,
       });
 
-      if (existingState === "valid") {
+      if (existingState === "valid" || existingState === "locked") {
         const existingDiscount = getCouponDiscountPercent(todayCoupon.reward_type) ?? 0;
         if (reward.discountPercent <= existingDiscount) {
           return NextResponse.json({

@@ -1,6 +1,6 @@
 export type CouponRewardType = string;
 export type CouponGameMode = "free" | "mission" | "timeAttack";
-export type CouponState = "valid" | "already_redeemed" | "expired" | "invalid";
+export type CouponState = "valid" | "already_redeemed" | "expired" | "invalid" | "locked";
 
 export type CouponRewardDefinition = {
   type: CouponRewardType;
@@ -11,49 +11,51 @@ export type CouponRewardDefinition = {
   description: string;
 };
 
-export const COUPON_EXPIRY_HOURS = 36;
+export const COUPON_UNLOCK_DELAY_HOURS = 24;
+export const COUPON_USABLE_DAYS = 7;
+export const COUPON_EXPIRY_HOURS = COUPON_UNLOCK_DELAY_HOURS + COUPON_USABLE_DAYS * 24; // 192h total
 export const COUPON_REDEEM_COOLDOWN_HOURS = 24;
 
 export const COUPON_REWARDS: CouponRewardDefinition[] = [
   {
-    type: "discount_20_percent",
+    type: "discount_35_percent",
     threshold: 200,
-    discountPercent: 20,
-    fixedQrValue: "YL20MN56P734Q26",
-    title: "20% OFF",
-    description: "Score 200 or more to unlock a 20% discount coupon.",
+    discountPercent: 35,
+    fixedQrValue: "YL35WB71Q489C26",
+    title: "35% OFF",
+    description: "Score 200 or more to unlock a 35% discount coupon.",
+  },
+  {
+    type: "discount_30_percent",
+    threshold: 150,
+    discountPercent: 30,
+    fixedQrValue: "YL30FP58N234J26",
+    title: "30% OFF",
+    description: "Score 150 or more to unlock a 30% discount coupon.",
+  },
+  {
+    type: "discount_25_percent",
+    threshold: 100,
+    discountPercent: 25,
+    fixedQrValue: "YL25HK93M617E26",
+    title: "25% OFF",
+    description: "Score 100 or more to unlock a 25% discount coupon.",
   },
   {
     type: "discount_15_percent",
-    threshold: 150,
+    threshold: 50,
     discountPercent: 15,
     fixedQrValue: "YL15TR62L440D26",
     title: "15% OFF",
-    description: "Score 150 or more to unlock a 15% discount coupon.",
+    description: "Score 50 or more to unlock a 15% discount coupon.",
   },
   {
     type: "discount_10_percent",
-    threshold: 100,
+    threshold: 30,
     discountPercent: 10,
     fixedQrValue: "YL10QZ88P357R26",
     title: "10% OFF",
-    description: "Score 100 or more to unlock a 10% discount coupon.",
-  },
-  {
-    type: "discount_5_percent",
-    threshold: 50,
-    discountPercent: 5,
-    fixedQrValue: "YL05BV24M108W26",
-    title: "5% OFF",
-    description: "Score 50 or more to unlock a 5% discount coupon.",
-  },
-  {
-    type: "discount_3_percent",
-    threshold: 30,
-    discountPercent: 3,
-    fixedQrValue: "YL03AX79K921S26",
-    title: "3% OFF",
-    description: "Score 30 or more to unlock a 3% discount coupon.",
+    description: "Score 30 or more to unlock a 10% discount coupon.",
   },
 ] as const;
 
@@ -249,6 +251,11 @@ export function getCouponExpiryIso(now = new Date()) {
   return expires.toISOString();
 }
 
+export function getCouponUnlockAtIso(createdAt: string | null | undefined, now = new Date()) {
+  const base = createdAt ? new Date(createdAt) : now;
+  return new Date(base.getTime() + COUPON_UNLOCK_DELAY_HOURS * 60 * 60 * 1000).toISOString();
+}
+
 export function getCouponRedeemUnlockIso(redeemedAt: string | null | undefined) {
   const redeemedMs = new Date(String(redeemedAt || "")).getTime();
   if (!Number.isFinite(redeemedMs)) return null;
@@ -275,10 +282,15 @@ export function getCouponState(input: {
   status?: string | null;
   expiresAt?: string | null;
   redeemedAt?: string | null;
+  createdAt?: string | null;
 }): CouponState {
   const isRedeemed = input.status === "redeemed" || Boolean(input.redeemedAt);
   if (isRedeemed) return "already_redeemed";
   if (isCouponExpired(String(input.expiresAt || ""))) return "expired";
+  if (input.createdAt) {
+    const unlockMs = new Date(input.createdAt).getTime() + COUPON_UNLOCK_DELAY_HOURS * 60 * 60 * 1000;
+    if (Date.now() < unlockMs) return "locked";
+  }
   return "valid";
 }
 
@@ -286,9 +298,10 @@ export function getWalletCouponStatus(input: {
   status?: string | null;
   expiresAt?: string | null;
   redeemedAt?: string | null;
+  createdAt?: string | null;
 }): "active" | "redeemed" | "expired" {
   const state = getCouponState(input);
   if (state === "already_redeemed") return "redeemed";
   if (state === "expired") return "expired";
-  return "active";
+  return "active"; // both "valid" and "locked" are active in the DB
 }

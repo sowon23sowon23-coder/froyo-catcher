@@ -18,6 +18,11 @@ import {
   removeLegacyWalletCoupons,
   writeLocalWalletCoupons,
 } from "./lib/walletLocalStorage";
+import {
+  activateScheduledNotifications,
+  requestNotificationPermission,
+  scheduleCouponUnlockNotification,
+} from "./lib/couponNotification";
 
 type CharId = "green" | "berry" | "sprinkle";
 type Phase = "login" | "switchAccount" | "home" | "game";
@@ -579,6 +584,11 @@ export default function Page() {
     return () => {
       leaderboardAbortRef.current?.abort();
     };
+  }, []);
+
+  useEffect(() => {
+    const cleanup = activateScheduledNotifications();
+    return cleanup;
   }, []);
 
   const waitAbortable = (ms: number, signal: AbortSignal) =>
@@ -1470,15 +1480,14 @@ export default function Page() {
                       id: Date.now(),
                       rewardType: issuedCoupon.rewardType,
                       title: issuedCoupon.title,
-                      description: issuedCoupon.description || "Your new reward is ready to use.",
+                      description: issuedCoupon.description || "Your coupon will be available to use in 24 hours.",
                       status: "active",
-                      state: "valid",
+                      state: "locked",
                       expiresAt: issuedCoupon.expiresAt,
                       redeemToken: issuedCoupon.redeemToken,
                       createdAt: issuedCoupon.createdAt,
                     });
-                    // Resolve the display label: prefer the resolved reward type, then
-                    // infer from title/description, then fall back to generic "Discount".
+
                     const resolvedReward = resolveCouponReward(
                       issuedCoupon.rewardType,
                       issuedCoupon.title,
@@ -1493,11 +1502,23 @@ export default function Page() {
                     const canUpgrade = resolvedReward ? resolvedReward.discountPercent < maxDiscount : false;
                     setCouponNotice(
                       issuedCoupon.upgraded
-                        ? `Your coupon has been upgraded to a ${percentLabel} discount!`
+                        ? `Your coupon upgraded to ${percentLabel} OFF! Available in 24 hours — check My Wallet.`
                         : canUpgrade
-                          ? `${percentLabel} coupon saved to My Wallet! Play again and score higher to upgrade it.`
-                          : `${percentLabel} discount coupon is in My Wallet!`
+                          ? `${percentLabel} OFF coupon saved! Available in 24 hours. Score higher to upgrade it.`
+                          : `${percentLabel} OFF coupon saved! Available in 24 hours — valid for 7 days.`
                     );
+
+                    // Schedule a browser notification for when the coupon unlocks
+                    void requestNotificationPermission().then((granted) => {
+                      if (granted) {
+                        scheduleCouponUnlockNotification({
+                          token: issuedCoupon.redeemToken,
+                          createdAt: issuedCoupon.createdAt,
+                          couponTitle: `${percentLabel} OFF`,
+                        });
+                        activateScheduledNotifications();
+                      }
+                    });
                   }
 
                   if (!isFreePlay) {
@@ -1557,9 +1578,9 @@ export default function Page() {
               <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--yl-primary)]">Coupon Update</p>
               <p className="text-sm font-bold text-[var(--yl-ink-strong)]">{couponNotice}</p>
             </div>
-            {couponNotice.includes("is in My Wallet") || couponNotice.includes("available coupons") || couponNotice.includes("upgraded") ? (
+            {couponNotice.includes("check My Wallet") || couponNotice.includes("OFF coupon saved") || couponNotice.includes("upgraded") ? (
               <a
-                href={couponNotice.includes("available coupons") ? "/wallet?tab=history" : "/wallet"}
+                href="/wallet"
                 className="rounded-full bg-[var(--yl-primary)] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white"
               >
                 My Wallet

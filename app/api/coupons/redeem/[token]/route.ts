@@ -3,6 +3,7 @@ import {
   COUPON_REDEEM_COOLDOWN_HOURS,
   getCouponRedeemUnlockIso,
   getCouponState,
+  getCouponUnlockAtIso,
   getWalletCouponStatus,
   type CouponState,
 } from "../../../../lib/coupons";
@@ -17,7 +18,7 @@ function buildInvalidResponse(status = 404) {
 async function loadCoupon(supabase: NonNullable<ReturnType<typeof getServerSupabase>>, token: string) {
   return supabase
     .from("wallet_coupons")
-    .select("id,entry_id,title,description,status,expires_at,redeemed_at,redeemed_staff_name,redeemed_store_name")
+    .select("id,entry_id,title,description,status,expires_at,redeemed_at,redeemed_staff_name,redeemed_store_name,created_at")
     .eq("redeem_token", token)
     .maybeSingle();
 }
@@ -31,6 +32,7 @@ function serializeCouponState(row: {
   redeemed_at?: string | null;
   redeemed_staff_name?: string | null;
   redeemed_store_name?: string | null;
+  created_at?: string | null;
 } | null) {
   if (!row?.id) {
     return { state: "invalid" as const };
@@ -38,23 +40,17 @@ function serializeCouponState(row: {
 
   const expiresAt = String(row.expires_at || "");
   const redeemedAt = row.redeemed_at ? String(row.redeemed_at) : null;
-  const state = getCouponState({
-    status: row.status,
-    expiresAt,
-    redeemedAt,
-  });
+  const createdAt = row.created_at ? String(row.created_at) : null;
+  const state = getCouponState({ status: row.status, expiresAt, redeemedAt, createdAt });
 
   return {
     state,
+    lockedUntil: state === "locked" ? getCouponUnlockAtIso(createdAt) : null,
     coupon: {
       id: Number(row.id),
       title: String(row.title || ""),
       description: String(row.description || ""),
-      status: getWalletCouponStatus({
-        status: row.status,
-        expiresAt,
-        redeemedAt,
-      }),
+      status: getWalletCouponStatus({ status: row.status, expiresAt, redeemedAt, createdAt }),
       expiresAt,
       redeemedAt,
       redeemedStaffName: row.redeemed_staff_name ? String(row.redeemed_staff_name) : null,
@@ -128,6 +124,26 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
   }
   if (!target.data?.id || !target.data?.entry_id) {
     return buildInvalidResponse();
+  }
+
+  const currentState = getCouponState({
+    status: target.data.status,
+    expiresAt: target.data.expires_at,
+    redeemedAt: target.data.redeemed_at,
+    createdAt: target.data.created_at,
+  });
+
+  if (currentState === "locked") {
+    const lockedUntil = getCouponUnlockAtIso(target.data.created_at);
+    return NextResponse.json(
+      {
+        error: "This coupon is not available yet.",
+        state: "locked" satisfies CouponState,
+        lockedUntil,
+        coupon: serializeCouponState(target.data).coupon,
+      },
+      { status: 423 }
+    );
   }
 
   const cooldownStart = new Date(Date.now() - COUPON_REDEEM_COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();

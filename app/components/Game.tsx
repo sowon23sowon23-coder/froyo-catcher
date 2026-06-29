@@ -1415,9 +1415,14 @@ export default function Game({
                           })}
                         </div>
                         {earned ? (
-                          <p className="mt-2 text-center text-xs font-black text-[#2f6c1a]">
-                            {earned.discountPercent}% coupon eligible
-                          </p>
+                          <div className="mt-2 rounded-[0.9rem] border border-[#c6efb2] bg-[#f3ffeb] px-3 py-2 text-center">
+                            <p className="text-xs font-black text-[#2f6c1a]">
+                              {earned.discountPercent}% OFF coupon earned!
+                            </p>
+                            <p className="mt-0.5 text-[10px] font-semibold text-[#4d7e32]">
+                              Available in 24h · Valid for 7 days · Check My Wallet
+                            </p>
+                          </div>
                         ) : next ? (
                           <p className="mt-2 text-center text-[11px] font-bold text-[var(--yl-ink-muted)]">
                             {next.threshold - score} more pts for {next.discountPercent}% OFF

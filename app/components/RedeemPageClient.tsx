@@ -19,6 +19,7 @@ type RedeemResponse = {
   state: CouponState;
   redeemedNow?: boolean;
   nextRedeemAvailableAt?: string | null;
+  lockedUntil?: string | null;
   coupon?: RedeemCoupon;
 };
 
@@ -38,6 +39,7 @@ function stateLabel(state: CouponState) {
   if (state === "valid") return "Valid";
   if (state === "already_redeemed") return "Already Redeemed";
   if (state === "expired") return "Expired";
+  if (state === "locked") return "Not Yet Available";
   return "Invalid";
 }
 
@@ -45,6 +47,7 @@ function stateClasses(state: CouponState) {
   if (state === "valid") return "border-[#c6efb2] bg-[#f3ffeb] text-[#3f6b13]";
   if (state === "already_redeemed") return "border-[#d8c6ef] bg-[#faf5ff] text-[#6b21a8]";
   if (state === "expired") return "border-[#ffd3ad] bg-[#fff7ed] text-[#9a3412]";
+  if (state === "locked") return "border-[#fde68a] bg-[#fffbeb] text-[#92610a]";
   return "border-[#f2bfd9] bg-[#fff4fa] text-[var(--yl-primary)]";
 }
 
@@ -170,6 +173,29 @@ export default function RedeemPageClient({
                     {data.coupon.redeemedStaffName ? `Staff: ${data.coupon.redeemedStaffName}` : ""}
                   </p>
                 </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {data.state === "locked" ? (
+            <div className="mt-4 rounded-2xl border border-[#fde68a] bg-[#fffbeb] p-4">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#92610a]">
+                Coupon not yet available
+              </p>
+              <p className="mt-1 text-sm font-semibold text-[#78350f]">
+                This coupon is still in its 24-hour waiting period. It cannot be redeemed yet.
+              </p>
+              {data.lockedUntil ? (
+                <p className="mt-2 text-xs font-black text-[#92610a]">
+                  Available from:{" "}
+                  {new Date(data.lockedUntil).toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    hour12: true,
+                  })}
+                </p>
               ) : null}
             </div>
           ) : null}
