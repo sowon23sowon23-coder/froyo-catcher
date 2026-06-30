@@ -1074,6 +1074,22 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
     onChange({ ...current, rewardTiers: defaults });
   };
 
+  const updateTier = (index: number, patch: Partial<CouponRewardTier>) => {
+    onChange({ ...current, rewardTiers: current.rewardTiers.map((t, i) => i === index ? { ...t, ...patch } : t) });
+  };
+  const addTier = () => {
+    const newTier: CouponRewardTier = { threshold: 10, discountPercent: 5, fixedQrValue: "", active: true };
+    onChange({ ...current, rewardTiers: [...current.rewardTiers, newTier] });
+  };
+  const deleteTier = (index: number) => {
+    onChange({ ...current, rewardTiers: current.rewardTiers.filter((_, i) => i !== index) });
+  };
+  const generateQrValue = (tier: CouponRewardTier) => {
+    const pct = String(tier.discountPercent).padStart(2, "0");
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `YL${pct}${rand}`;
+  };
+
   const enterEdit = () => {
     setEditSnapshot(current);
     setIsEditing(true);
@@ -1129,7 +1145,10 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
             </div>
             <p className="mt-3 text-center text-sm font-black text-[#4f2832]">{qrPreview.label}</p>
             <p className="mt-1 break-all text-center font-mono text-xs text-[#9a6f75]">{qrPreview.value}</p>
-            <button type="button" onClick={() => setQrPreview(null)} className="mt-5 w-full rounded-2xl bg-[#fff0e8] py-3 text-sm font-black text-[#c0502a]">Close</button>
+            <a href={qrPreview.dataUrl} download={`coupon-qr-${qrPreview.value}.png`} className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-[linear-gradient(135deg,#ff9473,#ff6675)] py-3 text-sm font-black text-white">
+              Download QR
+            </a>
+            <button type="button" onClick={() => setQrPreview(null)} className="mt-2 w-full rounded-2xl bg-[#fff0e8] py-3 text-sm font-black text-[#c0502a]">Close</button>
           </div>
         </div>
       )}
@@ -1281,22 +1300,95 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
                 </button>
               )}
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {current.rewardTiers.map((tier, index) => (
-                <div key={`${tier.threshold}-${index}`} className={`rounded-2xl border p-3 transition-opacity ${tier.active === false ? "border-[#f0ddd8] bg-[#fdf5f3] opacity-60" : "border-[#edd9d5] bg-[#fff9f4]"}`}>
-                  <div className="flex items-start justify-between gap-1">
-                    <p className="text-lg font-black text-[#4d2931]">{tier.discountPercent}%</p>
-                    <button type="button" onClick={() => void showQrPreview(tier)} className="rounded-xl border border-[#edd9d5] px-1.5 py-0.5 text-[10px] font-black text-[#9a6f75] hover:border-[#cd6d66] hover:text-[#cd6d66]" title="Preview QR Code">QR</button>
+            {isEditing ? (
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {current.rewardTiers.map((tier, index) => (
+                  <div key={index} className={`rounded-2xl border p-4 transition-opacity ${tier.active === false ? "border-[#f0ddd8] bg-[#fdf5f3] opacity-75" : "border-[#edd9d5] bg-[#fff9f4]"}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9a6f75]">Tier {index + 1}</p>
+                      <button type="button" onClick={() => deleteTier(index)} className="rounded-lg px-1.5 py-0.5 text-[10px] font-black text-[#c0502a] hover:bg-[#fff0e8]">✕ Remove</button>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[#9a6f75]">Discount %</span>
+                        <input
+                          type="number" min={1} max={100}
+                          value={tier.discountPercent}
+                          onChange={(e) => updateTier(index, { discountPercent: Number(e.target.value) })}
+                          className="mt-1 w-full rounded-xl border border-[#edd9d5] bg-white px-2.5 py-1.5 text-sm font-black text-[#4d2931] focus:border-[#cd6d66] focus:outline-none"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[#9a6f75]">Min Score</span>
+                        <input
+                          type="number" min={1}
+                          value={tier.threshold}
+                          onChange={(e) => updateTier(index, { threshold: Number(e.target.value) })}
+                          className="mt-1 w-full rounded-xl border border-[#edd9d5] bg-white px-2.5 py-1.5 text-sm font-black text-[#4d2931] focus:border-[#cd6d66] focus:outline-none"
+                        />
+                      </label>
+                    </div>
+                    <label className="mt-2 block">
+                      <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[#9a6f75]">QR Value</span>
+                      <div className="mt-1 flex gap-1.5">
+                        <input
+                          type="text"
+                          value={tier.fixedQrValue || ""}
+                          onChange={(e) => updateTier(index, { fixedQrValue: e.target.value })}
+                          placeholder="e.g. YL25HK93M617E26"
+                          className="min-w-0 flex-1 rounded-xl border border-[#edd9d5] bg-white px-2.5 py-1.5 font-mono text-xs text-[#4d2931] focus:border-[#cd6d66] focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateTier(index, { fixedQrValue: generateQrValue(tier) })}
+                          title="Auto-generate QR value"
+                          className="shrink-0 rounded-xl border border-[#edd9d5] px-2 py-1.5 text-[10px] font-black text-[#9a6f75] hover:border-[#cd6d66] hover:text-[#cd6d66]"
+                        >
+                          Gen
+                        </button>
+                      </div>
+                    </label>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void showQrPreview(tier)}
+                        className="flex-1 rounded-xl border border-[#edd9d5] py-1.5 text-xs font-black text-[#9a6f75] hover:border-[#cd6d66] hover:text-[#cd6d66]"
+                      >
+                        QR Preview
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleTierActive(index)}
+                        disabled={saving}
+                        className={`flex-1 rounded-xl border py-1.5 text-xs font-black disabled:opacity-50 ${tier.active === false ? "border-[#75c28b] text-[#2a8a50]" : "border-[#f0ccc5] text-[#c0502a]"}`}
+                      >
+                        {tier.active === false ? "Activate" : "Deactivate"}
+                      </button>
+                    </div>
                   </div>
-                  <p className="mt-0.5 text-xs font-semibold text-[#9a6f75]">min {tier.threshold} pts</p>
-                  {isEditing && (
-                    <button type="button" onClick={() => toggleTierActive(index)} disabled={saving} className={`mt-3 w-full rounded-xl border py-1.5 text-xs font-black disabled:opacity-50 ${tier.active === false ? "border-[#75c28b] text-[#2a8a50]" : "border-[#f0ccc5] text-[#c0502a]"}`}>
-                      {tier.active === false ? "Activate" : "Deactivate"}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addTier}
+                  className="flex min-h-[160px] items-center justify-center rounded-2xl border-2 border-dashed border-[#edd9d5] text-sm font-black text-[#c0a0a8] hover:border-[#cd6d66] hover:text-[#cd6d66]"
+                >
+                  + Add Tier
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                {current.rewardTiers.map((tier, index) => (
+                  <div key={`${tier.threshold}-${index}`} className={`rounded-2xl border p-3 transition-opacity ${tier.active === false ? "border-[#f0ddd8] bg-[#fdf5f3] opacity-60" : "border-[#edd9d5] bg-[#fff9f4]"}`}>
+                    <div className="flex items-start justify-between gap-1">
+                      <p className="text-lg font-black text-[#4d2931]">{tier.discountPercent}%</p>
+                      <button type="button" onClick={() => void showQrPreview(tier)} className="rounded-xl border border-[#edd9d5] px-1.5 py-0.5 text-[10px] font-black text-[#9a6f75] hover:border-[#cd6d66] hover:text-[#cd6d66]" title="Preview QR Code">QR</button>
+                    </div>
+                    <p className="mt-0.5 text-xs font-semibold text-[#9a6f75]">min {tier.threshold} pts</p>
+                    {tier.active === false && <p className="mt-1 text-[10px] font-black text-[#c0502a]">Inactive</p>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="mt-5 rounded-2xl border border-[#f0ddd8] bg-[#fffdf8] p-4">
