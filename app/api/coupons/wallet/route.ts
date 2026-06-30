@@ -86,10 +86,12 @@ export async function GET(req: NextRequest) {
 
   const coupons = (rows.data ?? []).map((row) => {
     const resolvedReward = resolveCouponReward(row.reward_type, row.title, row.description);
+    const createdAt = row.created_at ? String(row.created_at) : null;
     const state = getCouponState({
       status: row.status,
       expiresAt: row.expires_at,
       redeemedAt: row.redeemed_at,
+      createdAt,
     });
     return {
       id: Number(row.id),
@@ -100,11 +102,12 @@ export async function GET(req: NextRequest) {
         status: row.status,
         expiresAt: row.expires_at,
         redeemedAt: row.redeemed_at,
+        createdAt,
       }),
       state,
       expiresAt: row.expires_at,
       redeemToken: row.redeem_token,
-      createdAt: row.created_at,
+      createdAt,
       redeemedAt: row.redeemed_at,
       redeemedStaffName: row.redeemed_staff_name,
       redeemedStoreName: row.redeemed_store_name,

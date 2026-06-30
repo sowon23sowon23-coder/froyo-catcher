@@ -400,6 +400,7 @@ export async function POST(req: NextRequest) {
     }
 
     const redeemToken = await createUniqueRedeemToken(supabase);
+    const issuedAt = new Date().toISOString();
     const walletCoupon = await supabase
       .from("wallet_coupons")
       .insert([{
@@ -412,6 +413,7 @@ export async function POST(req: NextRequest) {
         status: "active",
         redeem_token: redeemToken,
         expires_at: expiresAt,
+        created_at: issuedAt,
       }])
       .select("id,title,description,reward_type,expires_at,redeem_token,created_at")
       .single();

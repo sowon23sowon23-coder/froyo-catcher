@@ -1027,11 +1027,11 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
       soldOutMessage: "아쉽게도 오늘의 쿠폰이 모두 소진되었습니다.",
     },
     rewardTiers: [
-      { threshold: 200, discountPercent: 20, active: true },
-      { threshold: 150, discountPercent: 15, active: true },
-      { threshold: 100, discountPercent: 10, active: true },
-      { threshold: 50, discountPercent: 5, active: true },
-      { threshold: 30, discountPercent: 3, active: true },
+      { threshold: 200, discountPercent: 35, fixedQrValue: "YL35WB71Q489C26", active: true },
+      { threshold: 150, discountPercent: 30, fixedQrValue: "YL30FP58N234J26", active: true },
+      { threshold: 100, discountPercent: 25, fixedQrValue: "YL25HK93M617E26", active: true },
+      { threshold: 50, discountPercent: 15, fixedQrValue: "YL15TR62L440D26", active: true },
+      { threshold: 30, discountPercent: 10, fixedQrValue: "YL10QZ88P357R26", active: true },
     ],
     issuanceStats: { dailyIssued: 0, campaignIssued: 0, currentIssued: 0, percentUsed: 0 },
   };
@@ -1062,6 +1062,16 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
   const toggleTierActive = (index: number) => {
     const next = { ...current, rewardTiers: current.rewardTiers.map((tier, i) => i === index ? { ...tier, active: tier.active === false } : tier) };
     onChange(next);
+  };
+  const resetTiersToDefaults = () => {
+    const defaults: CouponRewardTier[] = [
+      { threshold: 200, discountPercent: 35, fixedQrValue: "YL35WB71Q489C26", active: true },
+      { threshold: 150, discountPercent: 30, fixedQrValue: "YL30FP58N234J26", active: true },
+      { threshold: 100, discountPercent: 25, fixedQrValue: "YL25HK93M617E26", active: true },
+      { threshold: 50, discountPercent: 15, fixedQrValue: "YL15TR62L440D26", active: true },
+      { threshold: 30, discountPercent: 10, fixedQrValue: "YL10QZ88P357R26", active: true },
+    ];
+    onChange({ ...current, rewardTiers: defaults });
   };
 
   const enterEdit = () => {
@@ -1260,8 +1270,17 @@ function CouponSettingsSection({ settings, loading, saving, onChange, onSave, on
           </div>
 
           <div className="mt-5 border-t border-[#f5e4de] pt-5">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Reward Tiers</p>
-            <p className="mt-1 text-xs font-semibold text-[#9a6f75]">Inactive tiers are saved but ignored for new coupon issuance.</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a6f75]">Reward Tiers</p>
+                <p className="mt-1 text-xs font-semibold text-[#9a6f75]">Inactive tiers are saved but ignored for new coupon issuance.</p>
+              </div>
+              {isEditing && (
+                <button type="button" onClick={resetTiersToDefaults} disabled={saving} className="rounded-2xl border border-[#edd9d5] px-3 py-1.5 text-xs font-black text-[#764a56] disabled:opacity-50">
+                  Reset to Defaults
+                </button>
+              )}
+            </div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {current.rewardTiers.map((tier, index) => (
                 <div key={`${tier.threshold}-${index}`} className={`rounded-2xl border p-3 transition-opacity ${tier.active === false ? "border-[#f0ddd8] bg-[#fdf5f3] opacity-60" : "border-[#edd9d5] bg-[#fff9f4]"}`}>
